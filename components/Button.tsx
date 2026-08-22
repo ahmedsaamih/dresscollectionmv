@@ -28,13 +28,14 @@ export type ButtonProps = ButtonAsButton | ButtonAsLink;
 
 const BASE =
   'inline-flex items-center justify-center gap-1.5 rounded-xl transition-all cursor-pointer select-none no-underline ' +
+  'uppercase tracking-[.06em] ' +
   'active:scale-[0.97] disabled:active:scale-100 ' +
   'disabled:cursor-not-allowed disabled:opacity-50 ' +
   'aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:pointer-events-none';
 
 const VARIANTS: Record<ButtonVariant, string> = {
   primary:
-    'border-none bg-rose-500 text-onPrimary font-extrabold shadow-rose-lg ' +
+    'border-none bg-rose-500 text-onPrimary font-bold shadow-rose-lg ' +
     'hover:brightness-105 ' +
     'disabled:shadow-none disabled:hover:brightness-100 disabled:bg-rose-500/40',
   secondary:
@@ -48,9 +49,9 @@ const VARIANTS: Record<ButtonVariant, string> = {
 };
 
 const SIZES: Record<ButtonSize, string> = {
-  xs: 'text-[12px] px-[14px] py-2 rounded-[9px]',
-  sm: 'text-[14px] px-4 py-[13px]',
-  md: 'text-[15px] px-6 py-[14px]',
+  xs: 'text-[11px] px-[14px] py-2 rounded-[9px]',
+  sm: 'text-[12.5px] px-4 py-[13px]',
+  md: 'text-[13.5px] px-6 py-[14px]',
 };
 
 /** Shared CTA button — primary/secondary/tertiary × xs/sm/md, renders as a

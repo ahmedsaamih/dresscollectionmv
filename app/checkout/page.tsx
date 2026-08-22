@@ -161,8 +161,8 @@ export default function CheckoutPage() {
         <p className="text-[13.5px] text-sub mb-7">{copy.checkoutNoCardLine}</p>
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-7 items-start">
           <div className="flex flex-col gap-[18px]">
-            <section className="bg-surface border border-[rgba(0,0,0,.08)] rounded-2xl p-[22px]">
-              <h2 className="font-archivo-narrow font-bold text-[18px] mb-4">Your details</h2>
+            <section className="bg-surface rounded-2xl p-[22px]">
+              <h2 className="font-archivo-narrow font-bold text-[16px] uppercase tracking-[.04em] mb-5">Your details</h2>
               <div className="flex flex-col gap-[14px]">
                 <div><label className="text-[12px] font-semibold text-sub block mb-[7px]">Full name</label>{inp(name,setName,'e.g. Ahmed Saleem',!!errors.name,'name')}{errors.name&&<span className="text-[11.5px] text-[#e81a2b] mt-1.5 block">Please enter your name.</span>}</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-[14px]">
@@ -171,8 +171,8 @@ export default function CheckoutPage() {
                 </div>
               </div>
             </section>
-            <section className="bg-surface border border-[rgba(0,0,0,.08)] rounded-2xl p-[22px]">
-              <h2 className="font-archivo-narrow font-bold text-[18px] mb-4">Delivery details</h2>
+            <section className="bg-surface rounded-2xl p-[22px]">
+              <h2 className="font-archivo-narrow font-bold text-[16px] uppercase tracking-[.04em] mb-5">Delivery details</h2>
               <div className="flex flex-col gap-[14px]">
                 <div>
                   <label className="text-[12px] font-semibold text-sub block mb-[7px]">Delivery area</label>
@@ -221,7 +221,7 @@ export default function CheckoutPage() {
               )}
             </section>
           </div>
-          <aside className="lg:sticky lg:top-[84px] bg-surface border border-[rgba(0,0,0,.08)] rounded-2xl p-5">
+          <aside className="lg:sticky lg:top-[84px] bg-surface rounded-2xl p-5">
             <div className="font-extrabold text-[14px] mb-[14px]">Order summary</div>
             <div className="flex flex-col gap-[11px] max-h-[230px] overflow-auto">
               {cart.fixed.map(i=>(

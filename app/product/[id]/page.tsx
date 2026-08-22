@@ -17,6 +17,7 @@ import { formatMVR, COLOR_MAP, LOW_STOCK_THRESHOLD, STOCK_BAR_MAX } from '@/lib/
 import { resolveSizeChart } from '@/lib/sizeChart';
 import { Store, Home, Undo2, Check } from 'lucide-react';
 import { StarRating } from '@/components/StarRating';
+import { ProductCard } from '@/components/ProductCard';
 
 const ACCORDIONS = [
   { title: 'Description', body: 'A soft, breathable weave that moves with you — cut for an easy, flattering fit in tropical heat.' },
@@ -203,7 +204,7 @@ export default function ProductPage() {
           {/* Gallery */}
           <div data-hero-reveal className="opacity-0 lg:sticky lg:top-[90px]">
             <div
-              className="h-[520px] rounded-[18px] overflow-hidden border border-[rgba(0,0,0,.08)] relative"
+              className="aspect-[4/5] rounded-[20px] overflow-hidden relative"
               style={{ background: activeImg }}
             >
               {product.badge && (
@@ -234,20 +235,20 @@ export default function ProductPage() {
             </div>
 
             {/* Colour */}
-            <div className="mt-[26px]">
-              <div className="flex items-center justify-between mb-[11px]">
-                <span className="text-[12.5px] font-bold text-[#705260]">Colour</span>
+            <div className="mt-[28px]">
+              <div className="flex items-center justify-between mb-[12px]">
+                <span className="text-[11px] font-bold uppercase tracking-[.08em] text-[#705260]">Colour</span>
                 <span className="text-[12.5px] text-sub">{color}</span>
               </div>
-              <div className="flex gap-[11px]">
+              <div className="flex gap-[12px]">
                 {product.colors.map(c => (
                   <span
                     key={c} onClick={() => setColor(c)} title={c}
-                    className="w-[38px] h-[38px] rounded-[10px] cursor-pointer transition-all"
+                    className="w-9 h-9 rounded-full cursor-pointer transition-all"
                     style={{
                       background: colorHex(c),
                       boxShadow: color === c
-                        ? '0 0 0 2px #ffffff,0 0 0 4px #db5795'
+                        ? '0 0 0 2px #fdfbf7,0 0 0 4px #db5795'
                         : '0 0 0 1px rgba(0,0,0,.14)',
                     }}
                   />
@@ -256,9 +257,9 @@ export default function ProductPage() {
             </div>
 
             {/* Size */}
-            <div className="mt-6">
-              <div className="flex items-center justify-between mb-[11px]">
-                <span className="text-[12.5px] font-bold text-[#705260]">Size</span>
+            <div className="mt-7">
+              <div className="flex items-center justify-between mb-[12px]">
+                <span className="text-[11px] font-bold uppercase tracking-[.08em] text-[#705260]">Size</span>
                 <SizeChartTrigger chart={chart} />
               </div>
               <div className="flex flex-col gap-[9px]">
@@ -355,15 +356,15 @@ export default function ProductPage() {
             )}
 
             {/* Trust strip */}
-            <div className="grid grid-cols-3 gap-[10px] mt-[22px]">
+            <div className="grid grid-cols-3 gap-[14px] mt-[26px] pt-[22px] border-t border-[rgba(0,0,0,.08)]">
               {[
                 { icon: Store, label: copy.trustOneLabel },
                 { icon: Home, label: copy.trustTwoLabel },
                 { icon: Undo2, label: copy.trustThreeLabel },
               ].map(t => (
-                <div key={t.label} className="bg-[#f9f6f7] border border-[rgba(0,0,0,.07)] rounded-xl p-3">
-                  <div className="text-rose-700"><t.icon size={15} /></div>
-                  <div className="text-[11.5px] text-sub mt-1.5 leading-[1.35]">{t.label}</div>
+                <div key={t.label}>
+                  <div className="text-rose-700"><t.icon size={16} /></div>
+                  <div className="text-[11.5px] text-sub mt-2 leading-[1.35]">{t.label}</div>
                 </div>
               ))}
             </div>
@@ -389,23 +390,11 @@ export default function ProductPage() {
         </div>
 
         {/* Related */}
-        <div data-reveal className="mt-[72px]">
-          <h2 className="font-archivo-narrow font-bold text-[28px] mb-[22px]">{copy.relatedTitle}</h2>
-          <div className="grid grid-cols-1 min-[380px]:grid-cols-2 lg:grid-cols-4 gap-[18px]">
+        <div data-reveal className="mt-[80px]">
+          <h2 className="font-archivo-narrow font-bold text-[26px] sm:text-[30px] mb-[26px]">{copy.relatedTitle}</h2>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-[18px] gap-y-[30px]">
             {related.map(p => (
-              <Link
-                key={p.id} href={`/product/${p.id}`}
-                className="no-underline bg-[#f5f1f3] border border-[rgba(0,0,0,.08)] rounded-2xl overflow-hidden hover:-translate-y-1 hover:border-[rgba(219,87,149,.3)] transition-all block"
-              >
-                <div className="h-[160px] relative" style={{ background: p.img }} />
-                <div className="p-4">
-                  <div className="font-bold text-[14px] text-body">{p.name}</div>
-                  <div className="text-[11.5px] text-muted mt-[3px]">{p.sub}</div>
-                  <div className="font-extrabold text-[15px] text-rose-700 mt-[10px] tabular">
-                    {`MVR ${p.price}`}
-                  </div>
-                </div>
-              </Link>
+              <ProductCard key={p.id} product={p} />
             ))}
           </div>
         </div>
@@ -414,7 +403,7 @@ export default function ProductPage() {
       <Footer />
 
       {/* Sticky mobile bar */}
-      <div className="product-sticky-cta lg:hidden fixed bottom-0 inset-x-0 z-40 flex items-center gap-2 px-3 py-3 border-t border-[rgba(0,0,0,.1)] max-w-full flex-wrap" style={{ background: 'rgba(255,255,255,.95)', backdropFilter: 'blur(12px)' }}>
+      <div className="product-sticky-cta lg:hidden fixed bottom-0 inset-x-0 z-40 flex items-center gap-2 px-3 py-3 border-t border-[rgba(0,0,0,.1)] max-w-full flex-wrap" style={{ background: 'rgba(253,251,247,.95)', backdropFilter: 'blur(12px)' }}>
         <div className="flex-1 min-w-0">
           <div className="text-[10px] uppercase tracking-[.1em] text-muted truncate">{product.name}</div>
           <div className="font-extrabold text-[18px] text-rose-700 tabular leading-tight">

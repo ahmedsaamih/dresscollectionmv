@@ -80,7 +80,7 @@ export default function CartPage() {
         {/* Empty */}
         {!hasFixed && (
           <div className="border border-dashed border-[rgba(0,0,0,.14)] rounded-[18px] py-[72px] px-6 text-center">
-            <div className="w-[60px] h-[60px] rounded-[15px] bg-[rgba(0,0,0,.07)] inline-flex items-center justify-center text-muted"><ShoppingCart size={28} /></div>
+            <div className="w-[60px] h-[60px] rounded-full bg-[rgba(0,0,0,.06)] inline-flex items-center justify-center text-muted"><ShoppingCart size={26} /></div>
             <div className="font-bold text-[20px] mt-[18px]">{copy.cartEmptyTitle}</div>
             <div className="text-[13.5px] text-[#705260] mt-[7px] max-w-[380px] mx-auto leading-[1.55]">{copy.cartEmptyBody}</div>
             <div className="flex gap-3 justify-center mt-[22px] flex-wrap">
@@ -91,19 +91,18 @@ export default function CartPage() {
         )}
 
         {hasFixed && (
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-7 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-9 items-start">
             {/* Items */}
             <div className="flex flex-col gap-[26px]">
               <div>
-                <div className="flex items-center gap-[11px] mb-[14px]">
-                  <span className="w-[9px] h-[9px] rounded-full bg-rose-500 shadow-[0_0_10px_#db5795]" />
-                  <h2 className="font-archivo-narrow font-bold text-[20px]">Your items</h2>
+                <div className="flex items-center gap-[11px] mb-[16px]">
+                  <h2 className="font-archivo-narrow font-bold text-[19px] uppercase tracking-[.04em]">Your items</h2>
                   <span className="text-[11.5px] text-muted">{fixed.length} item{fixed.length!==1?'s':''}</span>
                 </div>
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-4">
                   {fixed.map(i => (
-                    <div key={i.id} data-motion-card className="flex gap-[15px] bg-surface border border-[rgba(0,0,0,.08)] rounded-[15px] p-[15px]">
-                      <div className="w-[78px] h-[78px] rounded-xl flex-none relative overflow-hidden" style={{ background:i.img }} />
+                    <div key={i.id} data-motion-card className="flex gap-[16px] pb-4 border-b border-[rgba(0,0,0,.07)]">
+                      <div className="w-[86px] h-[108px] rounded-[12px] flex-none relative overflow-hidden" style={{ background:i.img }} />
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between gap-[10px]">
                           <div>
@@ -114,14 +113,14 @@ export default function CartPage() {
                           </div>
                           <button onClick={()=>remove(i.id)} className="border-none bg-transparent text-muted cursor-pointer h-fit"><X size={16} /></button>
                         </div>
-                        <div className="flex items-center justify-between mt-[11px]">
-                          <div className="inline-flex items-center border border-[rgba(0,0,0,.13)] rounded-[9px] overflow-hidden">
-                            <button onClick={()=>dec(i.id,i.qty)} className="border-none bg-[rgba(0,0,0,.06)] text-rose-700 w-8 h-8 text-[17px] cursor-pointer">−</button>
+                        <div className="flex items-center justify-between mt-[12px]">
+                          <div className="inline-flex items-center border border-[rgba(0,0,0,.13)] rounded-full overflow-hidden">
+                            <button onClick={()=>dec(i.id,i.qty)} className="border-none bg-transparent text-rose-700 w-8 h-8 text-[17px] cursor-pointer">−</button>
                             <span key={i.qty} className="w-9 text-center font-bold text-[14px] tabular animate-tick-pop">{i.qty}</span>
                             <button
                               disabled={i.qty >= stockFor(i)}
                               onClick={()=>inc(i)}
-                              className="border-none bg-[rgba(0,0,0,.06)] text-rose-700 w-8 h-8 text-[17px] cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                              className="border-none bg-transparent text-rose-700 w-8 h-8 text-[17px] cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                             >+</button>
                           </div>
                           <span className="font-extrabold text-[15px] text-rose-700 tabular">{fmt(i.price * i.qty)}</span>
@@ -135,8 +134,8 @@ export default function CartPage() {
 
             {/* Summary */}
             <aside className="lg:sticky lg:top-[84px] flex flex-col gap-4">
-              <div data-reveal className="bg-surface border border-[rgba(0,0,0,.08)] rounded-2xl p-5">
-                <div className="font-extrabold text-[14px] mb-[14px]">Order summary</div>
+              <div data-reveal className="bg-surface rounded-2xl p-6">
+                <div className="font-extrabold text-[13px] uppercase tracking-[.06em] mb-[16px]">Order summary</div>
                 <div className="flex justify-between text-[13px] text-sub mb-[9px]">
                   <span>Subtotal ({fixed.reduce((a,i)=>a+i.qty,0)} items)</span>
                   <span className="text-body font-semibold tabular">{fmt(subtotal)}</span>
@@ -149,7 +148,7 @@ export default function CartPage() {
                   <span className="font-bold text-[14px]">Total</span>
                   <span className="font-extrabold text-[20px] text-rose-700 tabular">{fmt(subtotal)}</span>
                 </div>
-                <Button onClick={handleCheckout} className="w-full mt-4">
+                <Button onClick={handleCheckout} className="w-full mt-5">
                   {copy.checkoutCta} →
                 </Button>
                 <div className="text-center mt-[11px] text-[11px] text-muted">{copy.noCardCartNote}</div>
@@ -190,11 +189,11 @@ export default function CartPage() {
             </div>
 
             {/* Accessory cards */}
-            <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-3 p-5">
+            <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-4 p-5">
               {accessories.map(p => (
-                  <div key={p.id} className="bg-well border border-[rgba(0,0,0,.08)] rounded-[15px] overflow-hidden flex flex-col">
-                    <div className="h-[90px] relative flex-none" style={{ background: p.img }} />
-                    <div className="p-[12px] flex flex-col flex-1">
+                  <div key={p.id} className="flex flex-col">
+                    <div className="aspect-square rounded-[14px] relative flex-none overflow-hidden" style={{ background: p.img }} />
+                    <div className="pt-[10px] flex flex-col flex-1">
                       <div className="font-bold text-[13.5px] text-[#705260] leading-[1.3]">{p.name}</div>
                       <div className="text-[11px] text-muted mt-[3px] mb-[10px] leading-[1.4] flex-1">{p.sub}</div>
                       <div className="flex items-center justify-between gap-2 flex-wrap">

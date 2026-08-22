@@ -3,10 +3,9 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
-    --font-archivo: 'Archivo', system-ui, sans-serif;
-    --font-archivo-narrow: 'Archivo Narrow', system-ui, sans-serif;
-  }
+  /* --font-archivo / --font-archivo-narrow / --font-fraunces are supplied by
+     next/font/google in app/layout.tsx (applied to <html>), not declared
+     here — that's what actually loads the font files. */
 
   * {
     box-sizing: border-box;
