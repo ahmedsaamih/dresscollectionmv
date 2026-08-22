@@ -11,12 +11,11 @@ import type { Order, SizeChart, PromoCode, Redemption, AdminUser, AdminRole, Pro
 import { hasPermission, MODULES, type ModuleKey, type Permissions } from '@/lib/permissions';
 import { STOREFRONT_COPY_GROUPS, normalizeStorefrontCopy } from '@/lib/storefront-copy';
 import { ADMIN_NAV_ICONS, FULFILLMENT_ICONS, PAYMENT_METHOD_ICONS } from '@/lib/icons';
-import { RECEIPT_TTL_MS } from '@/lib/receipts';
 import { StarRating } from '@/components/StarRating';
 import {
-  LayoutDashboard, Boxes, Layers, ShoppingCart, FileText,
+  LayoutDashboard, Boxes, Layers, ShoppingCart,
   Tag, Ruler, Store, Receipt, Truck, Undo2, ArrowLeftRight,
-  Percent, RefreshCw, Download, Info, Clock, ImageOff, Trash2, Pencil, X,
+  Percent, RefreshCw, Download, Info, Trash2, Pencil, X,
   Check, ArrowUpRight, LogOut, Star, DollarSign, MapPin, Users, Menu,
   ChevronDown,
   type LucideIcon,
@@ -60,10 +59,6 @@ const GRADIENTS = [
 
 function inventoryStockForVariant(rows: InventoryItem[], productId: string, color: string, size: string): number {
   return rows.find(r => r.productId === productId && r.color === (color || '') && r.size === (size || ''))?.qty ?? 0;
-}
-
-function inventoryStockForProduct(rows: InventoryItem[], productId: string): number {
-  return rows.filter(r => r.productId === productId).reduce((sum, r) => sum + r.qty, 0);
 }
 
 function inventoryPhysicalLocation(rows: InventoryItem[], productId: string): string {
@@ -179,23 +174,6 @@ function paymentSlip(o: Order) {
 
 function paymentReceipt(o: Order) {
   return o.receipts?.find(r => r.kind === 'payment_receipt') ?? null;
-}
-
-const BADGE_TONE_CLASS: Record<'success' | 'warning' | 'danger' | 'neutral', string> = {
-  success: 'text-[#600a32] bg-[rgba(219,87,149,.08)] border-[rgba(219,87,149,.25)]',
-  warning: 'text-[#8a6205] bg-[rgba(245,200,66,.1)] border-[rgba(245,200,66,.25)]',
-  danger: 'text-[#8a0510] bg-[rgba(232,26,43,.08)] border-[rgba(232,26,43,.25)]',
-  neutral: 'text-muted bg-[rgba(0,0,0,.04)] border-[rgba(0,0,0,.1)]',
-};
-
-// Compact pill used for the quotes table's confirmation/slip columns and the
-// mobile card badge row — small footprint by design (dense table + phone width).
-function Badge({ tone, icon, children, title }: { tone: 'success' | 'warning' | 'danger' | 'neutral'; icon?: React.ReactNode; children: React.ReactNode; title?: string }) {
-  return (
-    <span title={title} className={`inline-flex items-center gap-1 text-[9.5px] font-extrabold rounded-full px-[7px] py-[3px] border whitespace-nowrap ${BADGE_TONE_CLASS[tone]}`}>
-      {icon}{children}
-    </span>
-  );
 }
 
 // ─── main component ──────────────────────────────────────────────────────────
@@ -907,7 +885,7 @@ export default function AdminPage() {
     return { ...m, draft: { ...m.draft, colorSizeStock: { ...cur, [color]: { ...cur[color], [size]: next } } }, error: '' };
   });
 
-  // ── order / quote helpers ──
+  // ── order helpers ──
   const setOrderStage = async (id: string, stage: number) => {
     try {
       const body: { stage: number; paid?: boolean } = { stage };
@@ -3001,7 +2979,7 @@ export default function AdminPage() {
                   {(['storeName','tagline','email','adminEmail','phone','address'] as const).map(k => (
                     <FieldInput key={k} label={{ storeName:'Store name', tagline:'Tagline', email:'Email', adminEmail:'Admin alert email', phone:'Phone / WhatsApp', address:'Address' }[k]} value={String(s[k])} onChange={v => setSetting(k, v)} />
                   ))}
-                  <div className="text-[11px] text-muted mt-[-10px]">Where "new quote" alert emails are sent to staff — separate from the storefront contact email above.</div>
+                  <div className="text-[11px] text-muted mt-[-10px]">Where "new order" alert emails are sent to staff — separate from the storefront contact email above.</div>
                 </div>
                 <div className="flex flex-col gap-4">
                   <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[15px] p-[22px]">
@@ -4453,18 +4431,6 @@ export default function AdminPage() {
                       })}
                     </select>
                   )}
-                  {manualOrderProduct && manualOrderProduct.sleeves.length > 0 && (
-                    <select value={manualOrderSleeve} onChange={e => setManualOrderSleeve(e.target.value)}
-                      className="bg-surface border border-[rgba(0,0,0,.12)] rounded-[8px] px-3 py-[8px] text-[12.5px] outline-none cursor-pointer">
-                      {manualOrderProduct.sleeves.map(sl => <option key={sl} value={sl}>{sl}{(manualOrderProduct.sleeveAdjustments?.[sl] ?? 0) ? ` +${formatMVR(manualOrderProduct.sleeveAdjustments[sl])}` : ''}</option>)}
-                    </select>
-                  )}
-                  {manualOrderProduct && manualOrderProduct.necks.length > 0 && (
-                    <select value={manualOrderNeck} onChange={e => setManualOrderNeck(e.target.value)}
-                      className="bg-surface border border-[rgba(0,0,0,.12)] rounded-[8px] px-3 py-[8px] text-[12.5px] outline-none cursor-pointer">
-                      {manualOrderProduct.necks.map(n => <option key={n} value={n}>{n}</option>)}
-                    </select>
-                  )}
                   <div className="flex items-center gap-2">
                     <input type="number" min="1" value={manualOrderQty} onChange={e => setManualOrderQty(Math.max(1, parseInt(e.target.value) || 1))}
                       className="w-20 bg-surface border border-[rgba(0,0,0,.12)] rounded-[8px] px-3 py-[8px] text-[12.5px] tabular outline-none focus:border-rose-500" />
@@ -4480,7 +4446,7 @@ export default function AdminPage() {
                     <span className="w-9 h-9 rounded-[7px] flex-none" style={{ background: item.img }} />
                     <div className="flex-1 min-w-0">
                       <div className="text-[12.5px] font-semibold truncate">{item.name}</div>
-                      <div className="text-[11px] text-muted truncate">{[item.size, item.color, item.sleeve, item.neck].filter(Boolean).join(' · ') || item.meta}</div>
+                      <div className="text-[11px] text-muted truncate">{[item.size, item.color].filter(Boolean).join(' · ') || item.meta}</div>
                     </div>
                     <span className="text-[12px] font-bold tabular">×{item.qty}</span>
                     <span className="text-[12px] font-bold tabular text-rose-600">{formatMVR(item.unitPrice * item.qty)}</span>
@@ -4550,187 +4516,6 @@ export default function AdminPage() {
             <div className="flex gap-3 mt-5">
               <button onClick={submitManualOrder} disabled={manualOrderSaving} className="flex-1 border-none bg-rose-500 text-[#200612] font-extrabold text-[14px] py-[12px] rounded-xl cursor-pointer disabled:opacity-50">{manualOrderSaving ? 'Creating…' : 'Create Order'}</button>
               <button onClick={() => setManualOrderModal(false)} className="border border-[rgba(0,0,0,.16)] bg-transparent text-body font-bold text-[14px] px-[20px] py-[12px] rounded-xl cursor-pointer">Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── MANUAL QUOTE MODAL ── */}
-      {manualQuoteModal && (
-        <div className="fixed inset-0 z-[86] bg-[rgba(4,8,7,.8)] backdrop-blur-md flex items-center justify-center p-4" onClick={() => { setManualQuoteModal(false); setManualQuoteItems([]); }}>
-          <div className="w-[620px] max-w-full max-h-[92vh] overflow-y-auto bg-surface border border-[rgba(219,87,149,.22)] rounded-[20px] p-6" onClick={e => e.stopPropagation()}>
-            <div className="flex items-start justify-between mb-5">
-              <div><div className="font-bold text-[20px]">Manual Quote</div><div className="text-[12px] text-muted mt-1">Create a quote on behalf of a customer.</div></div>
-              <button onClick={() => { setManualQuoteModal(false); setManualQuoteItems([]); }} className="border-none bg-transparent text-muted text-[22px] cursor-pointer"><X size={22} /></button>
-            </div>
-
-            {/* Customer info */}
-            <div className="text-[11px] font-extrabold uppercase tracking-[.07em] text-muted mb-3">Customer</div>
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div className="col-span-2">
-                <label className="text-[11.5px] font-semibold text-sub block mb-[5px]">Customer Name *</label>
-                <input type="text" value={manualQuoteDraft.customer} onChange={e => setManualQuoteDraft(d => ({ ...d, customer: e.target.value }))}
-                  className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-3 py-[9px] text-[13.5px] outline-none focus:border-rose-500" />
-              </div>
-              <div>
-                <label className="text-[11.5px] font-semibold text-sub block mb-[5px]">Mobile</label>
-                <input type="tel" value={manualQuoteDraft.mobile} onChange={e => setManualQuoteDraft(d => ({ ...d, mobile: e.target.value }))}
-                  className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-3 py-[9px] text-[13.5px] outline-none focus:border-rose-500" />
-              </div>
-              <div>
-                <label className="text-[11.5px] font-semibold text-sub block mb-[5px]">Email</label>
-                <input type="email" value={manualQuoteDraft.email} onChange={e => setManualQuoteDraft(d => ({ ...d, email: e.target.value }))}
-                  className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-3 py-[9px] text-[13.5px] outline-none focus:border-rose-500" />
-              </div>
-              <div className="col-span-2">
-                <label className="text-[11.5px] font-semibold text-sub block mb-[5px]">Notes / Request</label>
-                <textarea value={manualQuoteDraft.message} onChange={e => setManualQuoteDraft(d => ({ ...d, message: e.target.value }))} rows={2} placeholder="e.g. 22 football kits + goalkeeper jersey, home and away"
-                  className="w-full resize-none bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-3 py-[9px] text-[13.5px] outline-none focus:border-rose-500 leading-relaxed" />
-              </div>
-              {manualQuoteItems.length === 0 && (
-                <div>
-                  <label className="text-[11.5px] font-semibold text-sub block mb-[5px]">Units estimate</label>
-                  <input type="number" min="1" value={manualQuoteDraft.units} onChange={e => setManualQuoteDraft(d => ({ ...d, units: e.target.value }))}
-                    className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-3 py-[9px] text-[13.5px] tabular outline-none focus:border-rose-500" />
-                </div>
-              )}
-            </div>
-
-            {/* Line Items */}
-            <div className="h-px bg-[rgba(0,0,0,.07)] mb-4" />
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-[11px] font-extrabold uppercase tracking-[.07em] text-muted">
-                Line Items {manualQuoteItems.length > 0 && <span className="text-rose-600">({manualQuoteItems.reduce((s, i) => {
-                  const sizeUnits = i.sizeRows.reduce((a, r) => a + (parseInt(r.qty) || 0), 0);
-                  return s + (sizeUnits || parseInt(i.units) || 1);
-                }, 0)} units)</span>}
-              </div>
-              <button type="button"
-                onClick={() => setManualQuoteItems(items => [...items, {
-                  name: '', kind: 'jersey', specs: '', units: '1',
-                  sizeRows: (defaultSizeChart?.rows.map(r => r[0]) ?? []).map(size => ({ size, sleeve: '', qty: '0' })),
-                  sizesLabel: '', color: '', productId: '', customizationLines: [],
-                }])}
-                className="text-[11px] font-extrabold text-rose-600 border border-[rgba(219,87,149,.3)] bg-transparent rounded-[7px] px-3 py-[5px] cursor-pointer hover:brightness-125 transition-all">
-                + Add Item
-              </button>
-            </div>
-            {manualQuoteItems.length === 0 ? (
-              <div className="text-[11.5px] text-muted py-4 text-center border border-dashed border-[rgba(0,0,0,.1)] rounded-[10px] mb-4">
-                No items added — the quote will reference the notes above.
-              </div>
-            ) : (
-              <div className="flex flex-col gap-3 mb-4">
-                {manualQuoteItems.map((item, idx) => (
-                  <div key={idx} className="bg-well border border-[rgba(0,0,0,.1)] rounded-[12px] p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="text-[11px] font-bold text-muted">Item {idx + 1}</div>
-                      <button type="button" onClick={() => setManualQuoteItems(items => items.filter((_, i) => i !== idx))}
-                        className="inline-flex items-center gap-1 text-[11px] text-[#e81a2b] border-none bg-transparent cursor-pointer hover:brightness-125"><X size={11} /> Remove</button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="col-span-2">
-                        <label className="text-[10.5px] text-muted block mb-1">Item Name *</label>
-                        <input value={item.name} onChange={e => setManualQuoteItems(items => items.map((it, i) => i === idx ? { ...it, name: e.target.value } : it))}
-                          placeholder="e.g. Football Jersey, Training Top"
-                          className="w-full bg-surface border border-[rgba(0,0,0,.12)] rounded-[7px] px-3 py-[7px] text-[12.5px] outline-none focus:border-rose-500" />
-                      </div>
-                      <div>
-                        <label className="text-[10.5px] text-muted block mb-1">Type</label>
-                        <select value={item.kind} onChange={e => setManualQuoteItems(items => items.map((it, i) => i === idx ? { ...it, kind: e.target.value } : it))}
-                          className="w-full bg-surface border border-[rgba(0,0,0,.12)] rounded-[7px] px-3 py-[8px] text-[12.5px] outline-none cursor-pointer">
-                          <option value="jersey">Jersey / Sports</option>
-                          <option value="casual">Casual Print</option>
-                          <option value="office">Office Wear</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-[10.5px] text-muted block mb-1">Color</label>
-                        <input value={item.color} onChange={e => setManualQuoteItems(items => items.map((it, i) => i === idx ? { ...it, color: e.target.value } : it))}
-                          placeholder="e.g. Red & White"
-                          className="w-full bg-surface border border-[rgba(0,0,0,.12)] rounded-[7px] px-3 py-[7px] text-[12.5px] outline-none focus:border-rose-500" />
-                      </div>
-                      <div>
-                        <label className="text-[10.5px] text-muted block mb-1">Units (fallback if no sizes below)</label>
-                        <input type="number" min="1" value={item.units} onChange={e => setManualQuoteItems(items => items.map((it, i) => i === idx ? { ...it, units: e.target.value } : it))}
-                          className="w-full bg-surface border border-[rgba(0,0,0,.12)] rounded-[7px] px-3 py-[7px] text-[12.5px] tabular outline-none focus:border-rose-500" />
-                      </div>
-                      <div className="col-span-2">
-                        <label className="text-[10.5px] text-muted block mb-1">Sizes &amp; Sleeve</label>
-                        {item.sizeRows.length > 0 ? (
-                          <div className="border border-[rgba(0,0,0,.1)] rounded-[8px] overflow-hidden">
-                            <div className="grid grid-cols-[1fr_1fr_80px] gap-2 bg-[rgba(0,0,0,.03)] px-3 py-[6px]">
-                              <div className="text-[10px] font-bold text-muted uppercase tracking-[.04em]">Size</div>
-                              <div className="text-[10px] font-bold text-muted uppercase tracking-[.04em]">Sleeve</div>
-                              <div className="text-[10px] font-bold text-muted uppercase tracking-[.04em] text-right">Qty</div>
-                            </div>
-                            {item.sizeRows.map((row, ri) => (
-                              <div key={row.size} className="grid grid-cols-[1fr_1fr_80px] gap-2 items-center px-3 py-[6px] border-t border-[rgba(0,0,0,.06)]">
-                                <div className="text-[12px] font-bold text-body">{row.size}</div>
-                                {data.builderOptions.sleeves.length > 0 ? (
-                                  <select value={row.sleeve} onChange={e => setManualQuoteItems(items => items.map((it, i) => i === idx ? { ...it, sizeRows: it.sizeRows.map((r, j) => j === ri ? { ...r, sleeve: e.target.value } : r) } : it))}
-                                    className="bg-surface border border-[rgba(0,0,0,.12)] rounded-[6px] px-2 py-[5px] text-[11.5px] outline-none cursor-pointer">
-                                    <option value="">—</option>
-                                    {data.builderOptions.sleeves.map(s => <option key={s.id} value={s.label.toLowerCase()}>{s.label}</option>)}
-                                  </select>
-                                ) : <div />}
-                                <input type="number" min="0" value={row.qty} onChange={e => setManualQuoteItems(items => items.map((it, i) => i === idx ? { ...it, sizeRows: it.sizeRows.map((r, j) => j === ri ? { ...r, qty: e.target.value } : r) } : it))}
-                                  className="w-full bg-surface border border-[rgba(0,0,0,.12)] rounded-[6px] px-2 py-[5px] text-[12px] tabular text-right outline-none focus:border-rose-500" />
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <input value={item.sizesLabel} onChange={e => setManualQuoteItems(items => items.map((it, i) => i === idx ? { ...it, sizesLabel: e.target.value } : it))}
-                            placeholder="S2 M4 L8 XL6 (no default size chart configured)"
-                            className="w-full bg-surface border border-[rgba(0,0,0,.12)] rounded-[7px] px-3 py-[7px] text-[12.5px] outline-none focus:border-rose-500" />
-                        )}
-                        <div className="text-[10.5px] text-muted mt-1 tabular">
-                          {item.sizeRows.reduce((s, r) => s + (parseInt(r.qty) || 0), 0)} units total
-                        </div>
-                      </div>
-                      <div className="col-span-2">
-                        <label className="text-[10.5px] text-muted block mb-1">Specs / Description</label>
-                        <input value={item.specs} onChange={e => setManualQuoteItems(items => items.map((it, i) => i === idx ? { ...it, specs: e.target.value } : it))}
-                          placeholder="e.g. Sublimated, round neck, 100% polyester"
-                          className="w-full bg-surface border border-[rgba(0,0,0,.12)] rounded-[7px] px-3 py-[7px] text-[12.5px] outline-none focus:border-rose-500" />
-                      </div>
-                      <div className="col-span-2">
-                        <label className="text-[10.5px] text-muted block mb-1">Product (price derived from catalog price)</label>
-                        <select value={item.productId} onChange={e => setManualQuoteItems(items => items.map((it, i) => i === idx ? { ...it, productId: e.target.value } : it))}
-                          className="w-full bg-surface border border-[rgba(0,0,0,.12)] rounded-[7px] px-3 py-[8px] text-[12.5px] outline-none cursor-pointer">
-                          <option value="">No product — bespoke item</option>
-                          {allProducts.map(p => <option key={p.id} value={p.id}>{p.name} — {formatMVR(p.price)}</option>)}
-                        </select>
-                      </div>
-                      <div className="col-span-2">
-                        <div className="flex items-center justify-between mb-1">
-                          <label className="text-[10.5px] text-muted">Additional costs (e.g. design, printing)</label>
-                          <button type="button" onClick={() => setManualQuoteItems(items => items.map((it, i) => i === idx ? { ...it, customizationLines: [...it.customizationLines, { label: '', cost: '' }] } : it))}
-                            className="text-[10.5px] font-extrabold text-rose-600 border border-[rgba(219,87,149,.3)] bg-transparent rounded-[6px] px-2 py-[3px] cursor-pointer hover:brightness-125 transition-all">
-                            + Add Line
-                          </button>
-                        </div>
-                        {item.customizationLines.map((line, li) => (
-                          <div key={li} className="flex items-center gap-2 mb-2">
-                            <input value={line.label} onChange={e => setManualQuoteItems(items => items.map((it, i) => i === idx ? { ...it, customizationLines: it.customizationLines.map((l, j) => j === li ? { ...l, label: e.target.value } : l) } : it))}
-                              placeholder="e.g. Design fee" className="flex-1 min-w-0 bg-surface border border-[rgba(0,0,0,.12)] rounded-[7px] px-[10px] py-[7px] text-[12px] outline-none focus:border-rose-500" />
-                            <input type="number" min="0" value={line.cost} onChange={e => setManualQuoteItems(items => items.map((it, i) => i === idx ? { ...it, customizationLines: it.customizationLines.map((l, j) => j === li ? { ...l, cost: e.target.value } : l) } : it))}
-                              placeholder="MVR" className="w-20 flex-none bg-surface border border-[rgba(0,0,0,.12)] rounded-[7px] px-2 py-[7px] text-[12px] tabular outline-none focus:border-rose-500" />
-                            <button type="button" onClick={() => setManualQuoteItems(items => items.map((it, i) => i === idx ? { ...it, customizationLines: it.customizationLines.filter((_, j) => j !== li) } : it))}
-                              className="flex-none text-[13px] text-[#e81a2b] border-none bg-transparent cursor-pointer"><X size={13} /></button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {manualQuoteError && <div className="text-[12px] text-[#e81a2b] mb-3">{manualQuoteError}</div>}
-            <div className="flex gap-3">
-              <button onClick={submitManualQuote} disabled={manualQuoteSaving} className="flex-1 border-none bg-rose-500 text-[#200612] font-extrabold text-[14px] py-[12px] rounded-xl cursor-pointer disabled:opacity-50">{manualQuoteSaving ? 'Creating…' : 'Create Quote'}</button>
-              <button onClick={() => { setManualQuoteModal(false); setManualQuoteItems([]); }} className="border border-[rgba(0,0,0,.16)] bg-transparent text-body font-bold text-[14px] px-[20px] py-[12px] rounded-xl cursor-pointer">Cancel</button>
             </div>
           </div>
         </div>
