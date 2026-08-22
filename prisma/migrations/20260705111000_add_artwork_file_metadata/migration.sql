@@ -1,0 +1,5 @@
+ALTER TABLE "Artwork"
+ADD COLUMN "provider" TEXT NOT NULL DEFAULT 'local',
+ADD COLUMN "fileId" TEXT,
+ADD COLUMN "mimeType" TEXT,
+ADD COLUMN "size" INTEGER;

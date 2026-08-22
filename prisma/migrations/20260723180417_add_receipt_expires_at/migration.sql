@@ -1,0 +1,1 @@
+ALTER TABLE "Receipt" ADD COLUMN "expiresAt" TIMESTAMP(3);

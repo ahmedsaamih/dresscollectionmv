@@ -1,0 +1,14 @@
+.env
+.env.*
+.next
+node_modules
+storage
+uploads
+screenshots
+.codex
+.claude
+.gitnexus
+.vscode
+.mcp.json
+.DS_Store
+tsconfig.tsbuildinfo

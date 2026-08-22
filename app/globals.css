@@ -1,0 +1,113 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-archivo: 'Archivo', system-ui, sans-serif;
+    --font-archivo-narrow: 'Archivo Narrow', system-ui, sans-serif;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Accessibility: visible keyboard focus on all interactive elements
+     (mouse clicks don't trigger :focus-visible, so this is keyboard-only). */
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid #db5795;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Respect reduced-motion for the pulse/animation utilities. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+
+  /* Screen-reader-only utility. */
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  body {
+    background-color: #ffffff;
+    color: #150d11;
+    font-family: var(--font-archivo);
+  }
+
+  /* Storefront interaction primitives: transform and opacity only. */
+  @media (hover: hover) and (pointer: fine) {
+    [data-product-image] { transition: transform .42s cubic-bezier(.16,1,.3,1), filter .42s ease; }
+    [data-product-image]:hover { transform: scale(1.025); filter: saturate(1.05); }
+  }
+
+  button, a { -webkit-tap-highlight-color: transparent; }
+  button:active, a:active { transform: scale(.985); }
+  .motion-panel-in { animation: motion-panel-in .22s cubic-bezier(.16,1,.3,1) both; }
+  @keyframes motion-panel-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+
+  [data-motion-card] { will-change: transform, opacity; }
+  @media (hover: hover) and (pointer: fine) {
+    [data-motion-card] > * { transition: transform .28s cubic-bezier(.16,1,.3,1), box-shadow .28s ease; }
+    [data-motion-card]:hover > * { transform: translateY(-4px) rotate(-.2deg); }
+  }
+
+  ::selection {
+    background: #db5795;
+    color: #200612;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #f2f0f1;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #d6c7ce;
+    border-radius: 6px;
+  }
+}
+
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+  .text-pretty  { text-wrap: pretty; }
+
+  /* Rose glow ring for primary CTAs */
+  .glow-rose {
+    box-shadow: 0 0 0 1px rgba(219,87,149,.4), 0 8px 28px rgba(219,87,149,.18);
+  }
+  /* Tabular numerics for prices */
+  .tabular { font-variant-numeric: tabular-nums; }
+  /* Skewed accent bar */
+  .skew-accent {
+    transform: skewX(-24deg);
+  }
+  body.size-chart-open .product-sticky-cta {
+    display: none;
+  }
+}
