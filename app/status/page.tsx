@@ -103,13 +103,13 @@ export default function StatusPage() {
               <div>
                 <div className="flex items-center gap-[10px]">
                   <span className="font-archivo-narrow font-bold text-[26px] tabular" style={{ color }}>{displayedRef}</span>
-                  <span className="text-[9.5px] font-extrabold uppercase px-[9px] py-[3px] rounded-[6px]" style={{ color, background:'rgba(219,87,149,.14)' }}>Order</span>
+                  <span className="text-[9.5px] font-extrabold uppercase tracking-[.06em] px-[10px] py-[3px] rounded-full" style={{ color, background:'rgba(219,87,149,.14)' }}>Order</span>
                 </div>
                 <div className="text-[13px] text-sub mt-[7px]">{r.summary}</div>
                 <div className="flex items-center gap-2 mt-[7px] flex-wrap">
-                  <span className="text-[10px] font-extrabold uppercase px-[7px] py-[2px] rounded-[5px] bg-[rgba(0,0,0,.08)] text-sub">{r.method}</span>
-                  <span className="text-[10px] font-extrabold uppercase px-[7px] py-[2px] rounded-[5px]" style={{ background:r.paid?'rgba(219,87,149,.12)':'rgba(255,61,77,.12)', color:r.paid?'#600a32':'#e81a2b' }}>{r.paid?'Paid':'Awaiting payment'}</span>
-                  {(r.deliveryFee ?? 0) > 0 && <span className="text-[10px] font-extrabold uppercase px-[7px] py-[2px] rounded-[5px] bg-[rgba(245,200,66,.1)] text-[#8a6205]">Delivery {formatMVR(r.deliveryFee)}</span>}
+                  <span className="text-[10px] font-extrabold uppercase tracking-[.06em] px-[9px] py-[3px] rounded-full bg-[rgba(0,0,0,.08)] text-sub">{r.method}</span>
+                  <span className="text-[10px] font-extrabold uppercase tracking-[.06em] px-[9px] py-[3px] rounded-full" style={{ background:r.paid?'rgba(219,87,149,.12)':'rgba(255,61,77,.12)', color:r.paid?'#600a32':'#e81a2b' }}>{r.paid?'Paid':'Awaiting payment'}</span>
+                  {(r.deliveryFee ?? 0) > 0 && <span className="text-[10px] font-extrabold uppercase tracking-[.06em] px-[9px] py-[3px] rounded-full bg-[rgba(245,200,66,.1)] text-[#8a6205]">Delivery {formatMVR(r.deliveryFee)}</span>}
                 </div>
               </div>
               <div className="text-right">
@@ -153,7 +153,7 @@ export default function StatusPage() {
 
         {searched && result === null && (
           <div className="mt-6 border border-dashed border-[rgba(0,0,0,.14)] rounded-2xl py-11 px-6 text-center animate-fade-up">
-            <div className="w-[52px] h-[52px] rounded-[13px] bg-[rgba(0,0,0,.07)] inline-flex items-center justify-center text-muted text-[24px]">?</div>
+            <div className="w-[52px] h-[52px] rounded-full bg-[rgba(0,0,0,.07)] inline-flex items-center justify-center text-muted text-[24px]">?</div>
             <div className="font-bold text-[17px] mt-[14px]">{copy.statusNoMatchTitle}</div>
             <div className="text-[13px] text-[#705260] mt-1.5 leading-[1.5]">{copy.statusNoMatchBody} <Link href="/contact" className="text-rose-700 no-underline">Contact us</Link>.</div>
           </div>
