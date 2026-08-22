@@ -88,7 +88,7 @@ export default function HomePage() {
         <div className="grid grid-cols-1 min-[380px]:grid-cols-2 lg:grid-cols-4 gap-[18px]">
           {[
             { title: 'New Arrivals', desc: copy.categoryReadyDesc, href: '/ready-made', icon: CATEGORY_ICONS.ready, img: data.settings.categoryReadyImage },
-            { title: 'Party & Occasion', desc: copy.categoryCustomDesc, href: '/occasion', icon: CATEGORY_ICONS.occasion, img: data.settings.categoryCustomImage },
+            { title: 'Party & Occasion', desc: copy.categoryOccasionDesc, href: '/occasion', icon: CATEGORY_ICONS.occasion, img: data.settings.categoryCustomImage },
             { title: 'Casual Dresses', desc: copy.categoryCasualDesc, href: '/casual-wear', icon: CATEGORY_ICONS.casual, img: data.settings.categoryCasualImage },
             { title: 'Accessories', desc: copy.categoryAccessoriesDesc, href: '/accessories', icon: CATEGORY_ICONS.accessories, img: data.settings.categoryAccessoriesImage },
           ].map((c) => {
@@ -126,9 +126,9 @@ export default function HomePage() {
         <div className="grid grid-cols-1 min-[380px]:grid-cols-2 lg:grid-cols-4 gap-[18px]">
           {featured.map((p) => (
             <div key={p.id} data-motion-card className="bg-[#f5f1f3] border border-[rgba(0,0,0,.08)] rounded-2xl overflow-hidden hover:-translate-y-1 hover:border-[rgba(219,87,149,.3)] transition-all">
-              <ProductImage href={`/product/${p.id}`} img={p.img} colorImages={p.colorImages} className="block no-underline h-[172px] relative">
+              <ProductImage href={`/product/${p.id}`} img={p.img} className="block no-underline h-[172px] relative">
                 {p.badge && (
-                  <span className={`absolute top-[11px] left-[11px] text-[10px] font-extrabold tracking-[.07em] uppercase px-[9px] py-1 rounded-[6px] ${p.badge === 'Sale' ? 'bg-coral-500 text-white' : 'bg-rose-500 text-[#200612]'}`}>
+                  <span className={`absolute top-[11px] left-[11px] text-[10px] font-extrabold tracking-[.07em] uppercase px-[9px] py-1 rounded-[6px] ${p.badge === 'Sale' ? 'bg-coral-500 text-white' : p.badge === 'Pre-order' ? 'bg-[#c9a227] text-[#200612]' : 'bg-rose-500 text-[#200612]'}`}>
                     {p.badge}
                   </span>
                 )}
@@ -160,9 +160,9 @@ export default function HomePage() {
         <div className="grid grid-cols-2 min-[380px]:grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-[14px]">
           {accessories.map((a) => (
             <Link key={a.id} data-motion-card href={`/product/${a.id}`} className="no-underline bg-[#f5f1f3] border border-[rgba(0,0,0,.08)] rounded-[14px] overflow-hidden hover:-translate-y-1 hover:border-[rgba(219,87,149,.3)] transition-all">
-              <ProductImage img={a.img} colorImages={a.colorImages} className="block h-[90px] relative">
+              <ProductImage img={a.img} className="block h-[90px] relative">
                 {a.badge && (
-                  <span className={`absolute top-[7px] left-[7px] text-[9px] font-extrabold tracking-[.05em] uppercase px-[7px] py-[3px] rounded-[5px] ${a.badge === 'Sale' ? 'bg-coral-500 text-white' : 'bg-rose-500 text-[#200612]'}`}>
+                  <span className={`absolute top-[7px] left-[7px] text-[9px] font-extrabold tracking-[.05em] uppercase px-[7px] py-[3px] rounded-[5px] ${a.badge === 'Sale' ? 'bg-coral-500 text-white' : a.badge === 'Pre-order' ? 'bg-[#c9a227] text-[#200612]' : 'bg-rose-500 text-[#200612]'}`}>
                     {a.badge}
                   </span>
                 )}

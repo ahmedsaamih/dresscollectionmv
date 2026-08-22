@@ -22,7 +22,7 @@ export default function StatusPage() {
     const key = (refOverride ?? ref).trim().toUpperCase();
     const contactVal = contactOverride ?? contact;
     if (!key) { setError('Enter a reference number.'); return; }
-    if (!/^(DC|QT)-/.test(key)) { setError('References start with DC- (orders) or QT- (quotes).'); return; }
+    if (!/^DC-/.test(key)) { setError('References start with DC-.'); return; }
     if (!contactVal.trim()) { setError('Enter the email or mobile on your confirmation.'); return; }
     setError(''); setLoading(true);
     try {
@@ -56,11 +56,7 @@ export default function StatusPage() {
   }, []);
 
   const r = result;
-  const isOrder = r?.type === 'order';
-  const color = isOrder ? '#600a32' : '#e63387';
-  // r.ref is the entity actually being displayed — usually equal to what was
-  // searched, but diverges when a QT- lookup hands off to its converted order
-  // (see /api/status), so slip uploads and the displayed number must key off it.
+  const color = '#600a32';
   const displayedRef = r?.ref ?? searched;
 
   return (
@@ -102,24 +98,19 @@ export default function StatusPage() {
 
         {/* Result */}
         {r && (
-          <div className="mt-6 bg-surface rounded-[18px] overflow-hidden border animate-fade-up" style={{ borderColor:isOrder?'rgba(219,87,149,.25)':'rgba(193,57,120,.25)' }}>
+          <div className="mt-6 bg-surface rounded-[18px] overflow-hidden border animate-fade-up" style={{ borderColor:'rgba(219,87,149,.25)' }}>
             <div className="p-[22px_24px] border-b border-[rgba(0,0,0,.07)] flex items-center justify-between flex-wrap gap-3">
               <div>
                 <div className="flex items-center gap-[10px]">
                   <span className="font-archivo-narrow font-bold text-[26px] tabular" style={{ color }}>{displayedRef}</span>
-                  <span className="text-[9.5px] font-extrabold uppercase px-[9px] py-[3px] rounded-[6px]" style={{ color, background:isOrder?'rgba(219,87,149,.14)':'rgba(193,57,120,.15)' }}>{isOrder?'Order':'Quote'}</span>
+                  <span className="text-[9.5px] font-extrabold uppercase px-[9px] py-[3px] rounded-[6px]" style={{ color, background:'rgba(219,87,149,.14)' }}>Order</span>
                 </div>
-                {r.convertedFromQuoteRef && (
-                  <div className="text-[11.5px] text-muted mt-[3px]">Converted from quote {r.convertedFromQuoteRef}</div>
-                )}
                 <div className="text-[13px] text-sub mt-[7px]">{r.summary}</div>
-                {isOrder && (
-                  <div className="flex items-center gap-2 mt-[7px] flex-wrap">
-                    <span className="text-[10px] font-extrabold uppercase px-[7px] py-[2px] rounded-[5px] bg-[rgba(0,0,0,.08)] text-sub">{r.method}</span>
-                    <span className="text-[10px] font-extrabold uppercase px-[7px] py-[2px] rounded-[5px]" style={{ background:r.paid?'rgba(219,87,149,.12)':'rgba(255,61,77,.12)', color:r.paid?'#600a32':'#e81a2b' }}>{r.paid?'Paid':'Awaiting payment'}</span>
-                    {(r.deliveryFee ?? 0) > 0 && <span className="text-[10px] font-extrabold uppercase px-[7px] py-[2px] rounded-[5px] bg-[rgba(245,200,66,.1)] text-[#8a6205]">Delivery {formatMVR(r.deliveryFee)}</span>}
-                  </div>
-                )}
+                <div className="flex items-center gap-2 mt-[7px] flex-wrap">
+                  <span className="text-[10px] font-extrabold uppercase px-[7px] py-[2px] rounded-[5px] bg-[rgba(0,0,0,.08)] text-sub">{r.method}</span>
+                  <span className="text-[10px] font-extrabold uppercase px-[7px] py-[2px] rounded-[5px]" style={{ background:r.paid?'rgba(219,87,149,.12)':'rgba(255,61,77,.12)', color:r.paid?'#600a32':'#e81a2b' }}>{r.paid?'Paid':'Awaiting payment'}</span>
+                  {(r.deliveryFee ?? 0) > 0 && <span className="text-[10px] font-extrabold uppercase px-[7px] py-[2px] rounded-[5px] bg-[rgba(245,200,66,.1)] text-[#8a6205]">Delivery {formatMVR(r.deliveryFee)}</span>}
+                </div>
               </div>
               <div className="text-right">
                 <div className="text-[11px] text-muted tracking-[.1em] uppercase">{r.metaLabel}</div>
@@ -149,12 +140,12 @@ export default function StatusPage() {
               })}
             </div>
             <div className="px-6 pb-[22px] flex flex-col gap-[14px]">
-              <div className="flex gap-[11px] items-start rounded-[13px] p-[14px_16px]" style={{ background:isOrder?'rgba(219,87,149,.04)':'rgba(193,57,120,.05)', border:'1px solid '+(isOrder?'rgba(219,87,149,.14)':'rgba(193,57,120,.18)') }}>
+              <div className="flex gap-[11px] items-start rounded-[13px] p-[14px_16px]" style={{ background:'rgba(219,87,149,.04)', border:'1px solid rgba(219,87,149,.14)' }}>
                 <span style={{ color }}><Info size={15} /></span>
                 <div className="text-[12.5px] text-sub leading-[1.55]">{r.note}</div>
               </div>
               {r.canUploadSlip && (
-                <SlipUpload uploadUrl={isOrder ? `/api/orders/${displayedRef}/receipts` : `/api/quotes/${displayedRef}/receipts`} />
+                <SlipUpload uploadUrl={`/api/orders/${displayedRef}/receipts`} />
               )}
             </div>
           </div>

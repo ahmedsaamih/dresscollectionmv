@@ -19,12 +19,17 @@ export default function ReadyMadePage() {
   const products = data.products.filter(p => p.collection === 'ready');
   const colMeta = data.collections.find(c => c.key === 'ready');
   const chart = resolveSizeChart(data.sizeCharts, colMeta?.sizeChartId);
-  const colorHex = (name: string) => data.builderOptions.colors.find(c => c.name === name)?.hex ?? COLOR_MAP[name] ?? '#888';
+  const colorHex = (name: string) => COLOR_MAP[name] ?? '#888';
+
+  const badgeClass = (badge: Product['badge']) =>
+    badge === 'Sale' ? 'bg-coral-500 text-white'
+      : badge === 'Pre-order' ? 'bg-[#c9a227] text-[#200612]'
+      : 'bg-rose-500 text-[#200612]';
 
   const renderCard = (p: Product) => (
     <div className="bg-[#f5f1f3] border border-[rgba(0,0,0,.08)] rounded-2xl overflow-hidden hover:-translate-y-1 hover:border-[rgba(219,87,149,.3)] transition-all">
-      <ProductImage href={`/product/${p.id}`} img={p.img} colorImages={p.colorImages} className="block no-underline h-[196px] relative">
-        {p.badge && <span className={`absolute top-3 left-3 text-[10px] font-extrabold tracking-[.07em] uppercase px-[9px] py-1 rounded-[6px] ${p.badge === 'Sale' ? 'bg-coral-500 text-white' : 'bg-rose-500 text-[#200612]'}`}>{p.badge}</span>}
+      <ProductImage href={`/product/${p.id}`} img={p.img} className="block no-underline h-[196px] relative">
+        {p.badge && <span className={`absolute top-3 left-3 text-[10px] font-extrabold tracking-[.07em] uppercase px-[9px] py-1 rounded-[6px] ${badgeClass(p.badge)}`}>{p.badge}</span>}
         <div className="absolute bottom-[10px] right-3 text-[10px] tracking-[.14em] uppercase text-[rgba(255,255,255,.4)]">{p.category}</div>
       </ProductImage>
       <div className="p-4">
@@ -38,13 +43,7 @@ export default function ReadyMadePage() {
             <span className="font-extrabold text-[16px] text-rose-700 tabular">MVR {p.price}</span>
             {p.was && <span className="text-[12px] text-muted line-through tabular">{p.was}</span>}
           </div>
-          {p.customizable ? (
-            <div className="flex gap-[7px]">
-              <Button size="xs" href={`/product/${p.id}`}>Customise →</Button>
-            </div>
-          ) : (
-            <Button variant="secondary" size="xs" href={`/product/${p.id}`}>View options</Button>
-          )}
+          <Button variant="secondary" size="xs" href={`/product/${p.id}`}>View options</Button>
         </div>
       </div>
     </div>

@@ -11,13 +11,12 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
   const params = await props.params;
   try {
     const session = await requirePermission('categories', 'edit');
-    const { label, bespoke, sizeChartId } = collectionUpdateSchema.parse(await request.json());
+    const { label, sizeChartId } = collectionUpdateSchema.parse(await request.json());
     const data: Record<string, unknown> = { label };
-    if (bespoke !== undefined) data.bespoke = bespoke;
     if (sizeChartId !== undefined) data.sizeChartId = sizeChartId;
     const updated = await prisma.collection.update({ where: { id: params.id }, data });
-    await audit(session.email, 'collection.update', updated.key, { label, bespoke, sizeChartId });
-    return ok({ collection: { id: updated.id, key: updated.key, label: updated.label, bespoke: updated.bespoke, sizeChartId: updated.sizeChartId } });
+    await audit(session.email, 'collection.update', updated.key, { label, sizeChartId });
+    return ok({ collection: { id: updated.id, key: updated.key, label: updated.label, sizeChartId: updated.sizeChartId } });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
       return fail('Collection not found', 404);

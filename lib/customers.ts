@@ -9,9 +9,9 @@ interface ContactInput {
 
 /**
  * Best-effort upsert of a Customer row keyed by phone number, called after an
- * Order or Quote is successfully created. No-ops when phone is blank (phone
- * is the dedup key). Never throws — a failure here must not affect the
- * order/quote that triggered it.
+ * Order is successfully created. No-ops when phone is blank (phone is the
+ * dedup key). Never throws — a failure here must not affect the order that
+ * triggered it.
  */
 export async function upsertCustomerFromContact({ name, phone, email }: ContactInput): Promise<void> {
   const trimmedPhone = phone?.trim();

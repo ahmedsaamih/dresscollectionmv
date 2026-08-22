@@ -51,12 +51,7 @@ export function serializeOrder(o: OrderWithDetails): Order {
       img: li.img,
       size: li.size,
       color: li.color,
-      sleeve: li.sleeve,
-      neck: li.neck,
       qty: li.qty,
-      customizationNote: li.customizationNote,
-      customizationLines: (li.customizationLines as { label: string; cost: number }[] | null) ?? [],
-      customizationCost: li.customizationCost,
     })),
     receipts: o.receipts.map((r) => ({
       id: r.id,

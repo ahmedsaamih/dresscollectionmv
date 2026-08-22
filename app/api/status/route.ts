@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 /**
  * GET /api/status?ref=DC-26-48213&contact=customer@email.mv
  *
- * Public order/quote lookup. No login — verified by reference + the contact
+ * Public order lookup. No login — verified by reference + the contact
  * (email or mobile) on file. A wrong/missing contact returns the same
  * "not found" as a bad reference, so references can't be enumerated.
  */
@@ -25,30 +25,15 @@ export async function GET(request: Request) {
 
     if (!ref) return fail('Enter a reference number.', 400);
     if (ref.length > 40) return fail('Reference is too long.', 400);
-    if (!/^(DC|QT)-/.test(ref)) return fail('References start with DC- (orders) or QT- (quotes).', 400);
+    if (!/^DC-/.test(ref)) return fail('References start with DC-.', 400);
     if (!contact) return fail('Enter the email or mobile on your confirmation.', 400);
     if (contact.length > 254) return fail('Contact is too long.', 400);
 
     const notFound = () => fail('No match for that reference and contact.', 404);
 
-    if (ref.startsWith('DC')) {
-      const order = await prisma.order.findUnique({ where: { id: ref }, include: { receipts: true } });
-      if (!order || !contactMatches(contact, order.email, order.mobile)) return notFound();
-      return ok(orderStatus(order));
-    }
-
-    const quote = await prisma.quote.findUnique({ where: { id: ref } });
-    if (!quote || !contactMatches(contact, quote.email, quote.mobile)) return notFound();
-
-    // Once a quote converts to an order, tracking has to hand off to the order —
-    // quoteStatus() tops out at "Approved & in production" and has no concept of
-    // the fulfilment stages (production/pickup/delivery/completed) that continue
-    // afterward. The converted order carries the same customer contact, so the
-    // match already proven above covers it.
-    const convertedOrder = await prisma.order.findFirst({ where: { quoteRef: quote.id }, include: { receipts: true } });
-    if (convertedOrder) return ok({ ...orderStatus(convertedOrder), convertedFromQuoteRef: quote.id });
-
-    return ok(quoteStatus(quote));
+    const order = await prisma.order.findUnique({ where: { id: ref }, include: { receipts: true } });
+    if (!order || !contactMatches(contact, order.email, order.mobile)) return notFound();
+    return ok(orderStatus(order));
   } catch (err) {
     return handleError(err);
   }
@@ -61,7 +46,6 @@ function contactMatches(input: string, email: string, mobile: string | null): bo
 }
 
 type OrderRow = Prisma.OrderGetPayload<{ include: { receipts: true } }>;
-type QuoteRow = NonNullable<Awaited<ReturnType<typeof prisma.quote.findUnique>>>;
 
 function orderStatus(o: OrderRow) {
   const delivery = o.method === 'Delivery';
@@ -116,46 +100,3 @@ function deliveryStep(stage: number): number {
   return Math.min(stage, 1);
 }
 
-function quoteStatus(q: QuoteRow) {
-  const priced = q.price !== null; // price only surfaces once admin has set + sent it
-  const linkExpired = q.customerDecision === 'pending' && !!q.confirmationTokenExpiresAt && q.confirmationTokenExpiresAt.getTime() < Date.now();
-  const confirmed = q.customerDecision === 'confirmed';
-  const slipUploaded = !!q.paymentSlipUrl;
-  const quoteSentDesc = q.customerDecision === 'rejected'
-    ? "You declined this quote. Contact us if you'd like to revisit pricing."
-    : linkExpired
-      ? 'Your confirmation link has expired — contact us to confirm.'
-      : priced ? 'Your custom price is ready.' : "We'll email your custom price.";
-  const approvedDesc = confirmed
-    ? slipUploaded
-      ? "Payment slip received — we'll confirm shortly."
-      : 'Confirmed — please proceed to payment.'
-    : 'Once you confirm the quote.';
-  const steps = [
-    { title: 'Quote requested', desc: 'Your configurations were submitted.', date: q.date },
-    { title: 'Under review', desc: 'Our team is pricing your mix.', date: null },
-    { title: 'Quote sent', desc: quoteSentDesc, date: null },
-    { title: 'Approved & in production', desc: approvedDesc, date: null },
-  ];
-  const note = q.customerDecision === 'rejected'
-    ? "You declined this quote. Get in touch if you'd like to revisit pricing."
-    : linkExpired
-      ? 'Your confirmation link has expired. Contact us and we can resend it.'
-      : confirmed
-        ? slipUploaded
-          ? "Payment slip received — we'll confirm shortly."
-          : "You've confirmed this quote — please proceed to payment."
-        : 'Custom kits are quote-based — no payment until you approve the price we send.';
-  return {
-    type: 'quote' as const,
-    ref: q.id,
-    summary: `${q.configs} custom configuration${q.configs === 1 ? '' : 's'} · ${q.units} units`,
-    metaLabel: 'Status',
-    metaValue: priced ? formatMVR(q.price as number) : ['Requested', 'Pricing', 'Quote sent', 'Approved'][q.stage],
-    stage: q.stage,
-    steps,
-    note,
-    canUploadSlip: confirmed && !slipUploaded,
-    paymentSlipUploaded: slipUploaded,
-  };
-}

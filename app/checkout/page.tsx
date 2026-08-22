@@ -82,7 +82,7 @@ export default function CheckoutPage() {
       });
       const json = await res.json();
       if (!res.ok) { setApiError(json.error || 'Could not place order. Please try again.'); setSubmitting(false); return; }
-      cart.fixed.slice().forEach(i => MMCart.remove('fixed', i.id));
+      cart.fixed.slice().forEach(i => MMCart.remove(i.id));
       refresh();
       setConf({ name, email, total: formatMVR(json.total), method: 'Delivery', ref: json.ref, discount: json.discount || 0, code: json.discountCode || null });
       setPlaced(true);
@@ -231,7 +231,7 @@ export default function CheckoutPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-[12.5px] font-semibold text-[#705260] truncate">{i.name}</div>
-                    <div className="text-[11px] text-muted">{[i.size, i.color, i.sleeve, i.neck].filter(Boolean).join(' · ')}</div>
+                    <div className="text-[11px] text-muted">{[i.size, i.color].filter(Boolean).join(' · ')}</div>
                   </div>
                   <span className="text-[12.5px] font-bold text-rose-700 tabular">{formatMVR(i.price*i.qty)}</span>
                 </div>

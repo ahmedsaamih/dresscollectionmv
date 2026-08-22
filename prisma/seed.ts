@@ -50,7 +50,7 @@ type SeedProduct = {
   badge: string | null; colors: string[]; sizes: string[];
   sizeStock?: Record<string, number>;
   colorSizeStock?: Record<string, Record<string, number>>;
-  customizable?: boolean; img: string;
+  img: string;
 };
 
 const products: SeedProduct[] = [
@@ -80,46 +80,11 @@ const products: SeedProduct[] = [
   { id: 'ac-belt', name: 'Woven Waist Belt', collection: 'accessories', category: 'Belts & Scarves', sub: 'Adjustable · buckle', price: 160, was: null, stock: 27, status: ProductStatus.active, badge: null, colors: ['Black', 'Terracotta'], sizes: ['One'], img: 'linear-gradient(135deg,#180f13,#c9704f)' },
 ];
 
-const builderTypes = [
-  { id: 't-player', label: 'Player', desc: 'Standard outfield jersey.' },
-  { id: 't-official', label: 'Official', desc: 'Match kit, collar optional.' },
-  { id: 't-keeper', label: 'Keeper', desc: 'Padded goalkeeper jersey.' },
-];
-const builderFabrics = [
-  { id: 'f-aero', name: 'Aero-Mesh Pro', desc: 'Breathable knit · 160 GSM' },
-  { id: 'f-dry', name: 'DryFlex', desc: 'Quick-dry · lightweight' },
-  { id: 'f-pro', name: 'ProKnit Heavy', desc: 'Structured · 200 GSM' },
-  { id: 'f-eco', name: 'EcoRecycled', desc: 'Recycled poly · matte' },
-];
-const builderSleeves = [{ id: 's-short', label: 'Short' }, { id: 's-long', label: 'Long' }];
-const builderNecks = [{ id: 'n-round', label: 'Round' }, { id: 'n-v', label: 'V-neck' }];
-const builderColors = [
-  { id: 'col-blush', name: 'Blush', hex: '#fc8ec1' },
-  { id: 'col-mauve', name: 'Mauve', hex: '#a17787' },
-  { id: 'col-ivory', name: 'Ivory', hex: '#f3e6d8' },
-  { id: 'col-sage', name: 'Sage', hex: '#9caf88' },
-  { id: 'col-terracotta', name: 'Terracotta', hex: '#c9704f' },
-  { id: 'col-navy', name: 'Navy', hex: '#232a3d' },
-  { id: 'col-gold', name: 'Gold', hex: '#c9a227' },
-  { id: 'col-black', name: 'Black', hex: '#1a1a1a' },
-];
-const builderSizes = [
-  { id: 'sz-xs', label: 'XS' }, { id: 'sz-s', label: 'S' }, { id: 'sz-m', label: 'M' },
-  { id: 'sz-l', label: 'L' }, { id: 'sz-xl', label: 'XL' }, { id: 'sz-2xl', label: '2XL' },
-  { id: 'sz-3xl', label: '3XL' },
-];
-
 const orders = [
   { id: 'DC-26-48213', customer: 'Amina Shareef', email: 'amina@email.mv', items: 'Amara Wrap Midi ×1, Silk Scarf ×1', total: 835, method: OrderMethod.Delivery, stage: 2, date: '12 Jun 2026', paid: true },
   { id: 'DC-26-47980', customer: 'Aishath Rasheed', email: 'aishath@email.mv', items: 'Horizon Maxi Dress ×1', total: 855, method: OrderMethod.Delivery, stage: 3, date: '11 Jun 2026', paid: true },
   { id: 'DC-26-47655', customer: 'Fathimath Nazly', email: 'fathimath@email.mv', items: 'Everyday Linen Dress ×2', total: 915, method: OrderMethod.Delivery, stage: 1, date: '10 Jun 2026', paid: false },
   { id: 'DC-26-47502', customer: 'Mariyam Zoona', email: 'mariyam@email.mv', items: 'Champagne Cocktail Dress ×1, Layered Chain Necklace ×1', total: 1245, method: OrderMethod.Delivery, stage: 0, date: '09 Jun 2026', paid: false },
-];
-
-const quotes = [
-  { id: 'QT-26-10293', customer: 'Aminath Shifa', email: 'aminath@email.mv', configs: 2, units: 2, summary: 'Bespoke bridesmaid dress ×2', stage: 1, price: null, date: '15 Jun 2026' },
-  { id: 'QT-26-10188', customer: 'Zulfa Ibrahim', email: 'zulfa@email.mv', configs: 1, units: 1, summary: 'Custom-fit evening gown ×1', stage: 2, price: 1850, date: '13 Jun 2026' },
-  { id: 'QT-26-10044', customer: 'Rishma Hassan', email: 'rishma@email.mv', configs: 1, units: 3, summary: 'Matching mother-daughter dresses ×3', stage: 0, price: null, date: '12 Jun 2026' },
 ];
 
 async function main() {
@@ -157,7 +122,7 @@ async function main() {
     const flatStock = css
       ? Object.values(css).reduce((a, bySize) => a + Object.values(bySize).reduce((x, y) => x + y, 0), 0)
       : ss ? Object.values(ss).reduce((a, b) => a + b, 0) : p.stock;
-    const data = { ...rest, was: p.was ?? null, badge: p.badge ?? null, customizable: p.customizable ?? false,
+    const data = { ...rest, was: p.was ?? null, badge: p.badge ?? null,
       sizeStock: flatSizeStock, stock: flatStock };
     await prisma.product.upsert({ where: { id: p.id }, update: data, create: data });
     // Seed Inventory rows for the Online Store location
@@ -188,22 +153,10 @@ async function main() {
     }
   }
 
-  for (const t of builderTypes) await prisma.builderType.upsert({ where: { id: t.id }, update: t, create: t });
-  for (const f of builderFabrics) await prisma.builderFabric.upsert({ where: { id: f.id }, update: f, create: f });
-  for (const s of builderSleeves) await prisma.builderSleeve.upsert({ where: { id: s.id }, update: s, create: s });
-  for (const n of builderNecks) await prisma.builderNeck.upsert({ where: { id: n.id }, update: n, create: n });
-  for (const c of builderColors) await prisma.builderColor.upsert({ where: { id: c.id }, update: c, create: c });
-  for (const s of builderSizes) await prisma.builderSize.upsert({ where: { id: s.id }, update: s, create: s });
-
   for (const o of orders) await prisma.order.upsert({ where: { id: o.id }, update: o, create: o });
-  for (const q of quotes) {
-    const data = { ...q, price: q.price ?? null };
-    await prisma.quote.upsert({ where: { id: q.id }, update: data, create: data });
-  }
 
   // Ref sequences continue above the highest seeded ref for year "26".
   await prisma.refSequence.upsert({ where: { prefix_year: { prefix: 'DC', year: '26' } }, update: { lastValue: 48213 }, create: { prefix: 'DC', year: '26', lastValue: 48213 } });
-  await prisma.refSequence.upsert({ where: { prefix_year: { prefix: 'QT', year: '26' } }, update: { lastValue: 10293 }, create: { prefix: 'QT', year: '26', lastValue: 10293 } });
 
   // Admin user (Phase 6 auth). Password from env, hashed here.
   const email = process.env.ADMIN_EMAIL || 'admin@dresscollectionmv.com';
@@ -215,7 +168,7 @@ async function main() {
     create: { email, passwordHash },
   });
 
-  console.log(`Seeded: ${products.length} products, ${collections.length} collections, ${categories.length} categories, ${orders.length} orders, ${quotes.length} quotes, admin=${email}`);
+  console.log(`Seeded: ${products.length} products, ${collections.length} collections, ${categories.length} categories, ${orders.length} orders, admin=${email}`);
 }
 
 main()

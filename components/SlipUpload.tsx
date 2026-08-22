@@ -4,10 +4,9 @@ import { useStore } from '@/contexts/StoreContext';
 import { Check, Upload } from 'lucide-react';
 
 /**
- * Payment-slip uploader shared by the post-checkout order confirmation and
- * the quote-confirmation flow. POSTs the uploaded file's storage URL to
- * whatever `uploadUrl` the caller supplies (e.g. `/api/orders/{ref}/receipts`
- * or `/api/quotes/{ref}/receipts`).
+ * Payment-slip uploader for the post-checkout order confirmation and status
+ * pages. POSTs the uploaded file's storage URL to whatever `uploadUrl` the
+ * caller supplies (e.g. `/api/orders/{ref}/receipts`).
  */
 export function SlipUpload({ uploadUrl }: { uploadUrl: string }) {
   const { data } = useStore();

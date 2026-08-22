@@ -10,13 +10,13 @@ interface CartContextValue {
 }
 
 const CartContext = createContext<CartContextValue>({
-  cart: { fixed: [], quote: [] },
-  counts: { fixed: 0, quote: 0, quoteUnits: 0, total: 0 },
+  cart: { fixed: [] },
+  counts: { fixed: 0, total: 0 },
   refresh: () => {},
 });
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [cart, setCart] = useState<Cart>({ fixed: [], quote: [] });
+  const [cart, setCart] = useState<Cart>({ fixed: [] });
 
   const refresh = useCallback(() => {
     setCart(MMCart.get());

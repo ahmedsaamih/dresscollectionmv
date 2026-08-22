@@ -6,7 +6,7 @@ import { ProductGridSkeleton } from '@/components/ProductSkeleton';
 import { Button } from '@/components/Button';
 import { SizeChartTrigger } from '@/components/SizeChart';
 import { Check } from 'lucide-react';
-import { COLOR_MAP } from '@/lib/utils';
+import { COLOR_MAP, PRODUCT_SIZES } from '@/lib/utils';
 import type { Product, SizeChart } from '@/lib/types';
 
 const SORT_OPTIONS = [
@@ -56,19 +56,17 @@ export function CatalogLayout({
   const [sort, setSort] = useState<SortKey>('new');
   const [limit, setLimit] = useState(pageSize);
 
-  const colorHex = (name: string) =>
-    data.builderOptions.colors.find(c => c.name === name)?.hex ?? COLOR_MAP[name] ?? '#888';
+  const colorHex = (name: string) => COLOR_MAP[name] ?? '#888';
 
   const facets = useMemo(() => {
     const categoryList = [...new Set(products.map(p => p.category))];
     const colorList = [...new Set(products.flatMap(p => p.colors))];
-    const sizeOrder = data.builderOptions.sizes.map(s => s.label);
-    const sizeList = [...new Set(products.flatMap(p => p.sizes))].sort((a, b) => sizeOrder.indexOf(a) - sizeOrder.indexOf(b));
+    const sizeList = [...new Set(products.flatMap(p => p.sizes))].sort((a, b) => PRODUCT_SIZES.indexOf(a) - PRODUCT_SIZES.indexOf(b));
     const prices = products.map(p => p.price);
     const priceMin = prices.length ? Math.floor(Math.min(...prices) / 10) * 10 : 0;
     const priceCeil = prices.length ? Math.ceil(Math.max(...prices) / 10) * 10 : 1000;
     return { categoryList, colorList, sizeList, priceMin, priceCeil };
-  }, [products, data.builderOptions.sizes]);
+  }, [products]);
 
   const effMax = priceMax ?? facets.priceCeil;
 

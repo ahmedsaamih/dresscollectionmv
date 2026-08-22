@@ -1,6 +1,6 @@
 import {
-  LayoutDashboard, Boxes, Layers, Wand2, Palette, ShoppingCart, FileText,
-  ClipboardCheck, Tag, Ruler, Settings, Store, Users, Package, Shirt,
+  LayoutDashboard, Boxes, Layers, ShoppingCart,
+  Tag, Ruler, Settings, Store, Users, Package, Shirt,
   Home, Truck, DollarSign, CreditCard, ArrowLeftRight, Sparkles,
   type LucideIcon,
 } from 'lucide-react';
@@ -10,11 +10,7 @@ export const ADMIN_NAV_ICONS: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
   products: Boxes,
   categories: Layers,
-  builder: Wand2,
-  customization: Palette,
   orders: ShoppingCart,
-  quotes: FileText,
-  quoteApprovals: ClipboardCheck,
   promos: Tag,
   sizechart: Ruler,
   settings: Settings,

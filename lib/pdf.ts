@@ -99,7 +99,7 @@ function addFooters(ctx: Ctx) {
   ctx.pages.forEach((p, i) => cAlign(p, String(i + 1), 0, PW, 22, 9, ctx.r, GRAY));
 }
 
-// ─── Shared header (Invoice / Quotation) ─────────────────────────────────────
+// ─── Shared header (Invoice) ─────────────────────────────────────────────────
 function drawDocHeader(
   ctx: Ctx,
   logo: PDFImage,
@@ -149,7 +149,7 @@ function drawDocHeader(
   ctx.y = hrY - 18;
 }
 
-// ─── Bill To + meta block (Invoice / Quotation) ───────────────────────────────
+// ─── Bill To + meta block (Invoice) ────────────────────────────────────────────
 function drawBillTo(
   ctx: Ctx,
   customer: string,
@@ -296,27 +296,7 @@ export interface InvoicePdfData {
   deliveryFee?: number;
   discount: number;
   total: number;
-  items: { name: string; qty: number; price: number; size: string; color: string; sleeve?: string; neck?: string; customizationNote?: string; customizationLines?: { label: string; cost: number }[] }[];
-  storeName: string;
-  storeAddress: string;
-  storePhone: string;
-  storeEmail: string;
-  taxId: string;
-  bankAccounts: { name: string; accountNumber: string }[];
-  taxRate: number;
-  taxLabel: string;
-  termsConditions: string;
-}
-
-export interface QuotationPdfData {
-  ref: string;
-  customer: string;
-  email?: string | null;
-  mobile?: string | null;
-  date: string;
-  message?: string | null;
-  items: { name: string; specs: string; units: number; sizesLabel: string; unitPrice: number; customizationLines?: { label: string; cost: number }[]; customizationCost?: number }[];
-  price: number;
+  items: { name: string; qty: number; price: number; size: string; color: string }[];
   storeName: string;
   storeAddress: string;
   storePhone: string;
@@ -370,139 +350,26 @@ export async function orderConfirmationPdf(d: InvoicePdfData): Promise<Buffer> {
   drawTableHeader(ctx);
 
   d.items.forEach((item, idx) => {
-    const custLines = item.customizationLines ?? [];
-    const custTotal = custLines.reduce((s, l) => s + l.cost, 0);
-    const hasNote = !!item.customizationNote?.trim();
-    const rowHeight = ROW_H + ((hasNote ? 1 : 0) + custLines.length) * 11;
+    const rowHeight = ROW_H;
     need(ctx, rowHeight);
     const rowY = ctx.y - rowHeight;
     if (idx % 2 === 1) {
       ctx.page.drawRectangle({ x: ML, y: rowY, width: MR - ML, height: rowHeight, color: LGRAY });
     }
     const ty = rowY + rowHeight - ROW_H + 7;
-    const meta = [item.size, item.color, item.sleeve, item.neck].filter(Boolean).join(' · ');
+    const meta = [item.size, item.color].filter(Boolean).join(' · ');
     const label = meta ? `${item.name} (${meta})` : item.name;
     ctx.page.drawText(String(idx + 1), { x: COL_NUM_X,  y: ty, size: 9, font: ctx.r, color: INK });
     ctx.page.drawText(label,           { x: COL_DESC_X, y: ty, size: 9, font: ctx.r, color: INK });
     rAlign(ctx.page, String(item.qty),          COL_QTY_R,  ty, 9, ctx.r);
     rAlign(ctx.page, fmt(item.price),            COL_RATE_R, ty, 9, ctx.r);
-    rAlign(ctx.page, fmt(item.price * item.qty + custTotal), COL_AMT_R,  ty, 9, ctx.r);
-
-    let subY = ty;
-    if (hasNote) {
-      subY -= 11;
-      ctx.page.drawText(item.customizationNote!, { x: COL_DESC_X, y: subY, size: 8, font: ctx.o, color: GRAY });
-    }
-    for (const l of custLines) {
-      subY -= 11;
-      ctx.page.drawText(l.label, { x: COL_DESC_X, y: subY, size: 8, font: ctx.o, color: GRAY });
-      rAlign(ctx.page, `+${fmt(l.cost)}`, COL_AMT_R, subY, 8, ctx.r, GRAY);
-    }
+    rAlign(ctx.page, fmt(item.price * item.qty), COL_AMT_R,  ty, 9, ctx.r);
 
     ctx.y = rowY;
   });
 
   drawTotals(ctx, d.subtotal, d.deliveryFee ?? 0, d.discount, d.taxRate, d.taxLabel, true);
   drawTextSection(ctx, 'Notes', d.notes);
-
-  let tc = d.termsConditions;
-  if (d.bankAccounts.length > 0) {
-    const bankLines = d.bankAccounts.map(a => `${a.name}: ${a.accountNumber}`).join('\n');
-    tc = tc ? `${tc}\n\nBank Accounts:\n${bankLines}` : `Bank Accounts:\n${bankLines}`;
-  }
-  drawTextSection(ctx, 'Terms & Conditions', tc);
-
-  addFooters(ctx);
-  return Buffer.from(await ctx.doc.save());
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// ─── quotationPdf (Priced Quotation sent by admin) ───────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════════
-
-export async function quotationPdf(d: QuotationPdfData): Promise<Buffer> {
-  const ctx = await mkCtx();
-  const logo = await ctx.doc.embedJpg(getLogoBytes());
-
-  const taxAmt = d.taxRate > 0 ? Math.round(d.price * d.taxRate / 100) : 0;
-  const grandTotal = d.price + taxAmt;
-
-  drawDocHeader(
-    ctx, logo,
-    'Quotation', `# ${d.ref}`,
-    null, null,
-    { name: d.storeName, address: d.storeAddress, phone: d.storePhone, email: d.storeEmail, taxId: d.taxId },
-  );
-
-  drawBillTo(ctx, d.customer, d.email, d.mobile, [['Estimate Date', d.date]]);
-
-  // Subject line (message/description)
-  if (d.message?.trim()) {
-    const { page, r, b } = ctx;
-    need(ctx, 24);
-    ctx.y -= 10;
-    page.drawText('Subject:', { x: ML, y: ctx.y, size: 9, font: b, color: INK });
-    page.drawText(d.message.slice(0, 200), { x: ML + 55, y: ctx.y, size: 9, font: r, color: GRAY });
-    ctx.y -= 16;
-  }
-
-  drawTableHeader(ctx);
-
-  d.items.forEach((item, idx) => {
-    const custLines = item.customizationLines ?? [];
-    const custTotal = item.customizationCost ?? custLines.reduce((s, l) => s + l.cost, 0);
-    const itemAmt = item.unitPrice * item.units + custTotal;
-    const hasDesc = !!item.specs?.trim();
-    const rowHeight = ROW_H + ((hasDesc ? 1 : 0) + custLines.length) * 11;
-    need(ctx, rowHeight);
-    const rowY = ctx.y - rowHeight;
-    if (idx % 2 === 1) {
-      ctx.page.drawRectangle({ x: ML, y: rowY, width: MR - ML, height: rowHeight, color: LGRAY });
-    }
-    const ty = rowY + rowHeight - ROW_H + 7; // top text line
-    ctx.page.drawText(String(idx + 1), { x: COL_NUM_X,  y: ty, size: 9, font: ctx.r, color: INK });
-    ctx.page.drawText(item.name,        { x: COL_DESC_X, y: ty, size: 9, font: ctx.b, color: INK });
-    rAlign(ctx.page, String(item.units),   COL_QTY_R,  ty, 9, ctx.r);
-    rAlign(ctx.page, fmt(item.unitPrice),  COL_RATE_R, ty, 9, ctx.r);
-    rAlign(ctx.page, fmt(itemAmt),         COL_AMT_R,  ty, 9, ctx.r);
-
-    let subY = ty;
-    if (hasDesc) {
-      subY -= 11;
-      ctx.page.drawText(item.specs, { x: COL_DESC_X, y: subY, size: 8, font: ctx.o, color: GRAY });
-    }
-    for (const l of custLines) {
-      subY -= 11;
-      ctx.page.drawText(l.label, { x: COL_DESC_X, y: subY, size: 8, font: ctx.o, color: GRAY });
-      rAlign(ctx.page, `+${fmt(l.cost)}`, COL_AMT_R, subY, 8, ctx.r, GRAY);
-    }
-
-    ctx.y = rowY;
-  });
-
-  // Totals (no Balance Due on quotation)
-  const LBL_R = 447;
-  const VAL_R = MR - 3;
-  ctx.y -= 8;
-  need(ctx, 14);
-  ctx.y -= 14;
-  rAlign(ctx.page, 'Sub Total', LBL_R, ctx.y, 9, ctx.r, GRAY);
-  rAlign(ctx.page, fmt(d.price), VAL_R, ctx.y, 9, ctx.r, INK);
-  if (taxAmt > 0) {
-    need(ctx, 14);
-    ctx.y -= 14;
-    rAlign(ctx.page, `${d.taxLabel} (${d.taxRate}%)`, LBL_R, ctx.y, 9, ctx.r, GRAY);
-    rAlign(ctx.page, fmt(taxAmt), VAL_R, ctx.y, 9, ctx.r, INK);
-  }
-  ctx.y -= 6;
-  hLine(ctx.page, ctx.y, 290, MR);
-  ctx.y -= 4;
-  need(ctx, 16);
-  ctx.y -= 14;
-  rAlign(ctx.page, 'Total', LBL_R, ctx.y, 10, ctx.b, INK);
-  rAlign(ctx.page, fmt(grandTotal), VAL_R, ctx.y, 10, ctx.b, INK);
-
-  drawTextSection(ctx, 'Notes', d.message);
 
   let tc = d.termsConditions;
   if (d.bankAccounts.length > 0) {
@@ -634,77 +501,3 @@ export async function paymentReceiptPdf(d: PaymentReceiptPdfData): Promise<Buffe
   return Buffer.from(await ctx.doc.save());
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// ─── quoteReceivedPdf (Quote Request Confirmation — no price yet) ─────────────
-// ═══════════════════════════════════════════════════════════════════════════════
-
-export interface QuoteRequestPdfData {
-  ref: string;
-  customer: string;
-  email: string;
-  mobile?: string | null;
-  date: string;
-  message?: string | null;
-  items: { name: string; specs: string; units: number; sizesLabel: string }[];
-  storeName: string;
-  storeAddress: string;
-  storePhone: string;
-  storeEmail: string;
-  taxId: string;
-}
-
-export async function quoteReceivedPdf(d: QuoteRequestPdfData): Promise<Buffer> {
-  const ctx = await mkCtx();
-  const logo = await ctx.doc.embedJpg(getLogoBytes());
-  const { page, b, r } = ctx;
-
-  drawDocHeader(
-    ctx, logo,
-    'Quotation', `# ${d.ref}`,
-    null, null,
-    { name: d.storeName, address: d.storeAddress, phone: d.storePhone, email: d.storeEmail, taxId: d.taxId },
-  );
-
-  drawBillTo(ctx, d.customer, d.email, d.mobile, [['Date', d.date]]);
-
-  if (d.message?.trim()) {
-    need(ctx, 24);
-    ctx.y -= 10;
-    page.drawText('Subject:', { x: ML, y: ctx.y, size: 9, font: b, color: INK });
-    page.drawText(d.message.slice(0, 200), { x: ML + 55, y: ctx.y, size: 9, font: r, color: GRAY });
-    ctx.y -= 16;
-  }
-
-  // Items list (no pricing columns — price TBD)
-  need(ctx, ROW_H);
-  const hdrY = ctx.y - ROW_H;
-  page.drawRectangle({ x: ML, y: hdrY, width: MR - ML, height: ROW_H, color: TBHDR });
-  const ht = hdrY + 7;
-  page.drawText('#',                  { x: COL_NUM_X,  y: ht, size: 9, font: b, color: WHITE });
-  page.drawText('Item & Description', { x: COL_DESC_X, y: ht, size: 9, font: b, color: WHITE });
-  rAlign(page, 'Qty / Sizes', MR - 3, ht, 9, b, WHITE);
-  ctx.y = hdrY;
-
-  d.items.forEach((item, idx) => {
-    const hasDesc = !!item.specs?.trim();
-    const rowH = hasDesc ? ROW_H + 13 : ROW_H;
-    need(ctx, rowH);
-    const rowY = ctx.y - rowH;
-    if (idx % 2 === 1) page.drawRectangle({ x: ML, y: rowY, width: MR - ML, height: rowH, color: LGRAY });
-    const ty = rowY + rowH - ROW_H + 7;
-    page.drawText(String(idx + 1), { x: COL_NUM_X,  y: ty, size: 9, font: r, color: INK });
-    page.drawText(item.name,       { x: COL_DESC_X, y: ty, size: 9, font: b, color: INK });
-    if (hasDesc) page.drawText(item.specs, { x: COL_DESC_X, y: ty - 12, size: 8, font: ctx.o, color: GRAY });
-    const qtyLabel = item.sizesLabel || String(item.units);
-    rAlign(page, qtyLabel, MR - 3, ty, 9, r, INK);
-    ctx.y = rowY;
-  });
-
-  ctx.y -= 20;
-  page.drawText('No price is shown — our team will review and send your custom quote within 48 hours.', {
-    x: ML, y: ctx.y, size: 9, font: r, color: GRAY,
-  });
-
-  addFooters(ctx);
-  return Buffer.from(await ctx.doc.save());
-}

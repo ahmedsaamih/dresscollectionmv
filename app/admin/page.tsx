@@ -5,35 +5,33 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/contexts/StoreContext';
 import { adminApi, ApiError, type ReferrerSummary, type InventoryItem, type XfrRecord, type PosOrderResult } from '@/lib/admin-api';
-import { ORDER_STAGES, QUOTE_STAGES, STAGE_META, formatMVR, PICKUP_STAGE_IDS, DELIVERY_STAGE_IDS } from '@/lib/utils';
-import { ORDER_NOTIFICATION_EVENTS, QUOTE_NOTIFICATION_EVENTS, NOTIFICATION_EVENT_LABELS } from '@/lib/notify/event-labels';
-import type { Order, Quote, QuoteChangeRequest, SizeChart, PromoCode, Redemption, AdminUser, AdminRole, BuilderField, Product, ProductSection, QuoteItemDetail, CustomizationProfile, CustomizationProfileField, CustomizationProfileAssignment, CustomizationFieldType, CustomizationScope, Customer, NotificationLog, Review, DeliveryArea } from '@/lib/types';
-import type { BuilderKind } from '@/lib/validation';
+import { ORDER_STAGES, STAGE_META, formatMVR, PICKUP_STAGE_IDS, DELIVERY_STAGE_IDS, PRODUCT_SIZES } from '@/lib/utils';
+import { ORDER_NOTIFICATION_EVENTS, NOTIFICATION_EVENT_LABELS } from '@/lib/notify/event-labels';
+import type { Order, SizeChart, PromoCode, Redemption, AdminUser, AdminRole, Product, ProductSection, Customer, NotificationLog, Review, DeliveryArea } from '@/lib/types';
 import { hasPermission, MODULES, type ModuleKey, type Permissions } from '@/lib/permissions';
 import { STOREFRONT_COPY_GROUPS, normalizeStorefrontCopy } from '@/lib/storefront-copy';
 import { ADMIN_NAV_ICONS, FULFILLMENT_ICONS, PAYMENT_METHOD_ICONS } from '@/lib/icons';
 import { RECEIPT_TTL_MS } from '@/lib/receipts';
 import { StarRating } from '@/components/StarRating';
 import {
-  LayoutDashboard, Boxes, Layers, Wand2, Palette, ShoppingCart, FileText,
-  ClipboardCheck, Tag, Ruler, Store, Receipt, Truck, Undo2, ArrowLeftRight,
+  LayoutDashboard, Boxes, Layers, ShoppingCart, FileText,
+  Tag, Ruler, Store, Receipt, Truck, Undo2, ArrowLeftRight,
   Percent, RefreshCw, Download, Info, Clock, ImageOff, Trash2, Pencil, X,
   Check, ArrowUpRight, LogOut, Star, DollarSign, MapPin, Users, Menu,
   ChevronDown,
   type LucideIcon,
 } from 'lucide-react';
 
-type Tab = 'dashboard' | 'products' | 'categories' | 'builder' | 'customization' | 'orders' | 'quotes' | 'settings' | 'sizechart' | 'promos' | 'pos' | 'quoteApprovals' | 'customers';
+type Tab = 'dashboard' | 'products' | 'categories' | 'orders' | 'settings' | 'sizechart' | 'promos' | 'pos' | 'customers';
 type OrderFilter = 'all' | 'web_checkout' | 'pos_sale' | 'manual_order' | 'quote_conversion' | 'paid' | 'unpaid';
 type Session = { email: string; role: AdminRole; permissions: Permissions } | null;
 
-const ALL_TABS: Tab[] = ['dashboard', 'products', 'categories', 'builder', 'customization', 'orders', 'quotes', 'quoteApprovals', 'promos', 'sizechart', 'settings', 'pos', 'customers'];
+const ALL_TABS: Tab[] = ['dashboard', 'products', 'categories', 'orders', 'promos', 'sizechart', 'settings', 'pos', 'customers'];
 // Which module gates each top-level tab. 'settings' and 'pos' are handled
 // separately below since each covers several sub-modules.
 const TAB_MODULE: Partial<Record<Tab, ModuleKey>> = {
-  dashboard: 'dashboard', products: 'products', categories: 'categories', builder: 'builder',
-  customization: 'customization', orders: 'orders', quotes: 'quotes', quoteApprovals: 'quoteApprovals',
-  promos: 'promos', sizechart: 'sizechart', customers: 'customers',
+  dashboard: 'dashboard', products: 'products', categories: 'categories',
+  orders: 'orders', promos: 'promos', sizechart: 'sizechart', customers: 'customers',
 };
 const SETTINGS_MODULES: ModuleKey[] = ['settingsGeneral', 'settingsLocations', 'settingsUsers'];
 const POS_MODULES: ModuleKey[] = ['posSales', 'posOrders', 'posDeliveries', 'posReturns', 'posInventory', 'posTransfers'];
@@ -97,35 +95,6 @@ function sizeStockFromColorSize(colorSizeStock: Record<string, Record<string, nu
     }
   }
   return out;
-}
-
-const CUSTOMIZATION_FIELD_TYPES: CustomizationFieldType[] = ['text', 'textarea', 'select', 'multiselect', 'checkbox', 'file', 'quantity', 'placement'];
-
-function scopeLabel(a: CustomizationProfileAssignment, data: { collections: { key: string; label: string }[]; categories: { id: string; name: string }[]; products: { id: string; name: string }[] }) {
-  if (a.scope === 'collection') return `Collection: ${data.collections.find(c => c.key === a.collectionKey)?.label ?? a.collectionKey ?? 'Unknown'}`;
-  if (a.scope === 'category') return `Category: ${data.categories.find(c => c.id === a.categoryId)?.name ?? 'Unknown'}`;
-  return `Product: ${data.products.find(p => p.id === a.productId)?.name ?? 'Unknown'}`;
-}
-
-function assignedProfileId(profiles: CustomizationProfile[], scope: CustomizationScope, target: string): string {
-  return profiles.find(profile => profile.assignments.some(a => (
-    scope === 'collection' ? a.scope === scope && a.collectionKey === target
-      : scope === 'category' ? a.scope === scope && a.categoryId === target
-        : a.scope === scope && a.productId === target
-  )))?.id ?? '';
-}
-
-function emptyCustomizationField(order: number): CustomizationProfileField {
-  return {
-    id: `field-${Date.now()}-${order}`,
-    label: '',
-    type: 'text',
-    required: false,
-    helpText: '',
-    placeholder: '',
-    options: [],
-    sortOrder: order,
-  };
 }
 
 function statusMeta(s: 'active' | 'soldout' | 'draft') {
@@ -208,29 +177,8 @@ function paymentSlip(o: Order) {
   return o.receipts?.find(r => r.kind === 'payment_slip') ?? null;
 }
 
-// Quote.paymentSlipUrl has no tracked expiry of its own (it's a single scalar
-// field, unlike Order's Receipt rows with a real expiresAt column) — but the
-// underlying object still sits behind the same 90-day R2 lifecycle rule, so
-// derive an approximate "expired" flag from the upload timestamp for display.
-function quotePaymentSlip(q: Quote) {
-  if (!q.paymentSlipUrl) return null;
-  const uploadedAt = q.paymentSlipUploadedAt ? new Date(q.paymentSlipUploadedAt).getTime() : null;
-  const expired = uploadedAt != null && Date.now() - uploadedAt > RECEIPT_TTL_MS;
-  return { url: q.paymentSlipUrl, expired };
-}
-
 function paymentReceipt(o: Order) {
   return o.receipts?.find(r => r.kind === 'payment_receipt') ?? null;
-}
-
-// Compact confirmation-status summary for the quotes table/cards (a smaller-text
-// counterpart to the full-sentence badges in the quote drawer at ~5843-5871).
-function quoteConfirmationBadge(q: Quote): { label: string; tone: 'success' | 'warning' | 'danger' | 'neutral' } | null {
-  if (!q.sentForConfirmationAt) return null;
-  if (q.customerDecision === 'confirmed') return { label: 'Confirmed', tone: 'success' };
-  if (q.customerDecision === 'rejected') return { label: 'Declined', tone: 'danger' };
-  const expired = !!q.confirmationTokenExpiresAt && new Date(q.confirmationTokenExpiresAt).getTime() < Date.now();
-  return expired ? { label: 'Link expired', tone: 'warning' } : { label: 'Awaiting reply', tone: 'warning' };
 }
 
 const BADGE_TONE_CLASS: Record<'success' | 'warning' | 'danger' | 'neutral', string> = {
@@ -258,6 +206,7 @@ export default function AdminPage() {
   const [search, setSearch] = useState('');
   const [colFilter, setColFilter] = useState('all');
   const [modal, setModal] = useState<{ kind: string; id: string | null; draft: Record<string, any>; error: string } | null>(null);
+  const [colorInput, setColorInput] = useState('');
   const [confirm, setConfirm] = useState<{ kind: string; id: string; key?: string; name: string; detail?: string } | null>(null);
   const [toast, setToast] = useState('');
   const [saving, setSaving] = useState(false);
@@ -291,23 +240,10 @@ export default function AdminPage() {
   const [categoryImgUploading, setCategoryImgUploading] = useState<Record<string, boolean>>({});
   const CATEGORY_IMAGE_FIELDS: { key: 'categoryReadyImage' | 'categoryCustomImage' | 'categoryCasualImage' | 'categoryAccessoriesImage'; label: string }[] = [
     { key: 'categoryReadyImage', label: 'Ready-Made' },
-    { key: 'categoryCustomImage', label: 'Custom Jersey' },
+    { key: 'categoryCustomImage', label: 'Party & Occasion' },
     { key: 'categoryCasualImage', label: 'Casual Wear' },
     { key: 'categoryAccessoriesImage', label: 'Accessories' },
   ];
-
-  // Customization design-asset uploads (logo placement guide PDF, details Excel template).
-  const customizationGuideInputRef = useRef<HTMLInputElement>(null);
-  const [customizationGuideUploading, setCustomizationGuideUploading] = useState(false);
-  const customizationTemplateInputRef = useRef<HTMLInputElement>(null);
-  const [customizationTemplateUploading, setCustomizationTemplateUploading] = useState(false);
-  const [sleeveImgUploading, setSleeveImgUploading] = useState<Record<string, boolean>>({});
-  const [colorImgUploading, setColorImgUploading] = useState<Record<string, boolean>>({});
-  const [materialInput, setMaterialInput] = useState('');
-
-  // Fabric texture upload.
-  const fabricImgRef = useRef<HTMLInputElement>(null);
-  const [fabricImgUploading, setFabricImgUploading] = useState(false);
 
   // Slip viewer modal.
   const [slipModal, setSlipModal] = useState<{ url: string; expired: boolean } | null>(null);
@@ -320,11 +256,9 @@ export default function AdminPage() {
   const [markPaidError, setMarkPaidError] = useState('');
   const [markPaidSaving, setMarkPaidSaving] = useState(false);
 
-  // Orders & quotes come straight from the DB (admin-only, not in /api/store).
+  // Orders come straight from the DB (admin-only, not in /api/store).
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderFilter, setOrderFilter] = useState<OrderFilter>('all');
-  const [quotes, setQuotes] = useState<Quote[]>([]);
-  const [quoteRequests, setQuoteRequests] = useState<QuoteChangeRequest[]>([]);
 
   // Customers (read-only, admin-only, not in /api/store).
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -350,40 +284,22 @@ export default function AdminPage() {
   const [referrers, setReferrers] = useState<ReferrerSummary[]>([]);
   const [promoModal, setPromoModal] = useState<{ id: string | null; draft: Record<string, any>; error: string } | null>(null);
 
-  // ── Order / Quote drawers + manual creation ──
+  // ── Order drawer + manual creation ──
   const [orderDrawer, setOrderDrawer] = useState<Order | null>(null);
-  const [quoteDrawer, setQuoteDrawer] = useState<Quote | null>(null);
-  const [sendConfirmTtl, setSendConfirmTtl] = useState(3);
-  const [sendConfirmLoading, setSendConfirmLoading] = useState(false);
   const [manualOrderModal, setManualOrderModal] = useState(false);
-  type ManualOrderLine = { sku: string; name: string; meta: string; img: string; size: string; color: string; sleeve: string; neck: string; qty: number; unitPrice: number };
+  type ManualOrderLine = { sku: string; name: string; meta: string; img: string; size: string; color: string; qty: number; unitPrice: number };
   const [manualOrderDraft, setManualOrderDraft] = useState({ customer: '', email: '', mobile: '', discount: '0', discountNote: '', method: 'Pickup' as 'Pickup' | 'Delivery', address: '', deliveryAreaId: '', paidCash: '', paidCard: '', paidTransfer: '', notes: '', locationId: '' });
   const [manualOrderLines, setManualOrderLines] = useState<ManualOrderLine[]>([]);
   const [manualOrderInvRows, setManualOrderInvRows] = useState<InventoryItem[]>([]);
   const [manualOrderProductId, setManualOrderProductId] = useState('');
   const [manualOrderSize, setManualOrderSize] = useState('');
   const [manualOrderColor, setManualOrderColor] = useState('');
-  const [manualOrderSleeve, setManualOrderSleeve] = useState('');
-  const [manualOrderNeck, setManualOrderNeck] = useState('');
   const [manualOrderQty, setManualOrderQty] = useState(1);
   const [manualOrderSaving, setManualOrderSaving] = useState(false);
   const [manualOrderError, setManualOrderError] = useState('');
-  const [manualQuoteModal, setManualQuoteModal] = useState(false);
-  const [manualQuoteDraft, setManualQuoteDraft] = useState({ customer: '', email: '', mobile: '', message: '', units: '1' });
-  const [manualQuoteItems, setManualQuoteItems] = useState<Array<{ name: string; kind: string; specs: string; units: string; sizeRows: { size: string; sleeve: string; qty: string }[]; sizesLabel: string; color: string; productId: string; customizationLines: { label: string; cost: string }[] }>>([]);
-  const [manualQuoteSaving, setManualQuoteSaving] = useState(false);
-  const [manualQuoteError, setManualQuoteError] = useState('');
-  const [genPdfLoading, setGenPdfLoading] = useState<string | null>(null);
-  // Quote Item Editor (QIE) modal
-  const [quoteItemEditor, setQuoteItemEditor] = useState<QuoteItemDetail | 'new' | null>(null);
-  const emptyQieDraft = { kind: 'jersey', name: '', type: '', fabric: '', sleeve: '', neck: '', collar: false, swatch: '#db5795', accent: '', logoName: '', artName: '', placement: '', notes: '', specs: '', productId: '', colorName: '' };
-  const [qieDraft, setQieDraft] = useState({ ...emptyQieDraft });
-  const [qieSizes, setQieSizes] = useState<Record<string, number>>({});
-  const [qieCustomLines, setQieCustomLines] = useState<{ label: string; cost: string }[]>([]);
-  const [qieSaving, setQieSaving] = useState(false);
 
   // ── POS ──
-  type PosCartItem = { sku: string; name: string; meta: string; img: string; size: string; color: string; sleeve: string; qty: number; unitPrice: number; customizable: boolean; customizationNote?: string; customizationLines?: { label: string; cost: string }[] };
+  type PosCartItem = { sku: string; name: string; meta: string; img: string; size: string; color: string; qty: number; unitPrice: number };
   const [posTab, setPosTab] = useState<'sales' | 'orders' | 'deliveries' | 'returns' | 'inventory' | 'transfers' | 'costPrice'>('sales');
   // Sales terminal
   const [posLocId, setPosLocId] = useState('');
@@ -395,10 +311,7 @@ export default function AdminPage() {
   const [posAddItem, setPosAddItem] = useState<Product | null>(null);
   const [posAddSize, setPosAddSize] = useState('');
   const [posAddColor, setPosAddColor] = useState('');
-  const [posAddSleeve, setPosAddSleeve] = useState('');
   const [posAddQty, setPosAddQty] = useState(1);
-  const [posAddCustomNote, setPosAddCustomNote] = useState('');
-  const [posAddCustomLines, setPosAddCustomLines] = useState<{ label: string; cost: string }[]>([]);
   const [posCustomer, setPosCustomer] = useState({ name: '', mobile: '', email: '' });
   const [posMethod, setPosMethod] = useState<'Pickup' | 'Delivery'>('Pickup');
   const [posAddress, setPosAddress] = useState('');
@@ -458,9 +371,6 @@ export default function AdminPage() {
   // Settings edited locally, saved on demand.
   const [settingsDraft, setSettingsDraft] = useState(data.settings);
   const [settingsDirty, setSettingsDirty] = useState(false);
-  const [driveTesting, setDriveTesting] = useState(false);
-  const [driveTestMessage, setDriveTestMessage] = useState('');
-  const [driveDisconnecting, setDriveDisconnecting] = useState(false);
   const [telegramTokenDraft, setTelegramTokenDraft] = useState('');
   const [telegramTesting, setTelegramTesting] = useState(false);
   const [telegramDetecting, setTelegramDetecting] = useState(false);
@@ -497,12 +407,6 @@ export default function AdminPage() {
 
   const reloadOrders = useCallback(async () => {
     try { const { orders } = await adminApi.listOrders(); setOrders(orders); } catch (e) { onError(e); }
-  }, [onError]);
-  const reloadQuotes = useCallback(async () => {
-    try { const { quotes } = await adminApi.listQuotes(); setQuotes(quotes); } catch (e) { onError(e); }
-  }, [onError]);
-  const reloadQuoteRequests = useCallback(async () => {
-    try { const { requests } = await adminApi.listQuoteRequests(); setQuoteRequests(requests); } catch (e) { onError(e); }
   }, [onError]);
   const reloadCustomers = useCallback(async () => {
     try { const { customers } = await adminApi.listCustomers(); setCustomers(customers); } catch (e) { onError(e); }
@@ -585,27 +489,17 @@ export default function AdminPage() {
     setPosAddItem(p);
     setPosAddColor(color);
     setPosAddSize(firstAvailableSize(posInvRows, p, color));
-    setPosAddSleeve(p.sleeves[0] ?? '');
     setPosAddQty(1);
-    setPosAddCustomNote('');
-    setPosAddCustomLines([]);
   };
 
   const addToCart = () => {
     if (!posAddItem) return;
     const p = posAddItem;
-    if (!p.customizable) {
-      if (!posLocId) { flash('Select a POS location first.'); return; }
-      const available = inventoryStockForVariant(posInvRows, p.id, posAddColor, posAddSize);
-      if (available <= 0) { flash('Selected variant is out of stock at this location.'); return; }
-      if (posAddQty > available) { flash(`Only ${available} unit${available !== 1 ? 's' : ''} available at this location.`); return; }
-    }
-    const sleeveAdj = ((p.sleeveAdjustments ?? {})[posAddSleeve] ?? 0);
-    const sizeAdj   = ((p.sizeAdjustments   ?? {})[posAddSize]   ?? 0);
-    const unitPrice = p.price + sleeveAdj + sizeAdj;
-    const customizationNote = p.customizable ? posAddCustomNote.trim() : undefined;
-    const customizationLines = p.customizable ? posAddCustomLines.filter(l => l.label.trim()) : undefined;
-    setPosCart(c => [...c, { sku: p.id, name: p.name, meta: p.sub, img: p.img, size: posAddSize, color: posAddColor, sleeve: posAddSleeve, qty: posAddQty, unitPrice, customizable: p.customizable, customizationNote, customizationLines }]);
+    if (!posLocId) { flash('Select a POS location first.'); return; }
+    const available = inventoryStockForVariant(posInvRows, p.id, posAddColor, posAddSize);
+    if (available <= 0) { flash('Selected variant is out of stock at this location.'); return; }
+    if (posAddQty > available) { flash(`Only ${available} unit${available !== 1 ? 's' : ''} available at this location.`); return; }
+    setPosCart(c => [...c, { sku: p.id, name: p.name, meta: p.sub, img: p.img, size: posAddSize, color: posAddColor, qty: posAddQty, unitPrice: p.price }]);
     setPosAddItem(null);
   };
 
@@ -616,8 +510,6 @@ export default function AdminPage() {
     const available = inventoryStockForVariant(manualOrderInvRows, p.id, manualOrderColor, manualOrderSize);
     if (available <= 0) { setManualOrderError('Selected variant is out of stock at this location.'); return; }
     if (manualOrderQty > available) { setManualOrderError(`Only ${available} unit${available !== 1 ? 's' : ''} available at this location.`); return; }
-    const sleeveAdj = ((p.sleeveAdjustments ?? {})[manualOrderSleeve] ?? 0);
-    const sizeAdj = ((p.sizeAdjustments ?? {})[manualOrderSize] ?? 0);
     setManualOrderLines(lines => [...lines, {
       sku: p.id,
       name: p.name,
@@ -625,10 +517,8 @@ export default function AdminPage() {
       img: p.img,
       size: manualOrderSize,
       color: manualOrderColor,
-      sleeve: manualOrderSleeve,
-      neck: manualOrderNeck,
       qty: manualOrderQty,
-      unitPrice: p.price + sleeveAdj + sizeAdj,
+      unitPrice: p.price,
     }]);
     setManualOrderError('');
     setManualOrderQty(1);
@@ -688,11 +578,7 @@ export default function AdminPage() {
         address: posMethod === 'Delivery' ? posAddress.trim() : null,
         deliveryAreaId: posMethod === 'Delivery' ? posDeliveryAreaId : null,
         items: posCart.map(i => ({
-          sku: i.sku, name: i.name, meta: i.meta, img: i.img, size: i.size, color: i.color, sleeve: i.sleeve, qty: i.qty,
-          ...(i.customizable && i.customizationNote ? { customizationNote: i.customizationNote } : {}),
-          ...(i.customizable && i.customizationLines && i.customizationLines.length > 0
-            ? { customizationLines: i.customizationLines.filter(l => l.label.trim()).map(l => ({ label: l.label.trim(), cost: parseInt(l.cost) || 0 })) }
-            : {}),
+          sku: i.sku, name: i.name, meta: i.meta, img: i.img, size: i.size, color: i.color, qty: i.qty,
         })),
         ...(posPromo ? { promoCode: posPromo.code } : { discount: posDiscountAmt, discountNote: posDiscountNote.trim() || null }),
         paidCash: parseInt(posCash) || 0, paidCard: parseInt(posCard) || 0, paidTransfer: parseInt(posTransfer) || 0,
@@ -726,7 +612,7 @@ export default function AdminPage() {
     try {
       await adminApi.createManualOrder({
         customer: d.customer.trim(), email: d.email.trim(), mobile: d.mobile.trim(), locationId: d.locationId,
-        items: manualOrderLines.map(i => ({ sku: i.sku, size: i.size, color: i.color, sleeve: i.sleeve, neck: i.neck, qty: i.qty })),
+        items: manualOrderLines.map(i => ({ sku: i.sku, size: i.size, color: i.color, qty: i.qty })),
         discount, discountNote: d.discountNote.trim() || null, method: d.method, address: d.method === 'Delivery' ? d.address.trim() : null,
         deliveryAreaId: d.method === 'Delivery' ? d.deliveryAreaId : null,
         paidCash, paidCard, paidTransfer, notes: d.notes.trim() || null,
@@ -740,187 +626,6 @@ export default function AdminPage() {
       flash('Manual order created.');
     } catch (e) { setManualOrderError(e instanceof Error ? e.message : 'Could not create order.'); }
     finally { setManualOrderSaving(false); }
-  };
-
-  const submitManualQuote = async () => {
-    const d = manualQuoteDraft;
-    if (!d.customer.trim()) { setManualQuoteError('Customer name is required.'); return; }
-    if (manualQuoteItems.some(i => !i.name.trim())) { setManualQuoteError('All items must have a name.'); return; }
-
-    function parseSizes(label: string): Record<string, number> {
-      const sizes: Record<string, number> = {};
-      for (const p of label.trim().split(/\s+/)) {
-        const m = p.match(/^([A-Za-z]+)(\d+)$/);
-        if (m) sizes[m[1].toUpperCase()] = parseInt(m[2]);
-      }
-      return sizes;
-    }
-
-    // A single admin-entered item can legitimately split into more than one
-    // QuoteItem: the size×sleeve table lets each size row pick its own
-    // sleeve, but QuoteItem only stores one sleeve per row in the DB, so
-    // rows are grouped by sleeve into separate line items behind the scenes.
-    // Additional-cost lines are attached to the first group only, so a
-    // design/printing fee isn't double-counted across the split items.
-    function buildLineItems(i: typeof manualQuoteItems[number]) {
-      const base = {
-        name: i.name.trim(), kind: i.kind, specs: i.specs.trim(),
-        color: i.color.trim(), productId: i.productId || null, swatch: '#888888',
-      };
-      const customizationLines = i.customizationLines.filter(l => l.label.trim()).map(l => ({ label: l.label.trim(), cost: parseInt(l.cost) || 0 }));
-      const filled = i.sizeRows.filter(r => (parseInt(r.qty) || 0) > 0);
-
-      if (filled.length === 0) {
-        const sizes = i.sizesLabel.trim() ? parseSizes(i.sizesLabel) : {};
-        const sizesUnits = Object.values(sizes).reduce((s, v) => s + v, 0);
-        return [{ ...base, units: sizesUnits || parseInt(i.units) || 1, sizesLabel: i.sizesLabel.trim(), sizes, customizationLines }];
-      }
-
-      const groups = new Map<string, { size: string; qty: number }[]>();
-      for (const row of filled) {
-        const key = row.sleeve || '';
-        (groups.get(key) ?? groups.set(key, []).get(key)!).push({ size: row.size, qty: parseInt(row.qty) || 0 });
-      }
-      let first = true;
-      return [...groups.entries()].map(([sleeve, rows]) => {
-        const sizes: Record<string, number> = {};
-        for (const r of rows) sizes[r.size] = r.qty;
-        const item = {
-          ...base,
-          units: rows.reduce((s, r) => s + r.qty, 0),
-          sizesLabel: rows.map(r => `${r.size}${r.qty}`).join(' '),
-          sizes,
-          sleeve: sleeve || undefined,
-          customizationLines: first ? customizationLines : [],
-        };
-        first = false;
-        return item;
-      });
-    }
-
-    const lineItems = manualQuoteItems.flatMap(buildLineItems);
-    const totalUnits = lineItems.length > 0
-      ? lineItems.reduce((s, i) => s + i.units, 0)
-      : parseInt(d.units) || 1;
-
-    setManualQuoteSaving(true); setManualQuoteError('');
-    try {
-      const { quote } = await adminApi.createManualQuote({
-        customer: d.customer.trim(), email: d.email.trim(), mobile: d.mobile.trim(),
-        message: d.message.trim(), units: totalUnits, lineItems,
-      });
-      setManualQuoteModal(false);
-      setManualQuoteDraft({ customer: '', email: '', mobile: '', message: '', units: '1' });
-      setManualQuoteItems([]);
-      setQuotes(qs => [quote, ...qs]);
-      flash(`Quote ${quote.id} created.`);
-    } catch (e) { setManualQuoteError(e instanceof Error ? e.message : 'Could not create quote.'); }
-    finally { setManualQuoteSaving(false); }
-  };
-
-  const generateQuotePdf = async (id: string) => {
-    setGenPdfLoading(id);
-    try {
-      const { url } = await adminApi.generateQuotePdf(id);
-      setQuotes(qs => qs.map(q => q.id === id ? { ...q, pdfUrl: url } : q));
-      setQuoteDrawer(q => q ? { ...q, pdfUrl: url } : null);
-      flash('PDF generated.');
-    } catch (e) { onError(e, 'PDF generation failed.'); }
-    finally { setGenPdfLoading(null); }
-  };
-
-  const updateQuoteItemField = async (quoteId: string, itemId: string, field: string, value: unknown) => {
-    setQuoteDrawer(q => q ? {
-      ...q,
-      lineItems: q.lineItems?.map(li => li.id === itemId ? { ...li, [field]: value } : li),
-    } : null);
-    try {
-      await adminApi.updateQuoteItem(quoteId, itemId, { [field]: value });
-    } catch (e) { onError(e, 'Could not save item.'); }
-  };
-
-  const deleteQuoteItem = async (quoteId: string, itemId: string) => {
-    try {
-      const { quote } = await adminApi.deleteQuoteItem(quoteId, itemId);
-      setQuoteDrawer(q => q ? { ...q, lineItems: q.lineItems?.filter(li => li.id !== itemId), ...quote } : null);
-      setQuotes(qs => qs.map(q => q.id === quoteId ? { ...q, ...quote } : q));
-    } catch (e) { onError(e, 'Could not remove item.'); }
-  };
-
-  const openQIE = (item: QuoteItemDetail | null) => {
-    if (item) {
-      setQieDraft({
-        kind: item.kind || 'jersey',
-        name: item.name,
-        type: item.type ?? '',
-        fabric: item.fabric ?? '',
-        sleeve: item.sleeve ?? '',
-        neck: item.neck ?? '',
-        collar: item.collar ?? false,
-        swatch: item.swatch || '#db5795',
-        accent: item.accent ?? '',
-        logoName: item.logoName ?? '',
-        artName: item.artName ?? '',
-        placement: item.placement ?? '',
-        notes: item.notes ?? '',
-        specs: item.specs ?? '',
-        productId: item.productId ?? '',
-        colorName: item.colorName ?? '',
-      });
-      setQieSizes({ ...(item.sizes as Record<string, number>) });
-      setQieCustomLines((item.customizationLines ?? []).map(l => ({ label: l.label, cost: String(l.cost) })));
-      setQuoteItemEditor(item);
-    } else {
-      setQieDraft({ ...emptyQieDraft });
-      setQieSizes({});
-      setQieCustomLines([]);
-      setQuoteItemEditor('new');
-    }
-  };
-
-  const saveQIE = async () => {
-    if (!quoteDrawer || !qieDraft.name.trim() || quoteItemEditor === null) return;
-    setQieSaving(true);
-    const sizeLabels = data.builderOptions.sizes.map(s => s.label);
-    const totalUnits = Object.values(qieSizes).reduce((a, b) => a + b, 0) || 1;
-    const sizesLabel = sizeLabels.filter(k => qieSizes[k]).map(k => k + qieSizes[k]).join(' ');
-    const body = {
-      kind: qieDraft.kind,
-      name: qieDraft.name.trim(),
-      specs: qieDraft.specs.trim(),
-      units: totalUnits,
-      sizesLabel,
-      sizes: qieSizes,
-      swatch: qieDraft.swatch,
-      type: qieDraft.type || null,
-      fabric: qieDraft.fabric || null,
-      sleeve: qieDraft.sleeve || null,
-      neck: qieDraft.neck || null,
-      collar: qieDraft.collar || null,
-      accent: qieDraft.accent || null,
-      logoName: qieDraft.logoName || null,
-      artName: qieDraft.artName || null,
-      placement: qieDraft.placement || null,
-      notes: qieDraft.notes || null,
-      productId: qieDraft.productId || null,
-      colorName: qieDraft.colorName || null,
-      customizationLines: qieCustomLines.filter(l => l.label.trim()).map(l => ({ label: l.label.trim(), cost: parseInt(l.cost) || 0 })),
-    };
-    try {
-      if (quoteItemEditor === 'new') {
-        const { item, quote } = await adminApi.addQuoteItem(quoteDrawer.id, body);
-        setQuoteDrawer(q => q ? { ...q, lineItems: [...(q.lineItems ?? []), item], ...quote } : null);
-        setQuotes(qs => qs.map(q => q.id === quoteDrawer.id ? { ...q, ...quote } : q));
-        flash('Item added.');
-      } else {
-        const { item, quote } = await adminApi.updateQuoteItem(quoteDrawer.id, quoteItemEditor.id, body);
-        setQuoteDrawer(q => q ? { ...q, lineItems: q.lineItems?.map(li => li.id === item.id ? item : li), ...quote } : null);
-        setQuotes(qs => qs.map(q => q.id === quoteDrawer.id ? { ...q, ...quote } : q));
-        flash('Item updated.');
-      }
-      setQuoteItemEditor(null);
-    } catch (e) { onError(e, 'Could not save item.'); }
-    finally { setQieSaving(false); }
   };
 
   const processReturn = async (order: Order) => {
@@ -986,12 +691,11 @@ export default function AdminPage() {
     adminApi.getMe().then(me => {
       setCurrentUser(me);
       if (hasPermission(me, 'settingsUsers', 'read')) reloadUsers();
-      if (hasPermission(me, 'quoteApprovals', 'read')) reloadQuoteRequests();
       if (hasPermission(me, 'reviews', 'read')) reloadReviews();
       if (me.role === 'admin') reloadCostPrices();
     }).catch(() => {});
-    reloadOrders(); reloadQuotes(); reloadPromos(); reloadRedemptions(); reloadSizeCharts(); reloadCustomers(); reloadNotifications(); reloadNotificationPrefs(); reloadDeliveryAreas(); reloadAllProducts();
-  }, [reloadOrders, reloadQuotes, reloadQuoteRequests, reloadPromos, reloadRedemptions, reloadUsers, reloadSizeCharts, reloadCustomers, reloadNotifications, reloadNotificationPrefs, reloadReviews, reloadDeliveryAreas, reloadCostPrices, reloadAllProducts]);
+    reloadOrders(); reloadPromos(); reloadRedemptions(); reloadSizeCharts(); reloadCustomers(); reloadNotifications(); reloadNotificationPrefs(); reloadDeliveryAreas(); reloadAllProducts();
+  }, [reloadOrders, reloadPromos, reloadRedemptions, reloadUsers, reloadSizeCharts, reloadCustomers, reloadNotifications, reloadNotificationPrefs, reloadReviews, reloadDeliveryAreas, reloadCostPrices, reloadAllProducts]);
 
   // If the active POS sub-tab isn't permitted (e.g. a staff user without
   // Sales access lands on 'pos'), fall back to the first one they can see.
@@ -1025,30 +729,17 @@ export default function AdminPage() {
     const color = firstAvailableColor(manualOrderInvRows, p);
     setManualOrderColor(color);
     setManualOrderSize(firstAvailableSize(manualOrderInvRows, p, color));
-    setManualOrderSleeve(p.sleeves[0] ?? '');
-    setManualOrderNeck(p.necks[0] ?? '');
     setManualOrderQty(1);
   }, [manualOrderProductId, manualOrderInvRows, allProducts]);
 
   useEffect(() => {
-    if (!posAddItem || posAddItem.customizable || !posLocId) return;
+    if (!posAddItem || !posLocId) return;
     const available = inventoryStockForVariant(posInvRows, posAddItem.id, posAddColor, posAddSize);
     setPosAddQty(q => available > 0 ? Math.min(Math.max(1, q), available) : 1);
   }, [posAddItem, posAddColor, posAddSize, posLocId, posInvRows]);
 
   // Keep the settings draft in sync with live data while the admin isn't editing.
   useEffect(() => { if (!settingsDirty) setSettingsDraft(data.settings); }, [data.settings, settingsDirty]);
-
-  // Surface the result of the Google Drive OAuth redirect, then clean the URL.
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const gdrive = params.get('gdrive');
-    if (!gdrive) return;
-    if (gdrive === 'connected') { flash('Google Drive connected.'); refresh(); }
-    else if (gdrive === 'error') flash(params.get('gdriveMessage') || 'Could not connect Google Drive.');
-    router.replace('/admin', { scroll: false });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Escape closes whichever overlay is open.
   useEffect(() => {
@@ -1071,34 +762,7 @@ export default function AdminPage() {
 
     setSaving(true);
     try {
-      if (kind === 'customizationProfile') {
-        const body = {
-          name: String(draft.name ?? ''),
-          description: String(draft.description ?? ''),
-          active: draft.active !== false,
-          sortOrder: Number(draft.sortOrder ?? 0),
-          fields: (Array.isArray(draft.fields) ? draft.fields as CustomizationProfileField[] : [])
-            .filter(f => f.label.trim())
-            .map((field, index) => ({
-              label: field.label,
-              type: field.type,
-              required: Boolean(field.required),
-              helpText: field.helpText ?? '',
-              placeholder: field.placeholder ?? '',
-              options: Array.isArray(field.options) ? field.options.filter(Boolean) : [],
-              sortOrder: index,
-            })),
-          assignments: (Array.isArray(draft.assignments) ? draft.assignments as CustomizationProfileAssignment[] : [])
-            .map(a => ({
-              scope: a.scope,
-              collectionKey: a.scope === 'collection' ? a.collectionKey ?? null : null,
-              categoryId: a.scope === 'category' ? a.categoryId ?? null : null,
-              productId: a.scope === 'product' ? a.productId ?? null : null,
-            })),
-        };
-        if (modal.id) await adminApi.updateCustomizationProfile(modal.id, body);
-        else await adminApi.createCustomizationProfile(body);
-      } else if (kind === 'product') {
+      if (kind === 'product') {
         const colorSizeStock: Record<string, Record<string, number>> = (draft.colorSizeStock as Record<string, Record<string, number>>) ?? {};
         const sizeStock = sizeStockFromColorSize(colorSizeStock);
         const computedSizes = Object.entries(sizeStock).filter(([, q]) => q > 0).map(([s]) => s);
@@ -1108,46 +772,8 @@ export default function AdminPage() {
           name: draft.name, collection: draft.collection, category: draft.category, sub: draft.sub ?? '',
           price: draft.price, was: draft.was || null, status, badge: draft.badge ?? '', img: draft.img,
           colors: Array.isArray(draft.colors) ? draft.colors : [],
-          sleeves: Array.isArray(draft.sleeves) ? draft.sleeves : [],
-          necks: Array.isArray(draft.necks) ? draft.necks : [],
-          materials: Array.isArray(draft.materials) ? draft.materials : [],
-          sleeveImages: (() => {
-            const validSleeves = new Set<string>(Array.isArray(draft.sleeves) ? draft.sleeves : []);
-            const result: Record<string, string> = {};
-            for (const [k, v] of Object.entries((draft.sleeveImages as Record<string, string>) ?? {})) {
-              if (validSleeves.has(k) && v) result[k] = v;
-            }
-            return result;
-          })(),
-          colorImages: (() => {
-            const validColors = new Set<string>(Array.isArray(draft.colors) ? draft.colors : []);
-            const result: Record<string, string> = {};
-            for (const [k, v] of Object.entries((draft.colorImages as Record<string, string>) ?? {})) {
-              if (validColors.has(k) && v) result[k] = v;
-            }
-            return result;
-          })(),
-          sleeveAdjustments: (() => {
-            const validSleeves = new Set<string>(Array.isArray(draft.sleeves) ? draft.sleeves : []);
-            const result: Record<string, number> = {};
-            for (const [k, v] of Object.entries((draft.sleeveAdjustments as Record<string, number>) ?? {})) {
-              const n = Number(v);
-              if (validSleeves.has(k) && n !== 0) result[k] = n;
-            }
-            return result;
-          })(),
-          sizeAdjustments: (() => {
-            const activeSizes = new Set<string>(computedSizes);
-            const result: Record<string, number> = {};
-            for (const [k, v] of Object.entries((draft.sizeAdjustments as Record<string, number>) ?? {})) {
-              const n = Number(v);
-              if (activeSizes.has(k) && n !== 0) result[k] = n;
-            }
-            return result;
-          })(),
           descriptionSections: (Array.isArray(draft.descriptionSections) ? draft.descriptionSections as ProductSection[] : [])
             .filter(sec => sec.title.trim() || sec.body.trim()),
-          customizable: Boolean(draft.customizable),
           showInWebStore: draft.showInWebStore !== false,
         };
         if (currentUser?.role === 'admin') body.costPrice = parseInt(String(draft.costPrice ?? 0)) || 0;
@@ -1159,38 +785,14 @@ export default function AdminPage() {
           body.colorSizeStock = colorSizeStock;
           body.locationId = draft.locationId;
         }
-        const saved = modal.id
-          ? await adminApi.updateProduct(modal.id, body) as any
-          : await adminApi.createProduct(body) as any;
-        const productId = modal.id ?? saved?.product?.id;
-        if (productId && 'customizationProfileId' in draft) {
-          await adminApi.assignCustomizationProfile({ scope: 'product', productId, profileId: draft.customizationProfileId || '' });
-        }
+        if (modal.id) await adminApi.updateProduct(modal.id, body) as any;
+        else await adminApi.createProduct(body) as any;
       } else if (kind === 'collection') {
-        const saved = modal.id
-          ? await adminApi.updateCollection(modal.id, draft.label, Boolean(draft.bespoke), draft.sizeChartId ?? null) as any
-          : await adminApi.createCollection(draft.label, Boolean(draft.bespoke), draft.sizeChartId ?? null) as any;
-        const collectionKey = draft.key ?? saved?.collection?.key;
-        if (collectionKey && 'customizationProfileId' in draft) {
-          await adminApi.assignCustomizationProfile({ scope: 'collection', collectionKey, profileId: draft.customizationProfileId || '' });
-        }
+        if (modal.id) await adminApi.updateCollection(modal.id, draft.label, draft.sizeChartId ?? null) as any;
+        else await adminApi.createCollection(draft.label, draft.sizeChartId ?? null) as any;
       } else if (kind === 'category') {
-        const saved = modal.id
-          ? await adminApi.updateCategory(modal.id, { name: draft.name, collection: draft.collection }) as any
-          : await adminApi.createCategory(draft.name, draft.collection) as any;
-        const categoryId = modal.id ?? saved?.category?.id;
-        if (categoryId && 'customizationProfileId' in draft) {
-          await adminApi.assignCustomizationProfile({ scope: 'category', categoryId, profileId: draft.customizationProfileId || '' });
-        }
-      } else {
-        const k = kind as BuilderKind;
-        const fields: Record<BuilderKind, string[]> = {
-          types: ['label', 'desc'], fabrics: ['name', 'desc', 'img'], sleeves: ['label'], necks: ['label'], colors: ['name', 'hex'], sizes: ['label'],
-        };
-        const body: Record<string, unknown> = {};
-        for (const f of fields[k]) body[f] = draft[f] ?? '';
-        if (modal.id) await adminApi.updateBuilder(k, modal.id, body);
-        else await adminApi.createBuilder(k, body);
+        if (modal.id) await adminApi.updateCategory(modal.id, { name: draft.name, collection: draft.collection }) as any;
+        else await adminApi.createCategory(draft.name, draft.collection) as any;
       }
       await refresh();
       if (kind === 'product') {
@@ -1215,10 +817,8 @@ export default function AdminPage() {
       if (confirm.kind === 'product') await adminApi.deleteProduct(confirm.id);
       else if (confirm.kind === 'category') await adminApi.deleteCategory(confirm.id);
       else if (confirm.kind === 'collection') await adminApi.deleteCollection(confirm.id);
-      else if (confirm.kind === 'customizationProfile') await adminApi.deleteCustomizationProfile(confirm.id);
       else if (confirm.kind === 'promo') { await adminApi.deletePromo(confirm.id); await reloadPromos(); flash('Code deleted'); setConfirm(null); return; }
       else if (confirm.kind === 'sizechart') { await adminApi.deleteSizeChart(confirm.id); await reloadSizeCharts(); await refresh(); flash('Size chart deleted'); setConfirm(null); return; }
-      else await adminApi.deleteBuilder(confirm.kind as BuilderKind, confirm.id);
       await refresh();
       if (confirm.kind === 'product') reloadAllProducts();
       flash('Deleted');
@@ -1238,25 +838,11 @@ export default function AdminPage() {
   const openModal = (kind: string, item?: Record<string, any>) => {
     const firstCol = data.collections[0]?.key ?? 'ready';
     const defaults: Record<string, Record<string, any>> = {
-      product:    { name:'', collection: firstCol, category: data.categories[0]?.name ?? '', sub:'', price:'', was:'', locationId: data.locations.find(l => l.isWebDefault)?.id ?? '', stock:'0', status:'active', badge:'', img: GRADIENTS[0], colors: [], sizes: [], sizeStock: {}, colorSizeStock: {}, sleeves: [], necks: [], materials: [], sleeveImages: {}, colorImages: {}, sleeveAdjustments: {}, sizeAdjustments: {}, descriptionSections: [], customizable: false, showInWebStore: true },
-      collection: { label:'', bespoke: false, sizeChartId: null },
+      product:    { name:'', collection: firstCol, category: data.categories[0]?.name ?? '', sub:'', price:'', was:'', locationId: data.locations.find(l => l.isWebDefault)?.id ?? '', stock:'0', status:'active', badge:'', img: GRADIENTS[0], colors: [], sizes: [], sizeStock: {}, colorSizeStock: {}, descriptionSections: [], showInWebStore: true },
+      collection: { label:'', sizeChartId: null },
       category:   { name:'', collection: firstCol },
-      types:      { label:'', desc:'' },
-      fabrics:    { name:'', desc:'', img:'' },
-      sleeves:    { label:'' },
-      necks:      { label:'' },
-      colors:     { name:'', hex:'#db5795' },
-      sizes:      { label:'' },
-      customizationProfile: { name:'', description:'', active: true, sortOrder: 0, fields: [], assignments: [] },
     };
     let draft = item ? { ...item } : { ...(defaults[kind] ?? {}) };
-    if (kind === 'customizationProfile' && item) {
-      draft = {
-        ...draft,
-        fields: [...((item.fields as CustomizationProfileField[]) ?? [])],
-        assignments: [...((item.assignments as CustomizationProfileAssignment[]) ?? [])],
-      };
-    }
     if (kind === 'product' && item) {
       // colorSizeStock comes from mapProduct — the real Inventory-derived total, not the vestigial Product.sizeStock JSON.
       // costPrice never comes through mapProduct/data.products (public catalog) — merge it in from the
@@ -1264,80 +850,15 @@ export default function AdminPage() {
       draft = {
         ...draft,
         colorSizeStock: (item.colorSizeStock as Record<string, Record<string, number>>) ?? {},
-        customizationProfileId: assignedProfileId(data.customizationProfiles ?? [], 'product', item.id),
         costPrice: costPriceProducts.find(p => p.id === item.id)?.costPrice ?? 0,
       };
     }
-    if (kind === 'collection' && item) {
-      draft = { ...draft, customizationProfileId: assignedProfileId(data.customizationProfiles ?? [], 'collection', item.key) };
-    }
-    if (kind === 'category' && item) {
-      draft = { ...draft, customizationProfileId: assignedProfileId(data.customizationProfiles ?? [], 'category', item.id) };
-    }
     setModal({ kind, id: item?.id ?? null, draft, error: '' });
-    setMaterialInput('');
+    setColorInput('');
   };
 
   const setDraftField = (key: string, val: any) => setModal(m => m ? { ...m, draft: { ...m.draft, [key]: val }, error: '' } : m);
-  const addCustomizationField = () => setModal(m => {
-    if (!m) return m;
-    const cur: CustomizationProfileField[] = Array.isArray(m.draft.fields) ? m.draft.fields : [];
-    return { ...m, draft: { ...m.draft, fields: [...cur, emptyCustomizationField(cur.length)] }, error: '' };
-  });
-  const updateCustomizationField = (i: number, patch: Partial<CustomizationProfileField>) => setModal(m => {
-    if (!m) return m;
-    const cur: CustomizationProfileField[] = Array.isArray(m.draft.fields) ? m.draft.fields : [];
-    const next = [...cur];
-    next[i] = { ...next[i], ...patch };
-    return { ...m, draft: { ...m.draft, fields: next }, error: '' };
-  });
-  const removeCustomizationField = (i: number) => setModal(m => {
-    if (!m) return m;
-    const cur: CustomizationProfileField[] = Array.isArray(m.draft.fields) ? m.draft.fields : [];
-    return { ...m, draft: { ...m.draft, fields: cur.filter((_, j) => j !== i) }, error: '' };
-  });
-  const moveCustomizationField = (i: number, dir: -1 | 1) => setModal(m => {
-    if (!m) return m;
-    const cur: CustomizationProfileField[] = Array.isArray(m.draft.fields) ? m.draft.fields : [];
-    const j = i + dir;
-    if (j < 0 || j >= cur.length) return m;
-    const next = [...cur];
-    [next[i], next[j]] = [next[j], next[i]];
-    return { ...m, draft: { ...m.draft, fields: next }, error: '' };
-  });
-  const addCustomizationAssignment = () => setModal(m => {
-    if (!m) return m;
-    const cur: CustomizationProfileAssignment[] = Array.isArray(m.draft.assignments) ? m.draft.assignments : [];
-    const scope: CustomizationScope = 'collection';
-    const assignment: CustomizationProfileAssignment = {
-      id: `assignment-${Date.now()}-${cur.length}`,
-      profileId: m.id ?? '',
-      scope,
-      collectionKey: data.collections[0]?.key ?? null,
-      categoryId: null,
-      productId: null,
-    };
-    return { ...m, draft: { ...m.draft, assignments: [...cur, assignment] }, error: '' };
-  });
-  const updateCustomizationAssignment = (i: number, patch: Partial<CustomizationProfileAssignment>) => setModal(m => {
-    if (!m) return m;
-    const cur: CustomizationProfileAssignment[] = Array.isArray(m.draft.assignments) ? m.draft.assignments : [];
-    const next = [...cur];
-    const merged = { ...next[i], ...patch };
-    if (patch.scope) {
-      merged.collectionKey = patch.scope === 'collection' ? data.collections[0]?.key ?? null : null;
-      merged.categoryId = patch.scope === 'category' ? data.categories[0]?.id ?? null : null;
-      merged.productId = patch.scope === 'product' ? allProducts[0]?.id ?? null : null;
-    }
-    next[i] = merged;
-    return { ...m, draft: { ...m.draft, assignments: next }, error: '' };
-  });
-  const removeCustomizationAssignment = (i: number) => setModal(m => {
-    if (!m) return m;
-    const cur: CustomizationProfileAssignment[] = Array.isArray(m.draft.assignments) ? m.draft.assignments : [];
-    return { ...m, draft: { ...m.draft, assignments: cur.filter((_, j) => j !== i) }, error: '' };
-  });
-  // Toggle a value in a draft array field (product colours / sleeves / necks).
+  // Toggle a value in a draft array field (product colours).
   const toggleDraftArr = (key: string, val: string) => setModal(m => {
     if (!m) return m;
     const cur: string[] = Array.isArray(m.draft[key]) ? m.draft[key] : [];
@@ -1458,70 +979,6 @@ export default function AdminPage() {
       flash('Order deleted');
     } catch (e) { onError(e, 'Could not delete order.'); }
   };
-  const convertQuote = async (id: string) => {
-    if (!window.confirm('Convert this quote to an order? This will create a new order in the Orders tab.')) return;
-    try {
-      const { order } = await adminApi.convertQuote(id);
-      flash(`Order ${order.id} created`);
-      await reloadOrders();
-    } catch (e) { onError(e, 'Could not convert quote.'); }
-  };
-  const setQuoteStage = async (id: string, stage: number) => {
-    try {
-      const res = await adminApi.updateQuote(id, { stage });
-      if (res.queued) {
-        flash('Change request submitted — awaiting approver review.');
-      } else if (res.quote) {
-        setQuotes(qs => qs.map(q => q.id === id ? { ...q, ...res.quote } : q));
-        setQuoteDrawer(q => q && q.id === id ? { ...q, ...res.quote } : q);
-        flash('Quote updated');
-      }
-      await reloadQuotes();
-    } catch (e) { onError(e); }
-  };
-  const setQuotePrice = async (id: string, val: string) => {
-    const cur = quotes.find(q => q.id === id);
-    const price = val ? parseInt(val.replace(/\D/g, ''), 10) || null : null;
-    if (cur && cur.price === price) return;
-    try {
-      const res = await adminApi.updateQuote(id, { price });
-      if (res.queued) {
-        flash('Change request submitted — awaiting approver review.');
-      } else if (res.quote) {
-        setQuotes(qs => qs.map(q => q.id === id ? { ...q, ...res.quote } : q));
-        setQuoteDrawer(q => q && q.id === id ? { ...q, ...res.quote } : q);
-      }
-      await reloadQuotes();
-    } catch (e) { onError(e); }
-  };
-
-  const sendQuoteConfirmation = async (id: string, ttlDays: number) => {
-    setSendConfirmLoading(true);
-    try {
-      const { quote } = await adminApi.sendQuoteConfirmation(id, ttlDays);
-      setQuotes(qs => qs.map(q => q.id === id ? { ...q, ...quote } : q));
-      setQuoteDrawer(q => q && q.id === id ? { ...q, ...quote } : q);
-      flash('Confirmation link sent to customer');
-    } catch (e) { onError(e, 'Could not send confirmation link.'); }
-    finally { setSendConfirmLoading(false); }
-  };
-
-  const acceptQuoteRequest = async (id: string) => {
-    try {
-      await adminApi.acceptQuoteRequest(id);
-      flash('Change request approved');
-      await Promise.all([reloadQuoteRequests(), reloadQuotes()]);
-    } catch (e) { onError(e, 'Could not accept request.'); }
-  };
-  const rejectQuoteRequest = async (id: string) => {
-    const note = window.prompt('Optional rejection note:') || undefined;
-    try {
-      await adminApi.rejectQuoteRequest(id, note);
-      flash('Change request rejected');
-      await reloadQuoteRequests();
-    } catch (e) { onError(e, 'Could not reject request.'); }
-  };
-
   const approveReview = async (id: string) => {
     try {
       await adminApi.approveReview(id);
@@ -1564,17 +1021,6 @@ export default function AdminPage() {
       };
     });
   };
-  const updateBuilderField = (i: number, patch: Partial<BuilderField>) => {
-    const updated = [...(settingsDraft.builderFields ?? [])];
-    updated[i] = { ...updated[i], ...patch };
-    setSetting('builderFields', updated);
-  };
-  const addBuilderField = () => setSetting('builderFields', [
-    ...(settingsDraft.builderFields ?? []),
-    { id: 'bf-' + Date.now(), label: '', type: 'text' as const, options: [], required: false },
-  ]);
-  const removeBuilderField = (i: number) =>
-    setSetting('builderFields', (settingsDraft.builderFields ?? []).filter((_, j) => j !== i));
   const saveSettings = async () => {
     setSaving(true);
     try {
@@ -1584,36 +1030,6 @@ export default function AdminPage() {
       flash('Settings saved');
     } catch (e) { onError(e, 'Could not save settings.'); }
     finally { setSaving(false); }
-  };
-  const testGoogleDrive = async () => {
-    const folderId = String(settingsDraft.googleDriveFolderId ?? '').trim();
-    if (!folderId) { setDriveTestMessage('Enter a folder URL or ID first.'); return; }
-    setDriveTesting(true); setDriveTestMessage('');
-    try {
-      const res = await adminApi.testGoogleDrive(folderId);
-      setSettingsDraft(s => ({
-        ...s,
-        googleDriveFolderId: res.folderId,
-        googleDriveFolderName: res.folderName,
-        googleDriveLastTestAt: res.lastTestAt,
-      }));
-      setDriveTestMessage(`Folder "${res.folderName}" is writable.`);
-      await refresh();
-    } catch (e) {
-      setDriveTestMessage(e instanceof Error ? e.message : 'Could not connect to Google Drive.');
-    } finally {
-      setDriveTesting(false);
-    }
-  };
-  const disconnectGoogleDrive = async () => {
-    setDriveDisconnecting(true);
-    try {
-      await adminApi.disconnectGoogleDrive();
-      setDriveTestMessage('');
-      await refresh();
-      flash('Google Drive disconnected.');
-    } catch (e) { onError(e, 'Could not disconnect Google Drive.'); }
-    finally { setDriveDisconnecting(false); }
   };
   const detectTelegramChatId = async () => {
     const botToken = telegramTokenDraft.trim();
@@ -1936,91 +1352,6 @@ export default function AdminPage() {
     } finally { setCategoryImgUploading(u => ({ ...u, [key]: false })); }
   };
 
-  // ── customization guide PDF upload ──
-  const uploadCustomizationGuide = async (file: File) => {
-    if (!file || customizationGuideUploading) return;
-    setCustomizationGuideUploading(true);
-    try {
-      const form = new FormData();
-      form.append('file', file);
-      form.append('kind', 'site');
-      const res = await fetch('/api/upload', { method: 'POST', body: form });
-      const { url } = await res.json();
-      if (!res.ok || !url) throw new Error('Upload failed');
-      setSetting('customizationGuidePdfUrl', url);
-    } catch (e) {
-      onError(e, 'Could not upload customization guide.');
-    } finally { setCustomizationGuideUploading(false); }
-  };
-
-  // ── customization details Excel template upload ──
-  const uploadCustomizationTemplate = async (file: File) => {
-    if (!file || customizationTemplateUploading) return;
-    setCustomizationTemplateUploading(true);
-    try {
-      const form = new FormData();
-      form.append('file', file);
-      form.append('kind', 'site');
-      const res = await fetch('/api/upload', { method: 'POST', body: form });
-      const { url } = await res.json();
-      if (!res.ok || !url) throw new Error('Upload failed');
-      setSetting('customizationTemplateXlsxUrl', url);
-    } catch (e) {
-      onError(e, 'Could not upload details template.');
-    } finally { setCustomizationTemplateUploading(false); }
-  };
-
-  // ── per-sleeve variant image upload ──
-  const uploadSleeveImage = async (sleeveLabel: string, file: File) => {
-    if (!file || sleeveImgUploading[sleeveLabel]) return;
-    setSleeveImgUploading(s => ({ ...s, [sleeveLabel]: true }));
-    try {
-      const form = new FormData();
-      form.append('file', file);
-      form.append('kind', 'product');
-      const res = await fetch('/api/upload', { method: 'POST', body: form });
-      const { url } = await res.json();
-      if (!res.ok || !url) throw new Error('Upload failed');
-      setDraftField('sleeveImages', { ...(modal?.draft.sleeveImages ?? {}), [sleeveLabel]: `url(${url}) center/cover no-repeat` });
-    } catch (e) {
-      setModal(m => m ? { ...m, error: e instanceof Error ? e.message : 'Upload failed.' } : m);
-    } finally { setSleeveImgUploading(s => ({ ...s, [sleeveLabel]: false })); }
-  };
-
-  // ── per-colour variant image upload ──
-  const uploadColorImage = async (colorLabel: string, file: File) => {
-    if (!file || colorImgUploading[colorLabel]) return;
-    setColorImgUploading(s => ({ ...s, [colorLabel]: true }));
-    try {
-      const form = new FormData();
-      form.append('file', file);
-      form.append('kind', 'product');
-      const res = await fetch('/api/upload', { method: 'POST', body: form });
-      const { url } = await res.json();
-      if (!res.ok || !url) throw new Error('Upload failed');
-      setDraftField('colorImages', { ...(modal?.draft.colorImages ?? {}), [colorLabel]: `url(${url}) center/cover no-repeat` });
-    } catch (e) {
-      setModal(m => m ? { ...m, error: e instanceof Error ? e.message : 'Upload failed.' } : m);
-    } finally { setColorImgUploading(s => ({ ...s, [colorLabel]: false })); }
-  };
-
-  // ── fabric texture upload ──
-  const uploadFabricImage = async (file: File) => {
-    if (!file || fabricImgUploading) return;
-    setFabricImgUploading(true);
-    try {
-      const form = new FormData();
-      form.append('file', file);
-      form.append('kind', 'fabric');
-      const res = await fetch('/api/upload', { method: 'POST', body: form });
-      const { url } = await res.json();
-      if (!res.ok || !url) throw new Error('Upload failed');
-      setDraftField('img', url);
-    } catch (e) {
-      setModal(m => m ? { ...m, error: e instanceof Error ? e.message : 'Upload failed.' } : m);
-    } finally { setFabricImgUploading(false); }
-  };
-
   // ── user management ──
   const openUserModal = (u?: AdminUser) => {
     setUserModal({ id: u?.id ?? null, draft: u ? { email: u.email, role: u.role, permissions: u.permissions ?? {}, password: '' } : { email: '', role: 'staff', permissions: {}, password: '' }, error: '' });
@@ -2123,7 +1454,6 @@ export default function AdminPage() {
   // ── derived ──
   const allowedTabs: Tab[] = ALL_TABS.filter(t => tabVisible(t, currentUser));
   const colFilters = [{ k: 'all', label: 'All' }, ...data.collections.map(c => ({ k: c.key, label: c.label }))];
-  const customizationProfiles: CustomizationProfile[] = data.customizationProfiles ?? [];
   const filteredProducts = allProducts.filter(p => {
     if (colFilter !== 'all' && p.collection !== colFilter) return false;
     if (search && !p.name.toLowerCase().includes(search.toLowerCase()) && !p.category.toLowerCase().includes(search.toLowerCase())) return false;
@@ -2135,8 +1465,6 @@ export default function AdminPage() {
     return c.name.toLowerCase().includes(q) || c.phone.toLowerCase().includes(q) || (c.email ?? '').toLowerCase().includes(q);
   });
   const openOrders = orders.filter(o => o.stage < 3).length;
-  const pendingQuotes = quotes.filter(q => q.stage < 3).length;
-  const pendingApprovals = quoteRequests.filter(r => r.status === 'pending').length;
   const pendingReviews = reviews.filter(r => r.status === 'pending').length;
   const paidRevenue = orders.filter(o => o.paid).reduce((a, o) => a + o.total, 0);
   const orderFilterOptions: { key: OrderFilter; label: string; count: number }[] = [
@@ -2167,10 +1495,7 @@ export default function AdminPage() {
   }, { gross: 0, discount: 0, total: 0, paid: 0, unpaid: 0, cash: 0, card: 0, transfer: 0 });
   const s = settingsDraft;
   const storefrontCopy = normalizeStorefrontCopy(s.storefrontCopy);
-  const posSubtotal = posCart.reduce((sum, i) => {
-    const custTotal = (i.customizationLines ?? []).reduce((s, l) => s + (parseInt(l.cost) || 0), 0);
-    return sum + i.unitPrice * i.qty + custTotal;
-  }, 0);
+  const posSubtotal = posCart.reduce((sum, i) => sum + i.unitPrice * i.qty, 0);
   const posDeliveryFee = posMethod === 'Delivery' ? (data.deliveryAreas.find(a => a.id === posDeliveryAreaId)?.rate ?? 0) : 0;
   const posDiscountAmt = posPromo ? Math.min(posPromo.discount, posSubtotal + posDeliveryFee) : Math.min(parseInt(posDiscount) || 0, posSubtotal + posDeliveryFee);
   const posTotal = posSubtotal + posDeliveryFee - posDiscountAmt;
@@ -2206,11 +1531,7 @@ export default function AdminPage() {
     { k: 'dashboard', label: 'Dashboard',        icon: ADMIN_NAV_ICONS.dashboard },
     { k: 'products',  label: 'Products',         icon: ADMIN_NAV_ICONS.products, badge: String(allProducts.length) },
     { k: 'categories',label: 'Collections',      icon: ADMIN_NAV_ICONS.categories },
-    { k: 'builder',   label: 'Builder Options',  icon: ADMIN_NAV_ICONS.builder },
-    { k: 'customization', label: 'Customization', icon: ADMIN_NAV_ICONS.customization, badge: String(customizationProfiles.length) },
     { k: 'orders',    label: 'Orders',           icon: ADMIN_NAV_ICONS.orders, badge: String(openOrders) },
-    { k: 'quotes',    label: 'Quotes',           icon: ADMIN_NAV_ICONS.quotes, badge: String(pendingQuotes) },
-    { k: 'quoteApprovals', label: 'Quote Approvals', icon: ADMIN_NAV_ICONS.quoteApprovals, badge: String(pendingApprovals) },
     { k: 'promos',    label: 'Promo Codes',      icon: ADMIN_NAV_ICONS.promos },
     { k: 'sizechart', label: 'Size Chart',       icon: ADMIN_NAV_ICONS.sizechart },
     { k: 'settings',  label: 'Settings',         icon: ADMIN_NAV_ICONS.settings },
@@ -2279,15 +1600,12 @@ export default function AdminPage() {
           <div className="min-w-0 flex-1">
             <div className="lg:hidden text-[10.5px] text-muted tracking-[.16em] uppercase mb-[2px] truncate">{currentTabLabel}</div>
             <h1 className="font-archivo-narrow font-bold text-[22px] sm:text-[24px] tracking-[.01em] truncate">
-              {{ dashboard: 'Dashboard', products: 'Products', categories: 'Collections & Categories', builder: 'Builder Options', customization: 'Customization Profiles', orders: 'Orders', quotes: 'Quotes', settings: 'Settings', sizechart: 'Size Chart', promos: 'Promo Codes & Referrals', pos: 'Point of Sale', quoteApprovals: 'Quote Approvals', customers: 'Customers' }[tab]}
+              {{ dashboard: 'Dashboard', products: 'Products', categories: 'Collections & Categories', orders: 'Orders', settings: 'Settings', sizechart: 'Size Chart', promos: 'Promo Codes & Referrals', pos: 'Point of Sale', customers: 'Customers' }[tab]}
             </h1>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 flex-none">
             {tab === 'products' && (
               <button onClick={() => openModal('product')} className="border-none bg-rose-500 text-[#200612] font-extrabold text-[13px] px-[12px] sm:px-[18px] py-[10px] rounded-[10px] cursor-pointer shadow-rose-sm whitespace-nowrap">+ Add</button>
-            )}
-            {tab === 'customization' && (
-              <button onClick={() => openModal('customizationProfile')} className="border-none bg-rose-500 text-[#200612] font-extrabold text-[13px] px-[12px] sm:px-[18px] py-[10px] rounded-[10px] cursor-pointer shadow-rose-sm whitespace-nowrap">+ New</button>
             )}
             {tab === 'promos' && (
               <button onClick={() => openPromoModal()} className="border-none bg-rose-500 text-[#200612] font-extrabold text-[13px] px-[12px] sm:px-[18px] py-[10px] rounded-[10px] cursor-pointer shadow-rose-sm whitespace-nowrap">+ New</button>
@@ -2320,7 +1638,6 @@ export default function AdminPage() {
                   { label: 'Products',          value: allProducts.length, icon: Boxes, iconBg: 'rgba(219,87,149,.1)', iconFg: '#600a32', delta: allProducts.filter(p => p.status === 'active').length + ' active' },
                   { label: 'Open orders',        value: openOrders,           icon: ShoppingCart, iconBg: 'rgba(193,57,120,.12)', iconFg: '#8a1d50', delta: orders.filter(o => !o.paid).length + ' awaiting payment' },
                   { label: 'Pending deliveries', value: pendingDeliveries.length, icon: Truck, iconBg: 'rgba(245,200,66,.12)', iconFg: '#8a6205', delta: pendingDeliveries.length > 0 ? `${daysSinceReady(pendingDeliveries[0])} days oldest` : 'all clear' },
-                  { label: 'Pending quotes',     value: pendingQuotes,        icon: FileText, iconBg: 'rgba(219,87,149,.1)',  iconFg: '#600a32', delta: quotes.filter(q => q.stage === 0).length + ' new' },
                   { label: 'Confirmed revenue',  value: 'MVR ' + paidRevenue.toLocaleString(), icon: Percent, iconBg: 'rgba(193,57,120,.12)', iconFg: '#8a1d50', delta: 'from paid orders' },
                 ].map(st => (
                   <div key={st.label} className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[15px] p-5">
@@ -2334,7 +1651,7 @@ export default function AdminPage() {
                 ))}
               </div>
 
-              <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_1fr_1fr] gap-4 mb-4">
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
                 <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[15px] p-5">
                   <div className="flex items-center justify-between mb-[14px]">
                     <span className="font-extrabold text-[14px]">Recent orders</span>
@@ -2352,23 +1669,6 @@ export default function AdminPage() {
                     );
                   })}
                   {orders.length === 0 && <div className="text-[12.5px] text-muted py-6 text-center">No orders yet.</div>}
-                </div>
-                <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[15px] p-5">
-                  <div className="flex items-center justify-between mb-[14px]">
-                    <span className="font-extrabold text-[14px]">Pending quotes</span>
-                    <button onClick={() => setTab('quotes')} className="border-none bg-transparent text-rose-600 font-semibold text-[12px] cursor-pointer">View all →</button>
-                  </div>
-                  {quotes.filter(q => q.stage < 3).slice(0, 4).map(q => {
-                    const m = STAGE_META[q.stage];
-                    return (
-                      <div key={q.id} className="flex items-center gap-[11px] px-2 py-[11px] rounded-[9px] hover:bg-[rgba(0,0,0,.045)] transition-colors">
-                        <span className="text-[12px] font-bold text-rose-600 tabular flex-none">{q.id}</span>
-                        <div className="flex-1 min-w-0"><div className="text-[12.5px] truncate">{q.customer}</div><div className="text-[11px] text-muted">{q.units} units</div></div>
-                        <span className="text-[9.5px] font-extrabold uppercase px-2 py-[3px] rounded-[6px] whitespace-nowrap" style={{ color: m.fg, background: m.bg }}>{QUOTE_STAGES[q.stage]}</span>
-                      </div>
-                    );
-                  })}
-                  {quotes.filter(q => q.stage < 3).length === 0 && <div className="text-[12.5px] text-muted py-6 text-center">No pending quotes.</div>}
                 </div>
                 <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[15px] p-5">
                   <div className="flex items-center justify-between mb-[14px]">
@@ -2647,7 +1947,7 @@ export default function AdminPage() {
                       : `Default${defaultSizeChart ? ` (${defaultSizeChart.name})` : ''}`;
                     return (
                       <div key={c.id} className="flex items-center gap-[11px] bg-well border border-[rgba(0,0,0,.08)] rounded-xl px-[13px] py-3">
-                        <div className="flex-1 min-w-0"><div className="flex items-center gap-2"><span className="text-[13.5px] font-bold truncate">{c.label}</span>{c.bespoke && <span className="shrink-0 text-[10px] font-bold px-[6px] py-[2px] rounded-[5px] bg-[rgba(219,87,149,.12)] text-rose-600 border border-[rgba(219,87,149,.25)]">Bespoke</span>}</div><div className="inline-flex items-center gap-1 text-[11px] text-muted">{catCount} categories · {prodCount} products · <Ruler size={10} /> {chartName}</div></div>
+                        <div className="flex-1 min-w-0"><div className="flex items-center gap-2"><span className="text-[13.5px] font-bold truncate">{c.label}</span></div><div className="inline-flex items-center gap-1 text-[11px] text-muted">{catCount} categories · {prodCount} products · <Ruler size={10} /> {chartName}</div></div>
                         <button onClick={() => openModal('collection', c as any)} className="w-7 h-7 rounded-[7px] border border-[rgba(0,0,0,.12)] bg-transparent text-sub cursor-pointer text-[12px] hover:text-rose-700 transition-colors"><Pencil size={12} /></button>
                         <button onClick={() => { const det = catCount || prodCount ? `This also removes ${catCount} categor${catCount===1?'y':'ies'} and ${prodCount} product${prodCount===1?'':'s'}.` : undefined; askDelete('collection', c, det); }} className="w-7 h-7 rounded-[7px] border border-[rgba(0,0,0,.12)] bg-transparent text-sub cursor-pointer text-[12px] hover:text-[#e81a2b] transition-colors"><X size={12} /></button>
                       </div>
@@ -2683,109 +1983,6 @@ export default function AdminPage() {
                   );
                 })}
               </div>
-            </div>
-          )}
-
-          {/* ── BUILDER OPTIONS ── */}
-          {tab === 'builder' && (
-            <div>
-              <div className="flex gap-[11px] items-start bg-[rgba(219,87,149,.04)] border border-[rgba(219,87,149,.16)] rounded-[13px] px-[18px] py-[14px] mb-[18px]">
-                <span className="text-rose-700 text-[15px]"><Info size={15} /></span>
-                <div className="text-[12.5px] text-sub leading-[1.5]">These are the options customers choose from in the <strong className="text-[#705260]">Custom Jersey Builder</strong>. Add or remove any — the builder reads this list. No prices here (quote-only).</div>
-              </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {([
-                  { kind: 'types',   label: 'Jersey types', prim: 'label', sec: 'desc' },
-                  { kind: 'fabrics', label: 'Fabrics',       prim: 'name',  sec: 'desc' },
-                  { kind: 'sleeves', label: 'Sleeves',       prim: 'label', sec: null },
-                  { kind: 'necks',   label: 'Necks',         prim: 'label', sec: null },
-                  { kind: 'colors',  label: 'Colours',       prim: 'name',  sec: null, color: true },
-                  { kind: 'sizes',   label: 'Sizes',         prim: 'label', sec: null },
-                ] as const).map(g => {
-                  const items = ((data.builderOptions as any)[g.kind] as any[]);
-                  return (
-                    <div key={g.kind} className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[15px] p-[18px]">
-                      <div className="flex items-center justify-between mb-[14px]">
-                        <div><span className="font-archivo-narrow font-bold text-[17px]">{g.label}</span><span className="text-[11px] text-muted ml-2">{items.length}</span></div>
-                        <button onClick={() => openModal(g.kind)} className="border border-[rgba(219,87,149,.3)] bg-[rgba(219,87,149,.06)] text-rose-700 font-bold text-[12px] px-3 py-[7px] rounded-[8px] cursor-pointer">+ Add</button>
-                      </div>
-                      <div className="flex flex-col gap-[7px]">
-                        {items.map((o: any) => (
-                          <div key={o.id} className="flex items-center gap-[11px] bg-well border border-[rgba(0,0,0,.08)] rounded-[10px] px-3 py-[10px] hover:bg-[rgba(0,0,0,.055)] transition-colors">
-                            {(g as any).color && <span className="w-6 h-6 rounded-[7px] flex-none" style={{ background: o.hex, boxShadow: '0 0 0 1px rgba(0,0,0,.14)' }} />}
-                            <div className="flex-1 min-w-0"><div className="text-[13px] font-semibold truncate">{o[(g as any).prim]}</div>{(g as any).sec && o[(g as any).sec] && <div className="text-[11px] text-muted truncate">{o[(g as any).sec]}</div>}</div>
-                            <button onClick={() => openModal(g.kind, o)} className="w-[26px] h-[26px] rounded-[7px] border border-[rgba(0,0,0,.12)] bg-transparent text-sub cursor-pointer text-[12px] hover:text-rose-700 transition-colors"><Pencil size={12} /></button>
-                            <button onClick={() => askDelete(g.kind, o)} className="w-[26px] h-[26px] rounded-[7px] border border-[rgba(0,0,0,.12)] bg-transparent text-sub cursor-pointer text-[12px] hover:text-[#e81a2b] transition-colors"><X size={12} /></button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* ── CUSTOMIZATION PROFILES ── */}
-          {tab === 'customization' && (
-            <div>
-              <div className="flex gap-[11px] items-start bg-[rgba(219,87,149,.04)] border border-[rgba(219,87,149,.16)] rounded-[13px] px-[18px] py-[14px] mb-[18px]">
-                <span className="text-rose-700 text-[15px]"><Info size={15} /></span>
-                <div className="text-[12.5px] text-sub leading-[1.5]">
-                  Profiles define limited customization choices for any product, category, or collection. Product assignments override category assignments, and category assignments override collection assignments.
-                </div>
-              </div>
-              {customizationProfiles.length === 0 ? (
-                <div className="border border-dashed border-[rgba(0,0,0,.14)] rounded-[15px] py-12 px-6 text-center">
-                  <div className="font-bold text-[17px]">No customization profiles yet</div>
-                  <div className="text-[12.5px] text-muted mt-[6px]">Create one, add fields, and assign it to a collection, category, or product.</div>
-                  <button onClick={() => openModal('customizationProfile')} className="mt-4 border-none bg-rose-500 text-[#200612] font-extrabold text-[13px] px-[18px] py-[10px] rounded-[10px] cursor-pointer shadow-rose-sm">+ New profile</button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  {customizationProfiles.map(profile => (
-                    <div key={profile.id} className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[15px] p-[18px]">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-archivo-narrow font-bold text-[18px] truncate">{profile.name}</span>
-                            <span className="text-[9px] font-extrabold uppercase rounded-[5px] px-[7px] py-[2px]" style={{ color: profile.active ? '#600a32' : '#705260', background: profile.active ? 'rgba(219,87,149,.12)' : 'rgba(0,0,0,.08)' }}>{profile.active ? 'Active' : 'Inactive'}</span>
-                          </div>
-                          {profile.description && <div className="text-[12px] text-muted mt-[4px] leading-[1.45]">{profile.description}</div>}
-                        </div>
-                        <div className="flex gap-2 flex-none">
-                          <button onClick={() => openModal('customizationProfile', profile as any)} className="w-[28px] h-[28px] rounded-[7px] border border-[rgba(0,0,0,.12)] bg-transparent text-sub cursor-pointer text-[12px] hover:text-rose-700 transition-colors"><Pencil size={12} /></button>
-                          <button onClick={() => askDelete('customizationProfile', profile, 'Products using this profile will lose the special customization flow.')} className="w-[28px] h-[28px] rounded-[7px] border border-[rgba(0,0,0,.12)] bg-transparent text-sub cursor-pointer text-[12px] hover:text-[#e81a2b] transition-colors"><X size={12} /></button>
-                        </div>
-                      </div>
-
-                      <div className="mt-4">
-                        <div className="text-[10.5px] font-extrabold uppercase tracking-[.06em] text-muted mb-2">Assignments</div>
-                        <div className="flex gap-2 flex-wrap">
-                          {profile.assignments.length > 0 ? profile.assignments.map(a => (
-                            <span key={a.id} className="text-[11px] font-semibold text-[#705260] bg-well border border-[rgba(0,0,0,.08)] rounded-[7px] px-[9px] py-[5px]">
-                              {scopeLabel(a, { ...data, products: allProducts })}
-                            </span>
-                          )) : <span className="text-[12px] text-muted">Not assigned</span>}
-                        </div>
-                      </div>
-
-                      <div className="mt-4">
-                        <div className="text-[10.5px] font-extrabold uppercase tracking-[.06em] text-muted mb-2">Fields</div>
-                        <div className="flex flex-col gap-[7px]">
-                          {profile.fields.length > 0 ? profile.fields.map(field => (
-                            <div key={field.id} className="flex items-center gap-[10px] bg-well border border-[rgba(0,0,0,.08)] rounded-[9px] px-3 py-[9px]">
-                              <span className="flex-1 text-[12.5px] font-semibold">{field.label}</span>
-                              <span className="text-[10.5px] text-muted">{field.type}</span>
-                              {field.required && <span className="text-[9px] font-extrabold uppercase text-[#e81a2b]">Req</span>}
-                            </div>
-                          )) : <div className="text-[12px] text-muted">No fields configured.</div>}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           )}
 
@@ -2892,208 +2089,6 @@ export default function AdminPage() {
                   );
                 })}
                 {filteredOrders.length === 0 && <div className="py-12 text-center text-[13px] text-muted">No orders match this filter.</div>}
-              </div>
-            </div>
-          )}
-
-          {/* ── QUOTES ── */}
-          {tab === 'quotes' && (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-[13px] text-muted">{quotes.length} quote{quotes.length !== 1 ? 's' : ''}</span>
-                <button onClick={() => setManualQuoteModal(true)}
-                  className="border-none bg-rose-500 text-[#200612] font-extrabold text-[13px] px-[18px] py-[9px] rounded-[10px] cursor-pointer shadow-rose-sm">
-                  + Manual Quote
-                </button>
-              </div>
-              <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[15px] overflow-hidden">
-                {/* Desktop/tablet: compact grid table */}
-                <div className="hidden sm:block overflow-x-auto">
-                  <div className="grid px-[14px] py-[10px] bg-[rgba(0,0,0,.045)] border-b border-[rgba(0,0,0,.07)] text-[10.5px] font-extrabold tracking-[.06em] uppercase text-muted min-w-[860px]" style={{ gridTemplateColumns: '100px 1.1fr 1.1fr .4fr .9fr 1.3fr 1.05fr .85fr' }}>
-                    <span>Ref</span><span>Customer</span><span>Configs</span><span>Units</span><span>Price</span><span>Confirmation</span><span>Stage</span><span></span>
-                  </div>
-                  {quotes.map(q => {
-                    const m = STAGE_META[Math.min(q.stage, STAGE_META.length - 1)];
-                    const alreadyConverted = orders.some(o => o.quoteRef === q.id);
-                    const isRestrictedRole = !hasPermission(currentUser, 'quoteApprovals', 'edit');
-                    const pendingLocked = q.stage === 3 && q.hasPendingRequest && isRestrictedRole;
-                    const confirmBadge = quoteConfirmationBadge(q);
-                    const slip = quotePaymentSlip(q);
-                    return (
-                      <div key={q.id} className="grid px-[14px] py-[10px] border-b border-[rgba(0,0,0,.07)] items-center hover:bg-[rgba(0,0,0,.045)] transition-colors min-w-[860px]" style={{ gridTemplateColumns: '100px 1.1fr 1.1fr .4fr .9fr 1.3fr 1.05fr .85fr' }}>
-                        <div className="min-w-0">
-                          <button onClick={() => setQuoteDrawer(q)} className="text-[11.5px] font-bold text-rose-600 tabular hover:underline border-none bg-transparent cursor-pointer p-0 text-left">{q.id}</button>
-                          {q.pdfUrl && <a href={q.pdfUrl} target="_blank" rel="noopener noreferrer" title="Download quote PDF" className="block text-[8px] font-extrabold text-rose-600 mt-[2px] no-underline hover:underline">↓ PDF</a>}
-                        </div>
-                        <div className="min-w-0"><div className="text-[12.5px] font-semibold truncate">{q.customer}</div><div className="text-[10.5px] text-muted truncate">{q.date}{q.email ? ` · ${q.email}` : ''}</div></div>
-                        <span className="text-[11.5px] text-sub truncate">{q.summary}</span>
-                        <span className="text-[12.5px] font-bold tabular">{q.units}</span>
-                        {pendingLocked ? (
-                          <span className="text-[11px] font-bold text-[#8a6205] tabular">MVR {q.price?.toLocaleString() ?? '—'}</span>
-                        ) : (
-                          <div className="flex items-center gap-[4px]">
-                            <span className="text-[11px] text-muted">MVR</span>
-                            <input defaultValue={q.price ? String(q.price) : ''} onBlur={e => setQuotePrice(q.id, e.target.value)} placeholder="—"
-                              className="w-[68px] bg-well border border-[rgba(0,0,0,.12)] rounded-[7px] px-[7px] py-[5px] text-rose-600 font-archivo font-bold text-[12px] outline-none tabular focus:border-rose-400" />
-                          </div>
-                        )}
-                        <div className="flex flex-wrap items-center gap-1">
-                          {confirmBadge && <Badge tone={confirmBadge.tone} icon={confirmBadge.tone === 'success' ? <Check size={9} /> : confirmBadge.tone === 'warning' ? <Clock size={9} /> : undefined}>{confirmBadge.label}</Badge>}
-                          {slip && (
-                            <button onClick={() => setSlipModal({ url: slip.url, expired: slip.expired })} className="border-none bg-transparent p-0 cursor-pointer">
-                              <Badge tone={slip.expired ? 'neutral' : 'success'} icon={<Check size={9} />} title={slip.expired ? 'Payment slip expired' : 'View payment slip'}>{slip.expired ? 'Slip expired' : 'Slip'}</Badge>
-                            </button>
-                          )}
-                          {pendingLocked && <Badge tone="warning" icon={<Clock size={9} />}>Pending approval</Badge>}
-                          {!confirmBadge && !slip && !pendingLocked && <span className="text-[11px] text-muted">—</span>}
-                        </div>
-                        {pendingLocked ? (
-                          <span className="text-[10.5px] font-extrabold" style={{ color: m.fg }}>{QUOTE_STAGES[q.stage]}</span>
-                        ) : (
-                          <select value={q.stage} onChange={e => setQuoteStage(q.id, +e.target.value)}
-                            className="bg-well border rounded-[7px] px-[7px] py-[5px] font-archivo font-bold text-[11px] outline-none cursor-pointer"
-                            style={{ borderColor: m.fg, color: m.fg }}>
-                            {QUOTE_STAGES.map((st, i) => <option key={i} value={i}>{st}</option>)}
-                          </select>
-                        )}
-                        {q.stage === 3 ? (
-                          alreadyConverted ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-[#8a6205] whitespace-nowrap"><Check size={10} /> Converted</span>
-                          ) : (
-                            <button onClick={() => convertQuote(q.id)} disabled={!q.price}
-                              title={!q.price ? 'Set a price first' : 'Convert to order'}
-                              className="font-extrabold text-[10.5px] px-[9px] py-[5px] rounded-[7px] cursor-pointer border transition-all whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
-                              style={{ background: 'rgba(219,87,149,.1)', border: '1px solid rgba(219,87,149,.4)', color: '#600a32' }}>
-                              → Convert
-                            </button>
-                          )
-                        ) : <span />}
-                      </div>
-                    );
-                  })}
-                  {quotes.length === 0 && <div className="py-12 text-center text-[13px] text-muted">No quotes yet.</div>}
-                </div>
-
-                {/* Mobile: stacked cards */}
-                <div className="sm:hidden divide-y divide-[rgba(0,0,0,.07)]">
-                  {quotes.map(q => {
-                    const m = STAGE_META[Math.min(q.stage, STAGE_META.length - 1)];
-                    const alreadyConverted = orders.some(o => o.quoteRef === q.id);
-                    const isRestrictedRole = !hasPermission(currentUser, 'quoteApprovals', 'edit');
-                    const pendingLocked = q.stage === 3 && q.hasPendingRequest && isRestrictedRole;
-                    const confirmBadge = quoteConfirmationBadge(q);
-                    const slip = quotePaymentSlip(q);
-                    return (
-                      <div key={q.id} className="p-[14px] flex flex-col gap-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <button onClick={() => setQuoteDrawer(q)} className="text-[13px] font-bold text-rose-600 tabular hover:underline border-none bg-transparent cursor-pointer p-0 text-left block">{q.id}</button>
-                            <div className="text-[13px] font-semibold truncate">{q.customer}</div>
-                            <div className="text-[10.5px] text-muted truncate">{q.date}{q.email ? ` · ${q.email}` : ''}</div>
-                          </div>
-                          <div className="text-right flex-none">
-                            {pendingLocked ? (
-                              <span className="text-[12px] font-bold text-[#8a6205] tabular">MVR {q.price?.toLocaleString() ?? '—'}</span>
-                            ) : (
-                              <div className="flex items-center gap-[4px] justify-end">
-                                <span className="text-[11px] text-muted">MVR</span>
-                                <input defaultValue={q.price ? String(q.price) : ''} onBlur={e => setQuotePrice(q.id, e.target.value)} placeholder="—"
-                                  className="w-[74px] bg-well border border-[rgba(0,0,0,.12)] rounded-[7px] px-[7px] py-[5px] text-rose-600 font-archivo font-bold text-[12px] outline-none tabular focus:border-rose-400" />
-                              </div>
-                            )}
-                            {q.pdfUrl && <a href={q.pdfUrl} target="_blank" rel="noopener noreferrer" className="block text-[9px] font-extrabold text-rose-600 mt-1 no-underline hover:underline">↓ PDF</a>}
-                          </div>
-                        </div>
-                        <div className="text-[11.5px] text-sub truncate">{q.summary} · {q.units} unit{q.units !== 1 ? 's' : ''}</div>
-                        <div className="flex flex-wrap items-center gap-1">
-                          <Badge tone="neutral" icon={<span className="w-[6px] h-[6px] rounded-full" style={{ background: m.fg }} />}>{QUOTE_STAGES[q.stage]}</Badge>
-                          {confirmBadge && <Badge tone={confirmBadge.tone} icon={confirmBadge.tone === 'success' ? <Check size={9} /> : confirmBadge.tone === 'warning' ? <Clock size={9} /> : undefined}>{confirmBadge.label}</Badge>}
-                          {slip && (
-                            <button onClick={() => setSlipModal({ url: slip.url, expired: slip.expired })} className="border-none bg-transparent p-0 cursor-pointer">
-                              <Badge tone={slip.expired ? 'neutral' : 'success'} icon={<Check size={9} />}>{slip.expired ? 'Slip expired' : 'Slip'}</Badge>
-                            </button>
-                          )}
-                          {pendingLocked && <Badge tone="warning" icon={<Clock size={9} />}>Pending approval</Badge>}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {pendingLocked ? (
-                            <span className="text-[11px] font-extrabold flex-1" style={{ color: m.fg }}>{QUOTE_STAGES[q.stage]}</span>
-                          ) : (
-                            <select value={q.stage} onChange={e => setQuoteStage(q.id, +e.target.value)}
-                              className="flex-1 bg-well border rounded-[7px] px-[9px] py-[7px] font-archivo font-bold text-[11.5px] outline-none cursor-pointer"
-                              style={{ borderColor: m.fg, color: m.fg }}>
-                              {QUOTE_STAGES.map((st, i) => <option key={i} value={i}>{st}</option>)}
-                            </select>
-                          )}
-                          {q.stage === 3 && (
-                            alreadyConverted ? (
-                              <span className="inline-flex items-center gap-1 text-[10.5px] font-extrabold text-[#8a6205] whitespace-nowrap flex-none"><Check size={10} /> Converted</span>
-                            ) : (
-                              <button onClick={() => convertQuote(q.id)} disabled={!q.price}
-                                title={!q.price ? 'Set a price first' : 'Convert to order'}
-                                className="flex-none font-extrabold text-[11px] px-[10px] py-[7px] rounded-[7px] cursor-pointer border transition-all whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
-                                style={{ background: 'rgba(219,87,149,.1)', border: '1px solid rgba(219,87,149,.4)', color: '#600a32' }}>
-                                → Convert
-                              </button>
-                            )
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {quotes.length === 0 && <div className="py-12 text-center text-[13px] text-muted">No quotes yet.</div>}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── QUOTE APPROVALS (quotation_approver-only) ── */}
-          {tab === 'quoteApprovals' && (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-[13px] text-muted">{pendingApprovals} pending</span>
-                <button onClick={() => reloadQuoteRequests()}
-                  className="border border-[rgba(0,0,0,.12)] bg-transparent text-sub font-bold text-[12px] px-[14px] py-[8px] rounded-[9px] cursor-pointer hover:brightness-125 transition-all">
-                  <RefreshCw size={12} className="inline mr-1" /> Refresh
-                </button>
-              </div>
-              <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[15px] overflow-x-auto [&>div]:min-w-[820px]">
-                <div className="grid px-[18px] py-[13px] bg-[rgba(0,0,0,.045)] border-b border-[rgba(0,0,0,.07)] text-[11px] font-extrabold tracking-[.06em] uppercase text-muted" style={{ gridTemplateColumns: '110px 1.3fr 1.6fr 1.1fr 1fr 1.3fr' }}>
-                  <span>Quote</span><span>Customer</span><span>Current → Requested</span><span>Requested by</span><span>Status</span><span></span>
-                </div>
-                {quoteRequests.map(r => (
-                  <div key={r.id} className="grid px-[18px] py-[13px] border-b border-[rgba(0,0,0,.07)] items-center hover:bg-[rgba(0,0,0,.045)] transition-colors" style={{ gridTemplateColumns: '110px 1.3fr 1.6fr 1.1fr 1fr 1.3fr' }}>
-                    <button onClick={() => { setTab('quotes'); const q = quotes.find(q => q.id === r.quoteId); if (q) setQuoteDrawer(q); }}
-                      className="text-[12px] font-bold text-rose-600 tabular hover:underline border-none bg-transparent cursor-pointer p-0 text-left">{r.quoteId}</button>
-                    <div className="min-w-0"><div className="text-[13px] font-semibold truncate">{r.quoteCustomer}</div><div className="text-[11px] text-muted truncate">{r.quoteSummary}</div></div>
-                    <div className="text-[12px] text-sub">
-                      {r.requestedStage !== null && <div>Status: {QUOTE_STAGES[Math.min(r.currentStage, 3)]} → <span className="font-bold text-body">{QUOTE_STAGES[Math.min(r.requestedStage, 3)]}</span></div>}
-                      {r.requestedPrice !== null && <div>Price: MVR {(r.currentPrice ?? 0).toLocaleString()} → <span className="font-bold text-body">MVR {r.requestedPrice.toLocaleString()}</span></div>}
-                    </div>
-                    <div className="min-w-0"><div className="text-[12px] truncate">{r.requestedBy}</div><div className="text-[10.5px] text-muted">{new Date(r.createdAt).toLocaleString()}</div></div>
-                    <span className="text-[10.5px] font-extrabold uppercase px-[9px] py-[4px] rounded-full w-fit" style={{
-                      color: r.status === 'pending' ? '#8a6205' : r.status === 'accepted' ? '#600a32' : '#e81a2b',
-                      background: r.status === 'pending' ? 'rgba(245,200,66,.1)' : r.status === 'accepted' ? 'rgba(219,87,149,.1)' : 'rgba(255,99,112,.1)',
-                    }}>{r.status}</span>
-                    {r.status === 'pending' ? (
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => acceptQuoteRequest(r.id)}
-                          className="font-extrabold text-[11px] px-[11px] py-[6px] rounded-[8px] cursor-pointer border transition-all whitespace-nowrap"
-                          style={{ background: 'rgba(219,87,149,.1)', border: '1px solid rgba(219,87,149,.4)', color: '#600a32' }}>
-                          <Check size={12} className="inline mr-1" /> Accept
-                        </button>
-                        <button onClick={() => rejectQuoteRequest(r.id)}
-                          className="font-extrabold text-[11px] px-[11px] py-[6px] rounded-[8px] cursor-pointer border transition-all whitespace-nowrap"
-                          style={{ background: 'rgba(255,99,112,.1)', border: '1px solid rgba(255,99,112,.4)', color: '#e81a2b' }}>
-                          <X size={12} className="inline mr-1" /> Reject
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="text-[11px] text-muted">{r.resolvedBy}{r.rejectionNote ? ` · "${r.rejectionNote}"` : ''}</span>
-                    )}
-                  </div>
-                ))}
-                {quoteRequests.length === 0 && <div className="py-12 text-center text-[13px] text-muted">No pending change requests.</div>}
               </div>
             </div>
           )}
@@ -3331,7 +2326,7 @@ export default function AdminPage() {
                               <span className="w-9 h-9 rounded-[7px] flex-none" style={{ background: p.img }} />
                               <div className="flex-1 min-w-0">
                                 <div className="text-[12.5px] font-semibold truncate">{p.name}</div>
-                                <div className="text-[11px] text-muted truncate">{p.customizable ? 'Custom price' : `MVR ${p.price.toLocaleString()}`} · {p.category}</div>
+                                <div className="text-[11px] text-muted truncate">MVR {p.price.toLocaleString()} · {p.category}</div>
                               </div>
                             </button>
                           ))}
@@ -3377,25 +2372,12 @@ export default function AdminPage() {
                       {posCart.length === 0 && !posReceipt && <div className="text-center text-muted text-[12.5px] py-12">Select a product to add it here.</div>}
                       {posCart.map((item, i) => {
                         const effPrice = item.unitPrice;
-                        const custTotal = (item.customizationLines ?? []).reduce((s, l) => s + (parseInt(l.cost) || 0), 0);
                         return (
                           <div key={i} className="bg-surface border border-[rgba(0,0,0,.07)] rounded-[10px] p-3 flex items-start gap-3">
                             <span className="w-9 h-9 rounded-[7px] flex-none" style={{ background: item.img }} />
                             <div className="flex-1 min-w-0">
                               <div className="text-[12.5px] font-semibold">{item.name}</div>
-                              <div className="text-[11px] text-muted">{[item.size, item.color, item.sleeve].filter(Boolean).join(' · ') || item.meta || '—'}</div>
-                              {item.customizable && item.customizationNote && (
-                                <div className="text-[11px] text-sub italic mt-[4px]">{item.customizationNote}</div>
-                              )}
-                              {item.customizable && item.customizationLines && item.customizationLines.length > 0 && (
-                                <div className="mt-[4px] flex flex-col gap-[2px]">
-                                  {item.customizationLines.map((l, li) => (
-                                    <div key={li} className="flex justify-between gap-2 text-[11px] text-muted">
-                                      <span className="truncate">{l.label}</span><span className="tabular flex-none">+MVR {(parseInt(l.cost) || 0).toLocaleString()}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
+                              <div className="text-[11px] text-muted">{[item.size, item.color].filter(Boolean).join(' · ') || item.meta || '—'}</div>
                             </div>
                             <div className="flex flex-col items-end gap-[6px]">
                               <div className="flex items-center gap-1">
@@ -3403,14 +2385,12 @@ export default function AdminPage() {
                                 <span className="w-6 text-center text-[13px] font-bold tabular">{item.qty}</span>
                                 <button onClick={() => setPosCart(c => c.map((x, j) => {
                                   if (j !== i) return x;
-                                  if (!x.customizable) {
-                                    const available = inventoryStockForVariant(posInvRows, x.sku, x.color, x.size);
-                                    if (x.qty >= available) { flash(`Only ${available} unit${available !== 1 ? 's' : ''} available at this location.`); return x; }
-                                  }
+                                  const available = inventoryStockForVariant(posInvRows, x.sku, x.color, x.size);
+                                  if (x.qty >= available) { flash(`Only ${available} unit${available !== 1 ? 's' : ''} available at this location.`); return x; }
                                   return { ...x, qty: x.qty + 1 };
                                 }))} className="w-6 h-6 bg-[rgba(0,0,0,.08)] border border-[rgba(0,0,0,.1)] rounded-[5px] text-[13px] cursor-pointer">+</button>
                               </div>
-                              <span className="text-[13px] font-bold tabular">MVR {(effPrice * item.qty + custTotal).toLocaleString()}</span>
+                              <span className="text-[13px] font-bold tabular">MVR {(effPrice * item.qty).toLocaleString()}</span>
                               <button onClick={() => setPosCart(c => c.filter((_, j) => j !== i))} className="text-[11px] text-[#e81a2b] border-none bg-transparent cursor-pointer"><X size={11} /></button>
                             </div>
                           </div>
@@ -4058,44 +3038,8 @@ export default function AdminPage() {
                     <div className="text-[11.5px] text-muted leading-[1.5] mt-3">Card payments are intentionally disabled — online checkout is delivery-only, bank transfer.</div>
                   </div>
                   <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[15px] p-[22px]">
-                    <div className="font-archivo-narrow font-bold text-[18px] mb-4">Google Drive uploads</div>
-                    {s.googleDriveConnectedEmail ? (
-                      <div className="flex items-center justify-between gap-2 mb-4 text-[12.5px]">
-                        <span className="text-sub">Connected as <span className="font-semibold">{s.googleDriveConnectedEmail}</span></span>
-                        <button type="button" onClick={disconnectGoogleDrive} disabled={driveDisconnecting}
-                          className="border border-[rgba(0,0,0,.16)] text-muted font-bold text-[12px] px-[12px] py-[7px] rounded-[8px] cursor-pointer disabled:opacity-50">
-                          {driveDisconnecting ? 'Disconnecting…' : 'Disconnect'}
-                        </button>
-                      </div>
-                    ) : (
-                      <a href="/api/admin/settings/google-drive/oauth/start"
-                        className="inline-block mb-4 border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.06)] text-rose-700 font-bold text-[12px] px-[14px] py-[9px] rounded-[8px] cursor-pointer">
-                        Connect Google Drive
-                      </a>
-                    )}
-                    <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-end">
-                      <FieldInput label="Shared folder URL or ID" value={s.googleDriveFolderId ?? ''} onChange={v => { setSetting('googleDriveFolderId', v); setSetting('googleDriveFolderName', ''); setSetting('googleDriveLastTestAt', null); }} />
-                      <button type="button" onClick={testGoogleDrive} disabled={driveTesting || !s.googleDriveConnectedEmail || !String(s.googleDriveFolderId ?? '').trim()}
-                        className="mb-[15px] border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.06)] text-rose-700 font-bold text-[12px] px-[12px] py-[9px] rounded-[8px] cursor-pointer disabled:opacity-50">
-                        {driveTesting ? 'Testing…' : 'Test'}
-                      </button>
-                    </div>
-                    <button onClick={() => setSetting('googleDriveUploadsEnabled', !s.googleDriveUploadsEnabled)}
-                      className="w-full font-bold text-[13px] px-4 py-[10px] rounded-[9px] cursor-pointer transition-all"
-                      style={{ border: s.googleDriveUploadsEnabled ? 'none' : '1px solid rgba(0,0,0,.16)', background: s.googleDriveUploadsEnabled ? '#db5795' : 'transparent', color: s.googleDriveUploadsEnabled ? '#200612' : '#705260' }}>
-                      {s.googleDriveUploadsEnabled ? <><Check size={11} className="inline mr-1" /> Drive uploads enabled</> : 'Drive uploads disabled'}
-                    </button>
-                    {(s.googleDriveFolderName || s.googleDriveLastTestAt) && (
-                      <div className="text-[11.5px] text-muted leading-[1.5] mt-3">
-                        {s.googleDriveFolderName && <span className="text-sub font-semibold">{s.googleDriveFolderName}</span>}
-                        {s.googleDriveLastTestAt && <span> · tested {new Date(s.googleDriveLastTestAt).toLocaleString()}</span>}
-                      </div>
-                    )}
-                    {driveTestMessage && <div className="text-[11.5px] text-muted leading-[1.5] mt-3">{driveTestMessage}</div>}
-                  </div>
-                  <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[15px] p-[22px]">
                     <div className="font-archivo-narrow font-bold text-[18px] mb-1">Telegram staff alerts</div>
-                    <div className="text-[12px] text-muted mb-4">Pings a Telegram group when a new order, quote or status change happens — for staff, never sent to customers.</div>
+                    <div className="text-[12px] text-muted mb-4">Pings a Telegram group when a new order or status change happens — for staff, never sent to customers.</div>
                     {s.telegramConnected ? (
                       <div className="flex items-center justify-between gap-2 mb-4 text-[12.5px]">
                         <span className="text-sub">Connected as <span className="font-semibold">@{s.telegramBotUsername}</span></span>
@@ -4141,7 +3085,7 @@ export default function AdminPage() {
                   </div>
                   <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[15px] p-[22px]">
                     <div className="font-archivo-narrow font-bold text-[18px] mb-1">Email (Resend)</div>
-                    <div className="text-[12px] text-muted mb-4">Sends order and quote emails to customers.</div>
+                    <div className="text-[12px] text-muted mb-4">Sends order emails to customers.</div>
                     {s.emailConnected ? (
                       <div className="flex items-center justify-between gap-2 mb-4 text-[12.5px]">
                         <span className="text-sub">Connected — sending as <span className="font-semibold">{s.emailFromUser}@…</span></span>
@@ -4177,7 +3121,7 @@ export default function AdminPage() {
                   </div>
                   <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[15px] p-[22px]">
                     <div className="font-archivo-narrow font-bold text-[18px] mb-1">SMS Gateway (MsgOwl)</div>
-                    <div className="text-[12px] text-muted mb-4">Sends order and quote text messages to customers, when a mobile number is on file.</div>
+                    <div className="text-[12px] text-muted mb-4">Sends order text messages to customers, when a mobile number is on file.</div>
                     {s.smsConnected ? (
                       <div className="flex items-center justify-between gap-2 mb-4 text-[12.5px]">
                         <span className="text-sub">Connected as <span className="font-semibold">{s.msgowlSenderId}</span></span>
@@ -4211,11 +3155,11 @@ export default function AdminPage() {
                   </div>
                   <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[15px] p-[22px]">
                     <div className="font-archivo-narrow font-bold text-[18px] mb-1">Notification preferences</div>
-                    <div className="text-[12px] text-muted mb-4">Choose which channels customers get notified through for each order/quote event.</div>
+                    <div className="text-[12px] text-muted mb-4">Choose which channels customers get notified through for each order event.</div>
                     <div className="grid grid-cols-[1fr_50px_50px] gap-x-2 gap-y-[6px] items-center text-[10.5px] font-semibold text-muted uppercase tracking-wide pb-1 border-b border-[rgba(0,0,0,.08)] mb-1">
                       <span>Event</span><span className="text-center">Email</span><span className="text-center">SMS</span>
                     </div>
-                    {([['Order events', ORDER_NOTIFICATION_EVENTS], ['Quote events', QUOTE_NOTIFICATION_EVENTS]] as const).map(([group, events]) => (
+                    {([['Order events', ORDER_NOTIFICATION_EVENTS]] as const).map(([group, events]) => (
                       <div key={group}>
                         <div className="text-[10.5px] font-semibold text-muted mt-2 mb-1">{group}</div>
                         {events.map(ev => {
@@ -4348,48 +3292,8 @@ export default function AdminPage() {
                     ))}
                   </div>
                   <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[15px] p-[22px]">
-                    <div className="font-archivo-narrow font-bold text-[18px] mb-1">Customization design assets</div>
-                    <div className="text-[12px] text-muted mb-4">Shown as download links wherever customers upload a logo or design file on a product page.</div>
-                    <div className="mb-4">
-                      <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Logo placement guide (PDF)</label>
-                      <div className="flex items-center gap-3">
-                        <input ref={customizationGuideInputRef} type="file" accept="application/pdf,.pdf" className="hidden"
-                          onChange={e => { const f = e.target.files?.[0]; if (f) uploadCustomizationGuide(f); }} />
-                        <button type="button" onClick={() => customizationGuideInputRef.current?.click()} disabled={customizationGuideUploading}
-                          className="border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.06)] text-rose-700 font-bold text-[12px] px-[14px] py-[8px] rounded-[9px] cursor-pointer disabled:opacity-50">
-                          {customizationGuideUploading ? 'Uploading…' : '↑ Upload guide PDF'}
-                        </button>
-                        {s.customizationGuidePdfUrl && (
-                          <>
-                            <a href={s.customizationGuidePdfUrl} target="_blank" rel="noopener noreferrer" className="text-[11.5px] text-rose-700 underline">View current</a>
-                            <button type="button" onClick={() => setSetting('customizationGuidePdfUrl', '')}
-                              className="text-[11px] text-muted underline cursor-pointer bg-transparent border-none p-0">Remove</button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Details template (Excel)</label>
-                      <div className="flex items-center gap-3">
-                        <input ref={customizationTemplateInputRef} type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden"
-                          onChange={e => { const f = e.target.files?.[0]; if (f) uploadCustomizationTemplate(f); }} />
-                        <button type="button" onClick={() => customizationTemplateInputRef.current?.click()} disabled={customizationTemplateUploading}
-                          className="border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.06)] text-rose-700 font-bold text-[12px] px-[14px] py-[8px] rounded-[9px] cursor-pointer disabled:opacity-50">
-                          {customizationTemplateUploading ? 'Uploading…' : '↑ Upload Excel template'}
-                        </button>
-                        {s.customizationTemplateXlsxUrl && (
-                          <>
-                            <a href={s.customizationTemplateXlsxUrl} target="_blank" rel="noopener noreferrer" className="text-[11.5px] text-rose-700 underline">View current</a>
-                            <button type="button" onClick={() => setSetting('customizationTemplateXlsxUrl', '')}
-                              className="text-[11px] text-muted underline cursor-pointer bg-transparent border-none p-0">Remove</button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[15px] p-[22px]">
                     <div className="font-archivo-narrow font-bold text-[18px] mb-1">PDF &amp; Tax settings</div>
-                    <div className="text-[12px] text-muted mb-4">Used on Invoice, Quotation and Payment Receipt PDFs.</div>
+                    <div className="text-[12px] text-muted mb-4">Used on Invoice and Payment Receipt PDFs.</div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
                       <FieldInput label="Tax ID" value={s.taxId ?? ''} onChange={v => setSetting('taxId', v)} />
                       <FieldInput label="Tax rate (%)" value={String(s.taxRate ?? 0)} onChange={v => setSetting('taxRate', parseFloat(v) || 0)} />
@@ -4464,65 +3368,6 @@ export default function AdminPage() {
                   </div>
                 )}
               </div>
-              {/* ── Builder custom fields ── */}
-              <div className="mt-8">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <div className="font-archivo-narrow font-bold text-[20px]">Builder custom fields</div>
-                    <div className="text-[12px] text-muted mt-[3px]">Define what extra information customers provide when building a custom jersey quote.</div>
-                  </div>
-                  <button onClick={addBuilderField} className="border-none bg-rose-500 text-[#200612] font-extrabold text-[13px] px-[18px] py-[10px] rounded-[10px] cursor-pointer">+ Add field</button>
-                </div>
-                <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[15px] overflow-hidden">
-                  {(s.builderFields ?? []).length === 0 && (
-                    <div className="py-8 text-center text-[12.5px] text-muted">No custom fields yet. Click "+ Add field" to start.</div>
-                  )}
-                  {(s.builderFields ?? []).map((field, i) => (
-                    <div key={field.id} className="flex flex-col gap-[10px] px-[18px] py-[14px] border-b border-[rgba(0,0,0,.08)] last:border-b-0">
-                      <div className="flex gap-[10px] items-center">
-                        {/* Label */}
-                        <input value={field.label} onChange={e => updateBuilderField(i, { label: e.target.value })}
-                          placeholder="Field label, e.g. Logo placement"
-                          className="flex-1 bg-well border border-[rgba(0,0,0,.12)] rounded-[8px] px-[12px] py-[8px] text-body font-archivo text-[13px] outline-none focus:border-rose-500" />
-                        {/* Type selector */}
-                        <div className="flex rounded-[8px] overflow-hidden border border-[rgba(0,0,0,.1)] flex-none">
-                          {(['text','select','checkbox'] as const).map(t => (
-                            <button key={t} onClick={() => updateBuilderField(i, { type: t })}
-                              className="px-[11px] py-[7px] text-[11px] font-bold cursor-pointer border-none transition-all capitalize"
-                              style={{ background: field.type===t ? 'rgba(219,87,149,.12)' : 'transparent', color: field.type===t ? '#600a32' : '#907481' }}>
-                              {t}
-                            </button>
-                          ))}
-                        </div>
-                        {/* Required toggle */}
-                        <button onClick={() => updateBuilderField(i, { required: !field.required })}
-                          className="flex-none text-[11px] font-bold px-[10px] py-[7px] rounded-[7px] cursor-pointer border transition-all"
-                          style={{ background: field.required ? 'rgba(219,87,149,.1)' : 'transparent', borderColor: field.required ? 'rgba(219,87,149,.35)' : 'rgba(0,0,0,.1)', color: field.required ? '#600a32' : '#907481' }}>
-                          Required
-                        </button>
-                        {/* Delete */}
-                        <button onClick={() => removeBuilderField(i)}
-                          className="w-[30px] h-[30px] flex-none rounded-[7px] border border-[rgba(0,0,0,.12)] bg-transparent text-sub cursor-pointer text-[12px] hover:text-[#e81a2b] hover:border-[rgba(255,61,77,.35)] transition-all"><X size={12} /></button>
-                      </div>
-                      {/* Options row — only for select */}
-                      {field.type === 'select' && (
-                        <input defaultValue={(field.options ?? []).join(', ')}
-                          onBlur={e => updateBuilderField(i, { options: e.target.value.split(',').map(o => o.trim()).filter(Boolean) })}
-                          placeholder="Comma-separated options, e.g. Left chest, Right chest, Back"
-                          className="w-full bg-well border border-[rgba(0,0,0,.08)] rounded-[8px] px-[12px] py-[8px] text-[#705260] font-archivo text-[12.5px] outline-none focus:border-rose-500" />
-                      )}
-                      {/* Placeholder — only for text */}
-                      {field.type === 'text' && (
-                        <input defaultValue={field.placeholder ?? ''}
-                          onBlur={e => updateBuilderField(i, { placeholder: e.target.value })}
-                          placeholder="Placeholder text (optional)"
-                          className="w-full bg-well border border-[rgba(0,0,0,.08)] rounded-[8px] px-[12px] py-[8px] text-[#705260] font-archivo text-[12.5px] outline-none focus:border-rose-500" />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
               {/* ── Locations ── */}
               {hasPermission(currentUser, 'settingsLocations', 'read') && (
                 <div className="mt-8">
@@ -4668,126 +3513,6 @@ export default function AdminPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-[14px]">
-              {modal.kind === 'customizationProfile' && (
-                <>
-                  <div className="col-span-2">
-                    <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Profile name</label>
-                    <input value={modal.draft.name ?? ''} onChange={e => setDraftField('name', e.target.value)}
-                      className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13.5px] outline-none focus:border-rose-500" />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Description</label>
-                    <textarea value={modal.draft.description ?? ''} onChange={e => setDraftField('description', e.target.value)}
-                      className="w-full h-16 resize-none bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13.5px] outline-none focus:border-rose-500" />
-                  </div>
-                  <div>
-                    <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Status</label>
-                    <button type="button" onClick={() => setDraftField('active', modal.draft.active === false)}
-                      className="w-full font-bold text-[13px] px-4 py-[10px] rounded-[9px] cursor-pointer transition-all"
-                      style={{ border: modal.draft.active !== false ? 'none' : '1px solid rgba(0,0,0,.16)', background: modal.draft.active !== false ? '#db5795' : 'transparent', color: modal.draft.active !== false ? '#200612' : '#705260' }}>
-                      {modal.draft.active !== false ? 'Active' : 'Inactive'}
-                    </button>
-                  </div>
-                  <div>
-                    <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Sort order</label>
-                    <input type="number" value={modal.draft.sortOrder ?? 0} onChange={e => setDraftField('sortOrder', parseInt(e.target.value) || 0)}
-                      className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13.5px] outline-none focus:border-rose-500" />
-                  </div>
-
-                  <div className="col-span-2 border-t border-[rgba(0,0,0,.08)] pt-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <div className="font-archivo-narrow font-bold text-[18px]">Assignments</div>
-                        <div className="text-[11.5px] text-muted mt-[2px]">Assign this profile to collections, categories, or products.</div>
-                      </div>
-                      <button type="button" onClick={addCustomizationAssignment} className="border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.06)] text-rose-700 font-bold text-[11.5px] px-[10px] py-[6px] rounded-[7px] cursor-pointer">+ Add</button>
-                    </div>
-                    <div className="flex flex-col gap-[8px]">
-                      {(Array.isArray(modal.draft.assignments) ? modal.draft.assignments as CustomizationProfileAssignment[] : []).map((assignment, i) => (
-                        <div key={assignment.id} className="grid grid-cols-[120px_1fr_30px] gap-[8px] items-center bg-well border border-[rgba(0,0,0,.08)] rounded-[10px] p-[10px]">
-                          <select value={assignment.scope} onChange={e => updateCustomizationAssignment(i, { scope: e.target.value as CustomizationScope })}
-                            className="bg-[rgba(0,0,0,.06)] border border-[rgba(0,0,0,.12)] rounded-[8px] px-[9px] py-[8px] text-body font-archivo text-[12.5px] outline-none focus:border-rose-500">
-                            <option value="collection">Collection</option>
-                            <option value="category">Category</option>
-                            <option value="product">Product</option>
-                          </select>
-                          {assignment.scope === 'collection' ? (
-                            <select value={assignment.collectionKey ?? ''} onChange={e => updateCustomizationAssignment(i, { collectionKey: e.target.value })}
-                              className="bg-[rgba(0,0,0,.06)] border border-[rgba(0,0,0,.12)] rounded-[8px] px-[9px] py-[8px] text-body font-archivo text-[12.5px] outline-none focus:border-rose-500">
-                              {data.collections.map(c => <option key={c.id} value={c.key}>{c.label}</option>)}
-                            </select>
-                          ) : assignment.scope === 'category' ? (
-                            <select value={assignment.categoryId ?? ''} onChange={e => updateCustomizationAssignment(i, { categoryId: e.target.value })}
-                              className="bg-[rgba(0,0,0,.06)] border border-[rgba(0,0,0,.12)] rounded-[8px] px-[9px] py-[8px] text-body font-archivo text-[12.5px] outline-none focus:border-rose-500">
-                              {data.categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </select>
-                          ) : (
-                            <select value={assignment.productId ?? ''} onChange={e => updateCustomizationAssignment(i, { productId: e.target.value })}
-                              className="bg-[rgba(0,0,0,.06)] border border-[rgba(0,0,0,.12)] rounded-[8px] px-[9px] py-[8px] text-body font-archivo text-[12.5px] outline-none focus:border-rose-500">
-                              {allProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                            </select>
-                          )}
-                          <button type="button" onClick={() => removeCustomizationAssignment(i)} className="w-[30px] h-[30px] rounded-[7px] border border-[rgba(0,0,0,.12)] bg-transparent text-sub cursor-pointer text-[12px] hover:text-[#e81a2b] transition-colors"><X size={12} /></button>
-                        </div>
-                      ))}
-                      {(!Array.isArray(modal.draft.assignments) || modal.draft.assignments.length === 0) && <div className="text-[12px] text-muted">No assignments yet.</div>}
-                    </div>
-                  </div>
-
-                  <div className="col-span-2 border-t border-[rgba(0,0,0,.08)] pt-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <div className="font-archivo-narrow font-bold text-[18px]">Fields</div>
-                        <div className="text-[11.5px] text-muted mt-[2px]">These fields appear in the product customization quote flow.</div>
-                      </div>
-                      <button type="button" onClick={addCustomizationField} className="border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.06)] text-rose-700 font-bold text-[11.5px] px-[10px] py-[6px] rounded-[7px] cursor-pointer">+ Add</button>
-                    </div>
-                    <div className="flex flex-col gap-[10px]">
-                      {(Array.isArray(modal.draft.fields) ? modal.draft.fields as CustomizationProfileField[] : []).map((field, i) => (
-                        <div key={field.id} className="bg-well border border-[rgba(0,0,0,.08)] rounded-[11px] p-[12px]">
-                          <div className="grid grid-cols-[1fr_132px_74px_68px] gap-[8px] items-center">
-                            <input value={field.label} onChange={e => updateCustomizationField(i, { label: e.target.value })}
-                              placeholder="Field label"
-                              className="bg-[rgba(0,0,0,.06)] border border-[rgba(0,0,0,.12)] rounded-[8px] px-[10px] py-[8px] text-body font-archivo text-[12.5px] outline-none focus:border-rose-500" />
-                            <select value={field.type} onChange={e => updateCustomizationField(i, { type: e.target.value as CustomizationFieldType })}
-                              className="bg-[rgba(0,0,0,.06)] border border-[rgba(0,0,0,.12)] rounded-[8px] px-[10px] py-[8px] text-body font-archivo text-[12.5px] outline-none focus:border-rose-500">
-                              {CUSTOMIZATION_FIELD_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                            </select>
-                            <button type="button" onClick={() => updateCustomizationField(i, { required: !field.required })}
-                              className="font-bold text-[11px] px-[9px] py-[8px] rounded-[8px] cursor-pointer border transition-all"
-                              style={{ background: field.required ? 'rgba(219,87,149,.1)' : 'transparent', borderColor: field.required ? 'rgba(219,87,149,.35)' : 'rgba(0,0,0,.1)', color: field.required ? '#600a32' : '#907481' }}>
-                              Required
-                            </button>
-                            <div className="flex gap-[5px] justify-end">
-                              <button type="button" onClick={() => moveCustomizationField(i, -1)} className="w-[28px] h-[30px] rounded-[7px] border border-[rgba(0,0,0,.12)] bg-transparent text-sub cursor-pointer text-[12px] hover:text-rose-700 transition-colors">↑</button>
-                              <button type="button" onClick={() => moveCustomizationField(i, 1)} className="w-[28px] h-[30px] rounded-[7px] border border-[rgba(0,0,0,.12)] bg-transparent text-sub cursor-pointer text-[12px] hover:text-rose-700 transition-colors">↓</button>
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-[8px] mt-[8px]">
-                            <input value={field.placeholder ?? ''} onChange={e => updateCustomizationField(i, { placeholder: e.target.value })}
-                              placeholder="Placeholder or checkbox text"
-                              className="bg-[rgba(0,0,0,.06)] border border-[rgba(0,0,0,.08)] rounded-[8px] px-[10px] py-[8px] text-[#705260] font-archivo text-[12px] outline-none focus:border-rose-500" />
-                            <input value={field.helpText ?? ''} onChange={e => updateCustomizationField(i, { helpText: e.target.value })}
-                              placeholder="Help text"
-                              className="bg-[rgba(0,0,0,.06)] border border-[rgba(0,0,0,.08)] rounded-[8px] px-[10px] py-[8px] text-[#705260] font-archivo text-[12px] outline-none focus:border-rose-500" />
-                          </div>
-                          {['select','multiselect','placement'].includes(field.type) && (
-                            <input defaultValue={(field.options ?? []).join(', ')}
-                              onBlur={e => updateCustomizationField(i, { options: e.target.value.split(',').map(o => o.trim()).filter(Boolean) })}
-                              placeholder="Comma-separated options"
-                              className="w-full mt-[8px] bg-[rgba(0,0,0,.06)] border border-[rgba(0,0,0,.08)] rounded-[8px] px-[10px] py-[8px] text-[#705260] font-archivo text-[12px] outline-none focus:border-rose-500" />
-                          )}
-                          <div className="flex justify-end mt-[8px]">
-                            <button type="button" onClick={() => removeCustomizationField(i)} className="border border-[rgba(255,61,77,.28)] bg-transparent text-[#e81a2b] font-bold text-[11.5px] px-[10px] py-[6px] rounded-[7px] cursor-pointer">Delete field</button>
-                          </div>
-                        </div>
-                      ))}
-                      {(!Array.isArray(modal.draft.fields) || modal.draft.fields.length === 0) && <div className="text-[12px] text-muted">No fields yet.</div>}
-                    </div>
-                  </div>
-                </>
-              )}
-
               {/* Product fields */}
               {modal.kind === 'product' && (
                 <>
@@ -4818,7 +3543,7 @@ export default function AdminPage() {
                     </div>
                   </div>
                   <div><label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Status</label><select value={modal.draft.status ?? 'active'} onChange={e => setDraftField('status', e.target.value)} className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13.5px] outline-none cursor-pointer">{['active','soldout','draft'].map(v => <option key={v} value={v}>{v}</option>)}</select></div>
-                  <div><label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Badge</label><select value={modal.draft.badge ?? ''} onChange={e => setDraftField('badge', e.target.value)} className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13.5px] outline-none cursor-pointer">{['','New','Sale'].map(v => <option key={v} value={v}>{v || 'None'}</option>)}</select></div>
+                  <div><label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Badge</label><select value={modal.draft.badge ?? ''} onChange={e => setDraftField('badge', e.target.value)} className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13.5px] outline-none cursor-pointer">{['','New','Sale','Pre-order'].map(v => <option key={v} value={v}>{v || 'None'}</option>)}</select></div>
                   <div className="col-span-2">
                     <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Product image</label>
                     {/* Preview + upload */}
@@ -4846,26 +3571,42 @@ export default function AdminPage() {
                       ))}
                     </div>
                   </div>
-                  {/* Colours — from the managed Builder palette */}
+                  {/* Colours (free-form per-product) */}
                   <div className="col-span-2">
-                    <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Colours <span className="text-muted font-normal">· manage the palette under Builder Options</span></label>
-                    {data.builderOptions.colors.length === 0 ? (
-                      <div className="text-[12px] text-muted">No colours in the palette yet. Add some under Builder Options → Colours.</div>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        {data.builderOptions.colors.map(c => {
-                          const on = Array.isArray(modal.draft.colors) && modal.draft.colors.includes(c.name);
-                          return (
-                            <button key={c.id} type="button" onClick={() => toggleDraftArr('colors', c.name)}
-                              className="inline-flex items-center gap-[7px] px-[10px] py-[6px] rounded-[9px] cursor-pointer text-[12px] font-semibold transition-all"
-                              style={{ border: on ? '1px solid #db5795' : '1px solid rgba(0,0,0,.14)', background: on ? 'rgba(219,87,149,.1)' : 'transparent', color: on ? '#150d11' : '#705260' }}>
-                              <span className="w-[15px] h-[15px] rounded-[4px] flex-none" style={{ background: c.hex, boxShadow: '0 0 0 1px rgba(0,0,0,.14)' }} />
-                              {c.name}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
+                    <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Colours <span className="text-muted font-normal">· e.g. Black, Teal, Maroon</span></label>
+                    <div className="flex gap-[8px] flex-wrap mb-[8px]">
+                      {(Array.isArray(modal.draft.colors) ? modal.draft.colors as string[] : []).map((c: string) => (
+                        <span key={c} className="inline-flex items-center gap-[6px] font-semibold text-[12px] px-[11px] h-[32px] rounded-[8px] bg-[rgba(219,87,149,.1)] border border-[rgba(219,87,149,.35)] text-[#150d11]">
+                          {c}
+                          <button type="button" onClick={() => setDraftField('colors', (modal.draft.colors as string[]).filter((x: string) => x !== c))} className="border-none bg-transparent text-muted text-[14px] cursor-pointer leading-none hover:text-[#e81a2b]">×</button>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex gap-[7px]">
+                      <input
+                        value={colorInput}
+                        onChange={e => setColorInput(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const v = colorInput.trim();
+                            if (!v) return;
+                            const cur = Array.isArray(modal.draft.colors) ? modal.draft.colors as string[] : [];
+                            if (!cur.includes(v)) setDraftField('colors', [...cur, v]);
+                            setColorInput('');
+                          }
+                        }}
+                        placeholder="Type a colour name and press Enter"
+                        className="flex-1 bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[12px] py-[8px] text-body font-archivo text-[13px] outline-none focus:border-rose-500"
+                      />
+                      <button type="button" onClick={() => {
+                        const v = colorInput.trim();
+                        if (!v) return;
+                        const cur = Array.isArray(modal.draft.colors) ? modal.draft.colors as string[] : [];
+                        if (!cur.includes(v)) setDraftField('colors', [...cur, v]);
+                        setColorInput('');
+                      }} className="border border-[rgba(219,87,149,.4)] bg-transparent text-rose-700 font-bold text-[13px] px-[14px] rounded-[9px] cursor-pointer hover:bg-[rgba(219,87,149,.08)] transition-colors">+ Add</button>
+                    </div>
                   </div>
                   {/* Colour × size stock grid — editable only at creation; read-only afterwards */}
                   <div className="col-span-2">
@@ -4878,7 +3619,7 @@ export default function AdminPage() {
                     {(() => {
                       const csStock = (modal.draft.colorSizeStock ?? {}) as Record<string, Record<string, number>>;
                       const rowColors = Array.isArray(modal.draft.colors) && modal.draft.colors.length > 0 ? modal.draft.colors as string[] : [''];
-                      const cols = [...data.builderOptions.sizes.map(s => s.label), ''];
+                      const cols = [...PRODUCT_SIZES, ''];
                       return (
                         <div className="overflow-auto border border-[rgba(0,0,0,.1)] rounded-[10px]">
                           <table className="w-full border-collapse text-[12px]">
@@ -4931,173 +3672,6 @@ export default function AdminPage() {
                       );
                     })()}
                   </div>
-                  {/* Size price adjustments — shown only when sizes are configured */}
-                  {Object.values(sizeStockFromColorSize((modal.draft.colorSizeStock ?? {}) as Record<string, Record<string, number>>)).some(q => q > 0) && (
-                    <div className="col-span-2">
-                      <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Price adjustments per size <span className="text-muted font-normal">(optional — delta added to base price, e.g. +50 for XL)</span></label>
-                      <div className="flex flex-wrap gap-[10px]">
-                        {data.builderOptions.sizes.filter(s => (sizeStockFromColorSize((modal.draft.colorSizeStock ?? {}) as Record<string, Record<string, number>>)[s.label] ?? 0) > 0).map(s => {
-                          const adj = ((modal.draft.sizeAdjustments ?? {}) as Record<string, number>)[s.label] ?? 0;
-                          return (
-                            <div key={s.id} className="flex items-center gap-[6px] bg-well border border-[rgba(0,0,0,.08)] rounded-[10px] px-[10px] py-[7px]">
-                              <span className="font-bold text-[12px] text-[#705260] min-w-[24px] text-center">{s.label}</span>
-                              <span className="text-[11px] text-muted">±MVR</span>
-                              <input
-                                type="number" step="1"
-                                value={adj === 0 ? '' : adj}
-                                placeholder="0"
-                                onChange={e => setDraftField('sizeAdjustments', { ...(modal!.draft.sizeAdjustments ?? {}), [s.label]: e.target.value === '' ? 0 : parseInt(e.target.value) || 0 })}
-                                className="w-[60px] bg-[rgba(0,0,0,.07)] border border-[rgba(0,0,0,.12)] rounded-[8px] px-[7px] py-[4px] text-[12.5px] text-[#705260] text-center"
-                              />
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                  {/* Materials (free-form per-product) */}
-                  <div className="col-span-2">
-                    <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Available materials <span className="text-muted font-normal">· e.g. 100% Cotton, Polyester Blend, Pique Knit</span></label>
-                    <div className="flex gap-[8px] flex-wrap mb-[8px]">
-                      {(Array.isArray(modal.draft.materials) ? modal.draft.materials as string[] : []).map((m: string) => (
-                        <span key={m} className="inline-flex items-center gap-[6px] font-semibold text-[12px] px-[11px] h-[32px] rounded-[8px] bg-[rgba(219,87,149,.1)] border border-[rgba(219,87,149,.35)] text-[#150d11]">
-                          {m}
-                          <button type="button" onClick={() => setDraftField('materials', (modal.draft.materials as string[]).filter((x: string) => x !== m))} className="border-none bg-transparent text-muted text-[14px] cursor-pointer leading-none hover:text-[#e81a2b]">×</button>
-                        </span>
-                      ))}
-                    </div>
-                    <div className="flex gap-[7px]">
-                      <input
-                        value={materialInput}
-                        onChange={e => setMaterialInput(e.target.value)}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            const v = materialInput.trim();
-                            if (!v) return;
-                            const cur = Array.isArray(modal.draft.materials) ? modal.draft.materials as string[] : [];
-                            if (!cur.includes(v)) setDraftField('materials', [...cur, v]);
-                            setMaterialInput('');
-                          }
-                        }}
-                        placeholder="Type a material name and press Enter"
-                        className="flex-1 bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[12px] py-[8px] text-body font-archivo text-[13px] outline-none focus:border-rose-500"
-                      />
-                      <button type="button" onClick={() => {
-                        const v = materialInput.trim();
-                        if (!v) return;
-                        const cur = Array.isArray(modal.draft.materials) ? modal.draft.materials as string[] : [];
-                        if (!cur.includes(v)) setDraftField('materials', [...cur, v]);
-                        setMaterialInput('');
-                      }} className="border border-[rgba(219,87,149,.4)] bg-transparent text-rose-700 font-bold text-[13px] px-[14px] rounded-[9px] cursor-pointer hover:bg-[rgba(219,87,149,.08)] transition-colors">+ Add</button>
-                    </div>
-                  </div>
-                  {/* Sleeves */}
-                  <div className="col-span-2">
-                    <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Available sleeves <span className="text-muted font-normal">· from Builder Options</span></label>
-                    {data.builderOptions.sleeves.length === 0 ? (
-                      <div className="text-[12px] text-muted">No sleeves yet. Add some under Builder Options → Sleeves.</div>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        {data.builderOptions.sleeves.map(s => {
-                          const on = Array.isArray(modal.draft.sleeves) && (modal.draft.sleeves as string[]).includes(s.label);
-                          return (
-                            <button key={s.id} type="button" onClick={() => toggleDraftArr('sleeves', s.label)}
-                              className="font-bold text-[12px] px-[12px] h-[34px] rounded-[8px] cursor-pointer transition-all"
-                              style={{ border: on ? '1px solid #db5795' : '1px solid rgba(0,0,0,.14)', background: on ? 'rgba(219,87,149,.1)' : 'transparent', color: on ? '#150d11' : '#705260' }}>
-                              {s.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                  {/* Sleeve variant images + price adjustments */}
-                  {Array.isArray(modal.draft.sleeves) && (modal.draft.sleeves as string[]).length > 0 && (
-                    <div className="col-span-2">
-                      <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Images &amp; price adjustments per sleeve <span className="text-muted font-normal">(image optional — falls back to main product image)</span></label>
-                      <div className="flex flex-col gap-[8px]">
-                        {(modal.draft.sleeves as string[]).map(sleeveLabel => {
-                          const existingImg = (modal.draft.sleeveImages as Record<string, string>)?.[sleeveLabel];
-                          const isUploading = sleeveImgUploading[sleeveLabel];
-                          const adj = (modal.draft.sleeveAdjustments as Record<string, number>)?.[sleeveLabel] ?? 0;
-                          return (
-                            <div key={sleeveLabel} className="flex items-center gap-3 bg-well border border-[rgba(0,0,0,.08)] rounded-[10px] px-[12px] py-[10px]">
-                              <div className="w-[38px] h-[38px] rounded-[8px] flex-none border border-[rgba(0,0,0,.1)] bg-[rgba(0,0,0,.06)]"
-                                style={existingImg ? { background: existingImg } : undefined} />
-                              <span className="text-[12.5px] font-semibold text-[#705260] flex-1">{sleeveLabel}</span>
-                              {/* Price delta */}
-                              <div className="flex items-center gap-[6px]">
-                                <span className="text-[11px] text-muted">±MVR</span>
-                                <input
-                                  type="number" step="1"
-                                  value={adj === 0 ? '' : adj}
-                                  placeholder="0"
-                                  onChange={e => setDraftField('sleeveAdjustments', { ...(modal!.draft.sleeveAdjustments ?? {}), [sleeveLabel]: e.target.value === '' ? 0 : parseInt(e.target.value) || 0 })}
-                                  className="w-[64px] bg-[rgba(0,0,0,.07)] border border-[rgba(0,0,0,.12)] rounded-[8px] px-[8px] py-[5px] text-[12.5px] text-[#705260] text-center"
-                                />
-                              </div>
-                              {existingImg && (
-                                <button type="button" onClick={() => setDraftField('sleeveImages', { ...(modal.draft.sleeveImages ?? {}), [sleeveLabel]: '' })}
-                                  className="border-none bg-transparent text-muted text-[13px] cursor-pointer hover:text-[#e81a2b] transition-colors px-1"><X size={13} /></button>
-                              )}
-                              <label className="border border-[rgba(219,87,149,.3)] bg-transparent text-rose-700 font-bold text-[11.5px] px-[12px] py-[6px] rounded-[8px] cursor-pointer hover:bg-[rgba(219,87,149,.08)] transition-colors">
-                                <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) { uploadSleeveImage(sleeveLabel, f); e.target.value = ''; } }} />
-                                {isUploading ? 'Uploading…' : existingImg ? '↑ Replace' : '↑ Upload'}
-                              </label>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                  {/* Colour variant images */}
-                  {Array.isArray(modal.draft.colors) && (modal.draft.colors as string[]).length > 0 && (
-                    <div className="col-span-2">
-                      <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Images per colour <span className="text-muted font-normal">(optional — falls back to main product image)</span></label>
-                      <div className="flex flex-col gap-[8px]">
-                        {(modal.draft.colors as string[]).map(colorLabel => {
-                          const existingImg = (modal.draft.colorImages as Record<string, string>)?.[colorLabel];
-                          const isUploading = colorImgUploading[colorLabel];
-                          return (
-                            <div key={colorLabel} className="flex items-center gap-3 bg-well border border-[rgba(0,0,0,.08)] rounded-[10px] px-[12px] py-[10px]">
-                              <div className="w-[38px] h-[38px] rounded-[8px] flex-none border border-[rgba(0,0,0,.1)] bg-[rgba(0,0,0,.06)]"
-                                style={existingImg ? { background: existingImg } : undefined} />
-                              <span className="text-[12.5px] font-semibold text-[#705260] flex-1">{colorLabel}</span>
-                              {existingImg && (
-                                <button type="button" onClick={() => setDraftField('colorImages', { ...(modal.draft.colorImages ?? {}), [colorLabel]: '' })}
-                                  className="border-none bg-transparent text-muted text-[13px] cursor-pointer hover:text-[#e81a2b] transition-colors px-1"><X size={13} /></button>
-                              )}
-                              <label className="border border-[rgba(219,87,149,.3)] bg-transparent text-rose-700 font-bold text-[11.5px] px-[12px] py-[6px] rounded-[8px] cursor-pointer hover:bg-[rgba(219,87,149,.08)] transition-colors">
-                                <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) { uploadColorImage(colorLabel, f); e.target.value = ''; } }} />
-                                {isUploading ? 'Uploading…' : existingImg ? '↑ Replace' : '↑ Upload'}
-                              </label>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                  {/* Collar / neck types */}
-                  <div className="col-span-2">
-                    <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Available collar types <span className="text-muted font-normal">· from Builder Options</span></label>
-                    {data.builderOptions.necks.length === 0 ? (
-                      <div className="text-[12px] text-muted">No collar types yet. Add some under Builder Options → Necks.</div>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        {data.builderOptions.necks.map(n => {
-                          const on = Array.isArray(modal.draft.necks) && (modal.draft.necks as string[]).includes(n.label);
-                          return (
-                            <button key={n.id} type="button" onClick={() => toggleDraftArr('necks', n.label)}
-                              className="font-bold text-[12px] px-[12px] h-[34px] rounded-[8px] cursor-pointer transition-all"
-                              style={{ border: on ? '1px solid #db5795' : '1px solid rgba(0,0,0,.14)', background: on ? 'rgba(219,87,149,.1)' : 'transparent', color: on ? '#150d11' : '#705260' }}>
-                              {n.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
                   {/* Product page text sections (optional, freeform) */}
                   <div className="col-span-2">
                     <div className="flex items-center justify-between mb-[6px]">
@@ -5132,20 +3706,6 @@ export default function AdminPage() {
                       </div>
                     )}
                   </div>
-                  {/* Customizable toggle */}
-                  <div className="col-span-2">
-                    <label className="text-[11.5px] font-semibold text-sub block mb-[8px]">Customizable</label>
-                    <button type="button" onClick={() => setDraftField('customizable', !modal.draft.customizable)}
-                      className="inline-flex items-center gap-[10px] px-[14px] py-[10px] rounded-[10px] cursor-pointer transition-all border"
-                      style={{ background: modal.draft.customizable ? 'rgba(219,87,149,.07)' : 'rgba(0,0,0,.05)', borderColor: modal.draft.customizable ? 'rgba(219,87,149,.45)' : 'rgba(0,0,0,.14)' }}>
-                      <span className="w-[34px] h-[19px] rounded-full relative flex-none transition-colors" style={{ background: modal.draft.customizable ? '#db5795' : 'rgba(0,0,0,.18)' }}>
-                        <span className="absolute top-[2.5px] w-[14px] h-[14px] rounded-full bg-white transition-all shadow-sm" style={{ left: modal.draft.customizable ? '17px' : '2.5px' }} />
-                      </span>
-                      <span className="font-semibold text-[12.5px]" style={{ color: modal.draft.customizable ? '#705260' : '#705260' }}>
-                        {modal.draft.customizable ? 'Customizable — customer uploads design, goes to quote' : 'Not customizable — direct add to cart & checkout'}
-                      </span>
-                    </button>
-                  </div>
                   {/* Show in web store toggle */}
                   <div className="col-span-2">
                     <label className="text-[11.5px] font-semibold text-sub block mb-[8px]">Show in web store</label>
@@ -5160,15 +3720,6 @@ export default function AdminPage() {
                       </span>
                     </button>
                   </div>
-                  <div className="col-span-2">
-                    <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Customization profile override</label>
-                    <select value={modal.draft.customizationProfileId ?? ''} onChange={e => setDraftField('customizationProfileId', e.target.value)}
-                      className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13.5px] outline-none cursor-pointer">
-                      <option value="">No direct product profile</option>
-                      {customizationProfiles.map(profile => <option key={profile.id} value={profile.id}>{profile.name}{profile.active ? '' : ' (inactive)'}</option>)}
-                    </select>
-                    <div className="text-[11px] text-muted mt-[6px]">Product profile overrides category and collection profiles.</div>
-                  </div>
                 </>
               )}
               {/* Collection field */}
@@ -5176,29 +3727,10 @@ export default function AdminPage() {
                 <>
                   <div className="col-span-2"><label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Collection name</label><input value={modal.draft.label ?? ''} onChange={e => setDraftField('label', e.target.value)} placeholder="e.g. Training Gear" className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13.5px] outline-none focus:border-rose-500" /></div>
                   <div className="col-span-2">
-                    <label className="text-[11.5px] font-semibold text-sub block mb-[8px]">Listing type</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {([{ v: false, title: 'Standard listing', desc: 'Products can be added to cart or linked to their product page' }, { v: true, title: 'Bespoke order', desc: 'Products show semi-customize and full-customize quote modals' }] as const).map(opt => (
-                        <button key={String(opt.v)} type="button" onClick={() => setDraftField('bespoke', opt.v)} className={`text-left p-3 rounded-[10px] border transition-colors ${Boolean(modal.draft.bespoke) === opt.v ? 'border-rose-500 bg-[rgba(219,87,149,.07)]' : 'border-[rgba(0,0,0,.12)] bg-well'}`}>
-                          <div className="text-[12.5px] font-bold text-body mb-[3px]">{opt.title}</div>
-                          <div className="text-[11px] text-sub leading-snug">{opt.desc}</div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="col-span-2">
                     <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Size chart</label>
                     <select value={modal.draft.sizeChartId ?? ''} onChange={e => setDraftField('sizeChartId', e.target.value || null)} className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13.5px] outline-none cursor-pointer">
                       <option value="">Use store default{defaultSizeChart ? ` (${defaultSizeChart.name})` : ''}</option>
                       {sizeCharts.map(c => <option key={c.id} value={c.id}>{c.isDefault ? `★ ${c.name}` : c.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="col-span-2">
-                    <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Customization profile</label>
-                    <select value={modal.draft.customizationProfileId ?? ''} onChange={e => setDraftField('customizationProfileId', e.target.value)}
-                      className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13.5px] outline-none cursor-pointer">
-                      <option value="">No collection profile</option>
-                      {customizationProfiles.map(profile => <option key={profile.id} value={profile.id}>{profile.name}{profile.active ? '' : ' (inactive)'}</option>)}
                     </select>
                   </div>
                 </>
@@ -5208,53 +3740,6 @@ export default function AdminPage() {
                 <>
                   <div className="col-span-2"><label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Category name</label><input value={modal.draft.name ?? ''} onChange={e => setDraftField('name', e.target.value)} className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13.5px] outline-none focus:border-rose-500" /></div>
                   <div className="col-span-2"><label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Collection</label><select value={modal.draft.collection ?? ''} onChange={e => setDraftField('collection', e.target.value)} className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13.5px] outline-none cursor-pointer">{colOpts.map(o => <option key={o.v} value={o.v}>{o.label}</option>)}</select></div>
-                  <div className="col-span-2">
-                    <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Customization profile override</label>
-                    <select value={modal.draft.customizationProfileId ?? ''} onChange={e => setDraftField('customizationProfileId', e.target.value)}
-                      className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13.5px] outline-none cursor-pointer">
-                      <option value="">No category profile</option>
-                      {customizationProfiles.map(profile => <option key={profile.id} value={profile.id}>{profile.name}{profile.active ? '' : ' (inactive)'}</option>)}
-                    </select>
-                    <div className="text-[11px] text-muted mt-[6px]">Category profile overrides collection profiles.</div>
-                  </div>
-                </>
-              )}
-              {/* Builder option fields */}
-              {['types','fabrics'].includes(modal.kind) && (
-                <>
-                  <div className="col-span-2"><label className="text-[11.5px] font-semibold text-sub block mb-[6px]">{modal.kind === 'fabrics' ? 'Fabric name' : 'Type name'}</label><input value={modal.draft[modal.kind==='fabrics'?'name':'label'] ?? ''} onChange={e => setDraftField(modal.kind==='fabrics'?'name':'label', e.target.value)} className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13.5px] outline-none focus:border-rose-500" /></div>
-                  <div className="col-span-2"><label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Description</label><input value={modal.draft.desc ?? ''} onChange={e => setDraftField('desc', e.target.value)} className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13.5px] outline-none focus:border-rose-500" /></div>
-                  {modal.kind === 'fabrics' && (
-                    <div className="col-span-2">
-                      <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Texture image <span className="text-[#907481] font-normal">(greyscale · tinted by jersey colour in 3D)</span></label>
-                      <input ref={fabricImgRef} type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadFabricImage(f); }} />
-                      <div className="flex items-center gap-3">
-                        {modal.draft.img ? (
-                          <div className="w-[52px] h-[52px] rounded-[10px] overflow-hidden flex-none border border-[rgba(0,0,0,.12)]">
-                            <img src={modal.draft.img} alt="texture" className="w-full h-full object-cover" />
-                          </div>
-                        ) : (
-                          <div className="w-[52px] h-[52px] rounded-[10px] flex-none bg-well border border-[rgba(0,0,0,.12)] flex items-center justify-center text-[20px] text-muted"><ImageOff size={20} /></div>
-                        )}
-                        <button type="button" onClick={() => fabricImgRef.current?.click()} disabled={fabricImgUploading}
-                          className="border border-[rgba(0,0,0,.18)] bg-transparent text-body font-semibold text-[12.5px] px-[14px] py-[9px] rounded-[9px] cursor-pointer hover:border-rose-500 hover:text-rose-700 transition-all disabled:opacity-50">
-                          {fabricImgUploading ? 'Uploading…' : modal.draft.img ? '↑ Replace' : '↑ Upload texture'}
-                        </button>
-                        {modal.draft.img && (
-                          <button type="button" onClick={() => setDraftField('img', '')} className="border-none bg-transparent text-[#e81a2b] text-[12px] font-semibold cursor-pointer hover:text-[#ff3d4d]">Remove</button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-              {['sleeves','necks','sizes'].includes(modal.kind) && (
-                <div className="col-span-2"><label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Label</label><input value={modal.draft.label ?? ''} onChange={e => setDraftField('label', e.target.value)} className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13.5px] outline-none focus:border-rose-500" /></div>
-              )}
-              {modal.kind === 'colors' && (
-                <>
-                  <div><label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Colour name</label><input value={modal.draft.name ?? ''} onChange={e => setDraftField('name', e.target.value)} className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13.5px] outline-none focus:border-rose-500" /></div>
-                  <div><label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Hex</label><div className="flex items-center gap-[9px]"><span className="w-[38px] h-[38px] rounded-[9px] flex-none" style={{ background: modal.draft.hex ?? '#888', boxShadow: '0 0 0 1px rgba(0,0,0,.16)' }} /><input value={modal.draft.hex ?? ''} onChange={e => setDraftField('hex', e.target.value)} placeholder="#db5795" className="flex-1 bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13.5px] outline-none focus:border-rose-500" /></div></div>
                 </>
               )}
             </div>
@@ -5289,29 +3774,12 @@ export default function AdminPage() {
                 <label className="text-[11.5px] font-semibold text-sub block mb-[8px]">Size</label>
                 <div className="flex flex-wrap gap-2">
                   {posAddItem.sizes.map(s => {
-                    const adj = (posAddItem.sizeAdjustments ?? {})[s] ?? 0;
-                    const outOfStock = !posAddItem.customizable && !!posLocId && inventoryStockForVariant(posInvRows, posAddItem.id, posAddColor, s) === 0;
+                    const outOfStock = !!posLocId && inventoryStockForVariant(posInvRows, posAddItem.id, posAddColor, s) === 0;
                     return (
                       <button key={s} onClick={() => setPosAddSize(s)} disabled={outOfStock}
                         className="px-3 py-[7px] rounded-[8px] text-[12.5px] font-bold border transition-all cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed"
                         style={{ background: posAddSize === s ? '#db5795' : 'transparent', color: posAddSize === s ? '#200612' : '#705260', borderColor: posAddSize === s ? '#db5795' : 'rgba(0,0,0,.16)' }}>
-                        {s}{adj !== 0 ? ` ${adj > 0 ? '+' : ''}${adj}` : ''}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-            {posAddItem.sleeves.length > 0 && (
-              <div className="mb-4">
-                <label className="text-[11.5px] font-semibold text-sub block mb-[8px]">Sleeve</label>
-                <div className="flex flex-wrap gap-2">
-                  {posAddItem.sleeves.map(sl => {
-                    const adj = (posAddItem.sleeveAdjustments ?? {})[sl] ?? 0;
-                    return (
-                      <button key={sl} onClick={() => setPosAddSleeve(sl)} className="px-3 py-[7px] rounded-[8px] text-[12.5px] font-bold border transition-all cursor-pointer"
-                        style={{ background: posAddSleeve === sl ? '#db5795' : 'transparent', color: posAddSleeve === sl ? '#200612' : '#705260', borderColor: posAddSleeve === sl ? '#db5795' : 'rgba(0,0,0,.16)' }}>
-                        {sl}{adj !== 0 ? ` ${adj > 0 ? '+' : ''}${adj}` : ''}
+                        {s}
                       </button>
                     );
                   })}
@@ -5344,26 +3812,24 @@ export default function AdminPage() {
                 <span className="font-bold text-[16px] tabular w-8 text-center">{posAddQty}</span>
                 <button
                   onClick={() => setPosAddQty(q => {
-                    if (posAddItem.customizable || !posLocId) return q + 1;
+                    if (!posLocId) return q + 1;
                     const available = inventoryStockForVariant(posInvRows, posAddItem.id, posAddColor, posAddSize);
                     return Math.min(available, q + 1);
                   })}
-                  disabled={!posAddItem.customizable && !!posLocId && posAddQty >= inventoryStockForVariant(posInvRows, posAddItem.id, posAddColor, posAddSize)}
+                  disabled={!!posLocId && posAddQty >= inventoryStockForVariant(posInvRows, posAddItem.id, posAddColor, posAddSize)}
                   className="w-9 h-9 bg-[rgba(0,0,0,.08)] border border-[rgba(0,0,0,.12)] rounded-[8px] text-[16px] cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed"
                 >+</button>
               </div>
               {posLocId && (
-                <div className={`mt-2 text-[11.5px] font-semibold px-3 py-2 rounded-[8px] border ${(!posAddItem.customizable && inventoryStockForVariant(posInvRows, posAddItem.id, posAddColor, posAddSize) === 0) ? 'text-[#e81a2b] bg-[rgba(255,61,77,.08)] border-[rgba(255,61,77,.22)]' : 'text-rose-600 bg-[rgba(219,87,149,.06)] border-[rgba(219,87,149,.2)]'}`}>
+                <div className={`mt-2 text-[11.5px] font-semibold px-3 py-2 rounded-[8px] border ${inventoryStockForVariant(posInvRows, posAddItem.id, posAddColor, posAddSize) === 0 ? 'text-[#e81a2b] bg-[rgba(255,61,77,.08)] border-[rgba(255,61,77,.22)]' : 'text-rose-600 bg-[rgba(219,87,149,.06)] border-[rgba(219,87,149,.2)]'}`}>
                   {posInvLoading ? 'Checking stock…' : (() => {
-                    const available = posAddItem.customizable
-                      ? inventoryStockForProduct(posInvRows, posAddItem.id)
-                      : inventoryStockForVariant(posInvRows, posAddItem.id, posAddColor, posAddSize);
+                    const available = inventoryStockForVariant(posInvRows, posAddItem.id, posAddColor, posAddSize);
                     const shelf = inventoryPhysicalLocation(posInvRows, posAddItem.id);
                     return `Available: ${available} · ${shelf ? `Shelf ${shelf}` : 'Shelf not set'}`;
                   })()}
                 </div>
               )}
-              {!posLocId && !posAddItem.customizable && (
+              {!posLocId && (
                 <div className="mt-2 text-[11.5px] font-semibold px-3 py-2 rounded-[8px] text-[#e81a2b] bg-[rgba(255,61,77,.08)] border border-[rgba(255,61,77,.22)]">
                   Select a location to check stock.
                 </div>
@@ -5371,48 +3837,12 @@ export default function AdminPage() {
             </div>
 
             <div className="text-[12.5px] text-sub mb-4">
-              Unit price: <span className="font-bold text-body">MVR {(posAddItem.price + ((posAddItem.sleeveAdjustments ?? {})[posAddSleeve] ?? 0) + ((posAddItem.sizeAdjustments ?? {})[posAddSize] ?? 0)).toLocaleString()}</span>
+              Unit price: <span className="font-bold text-body">MVR {posAddItem.price.toLocaleString()}</span>
             </div>
-
-            {posAddItem.customizable && (
-              <>
-                <div className="mb-4">
-                  <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Customization details</label>
-                  <textarea value={posAddCustomNote} onChange={e => setPosAddCustomNote(e.target.value)} rows={2} placeholder="e.g. Player name: RASHEED, No. 9"
-                    className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-3 py-[10px] text-[13px] outline-none focus:border-rose-500 resize-none" />
-                </div>
-
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-[8px]">
-                    <label className="text-[11.5px] font-semibold text-sub">Customization costs</label>
-                    <button type="button" onClick={() => setPosAddCustomLines(lines => [...lines, { label: '', cost: '' }])}
-                      className="text-[11px] font-extrabold text-rose-600 border border-[rgba(219,87,149,.3)] bg-transparent rounded-[7px] px-[10px] py-[4px] cursor-pointer hover:brightness-125 transition-all">
-                      + Add Line
-                    </button>
-                  </div>
-                  {posAddCustomLines.map((line, li) => (
-                    <div key={li} className="flex items-center gap-2 mb-2">
-                      <input value={line.label} onChange={e => setPosAddCustomLines(lines => lines.map((l, i) => i === li ? { ...l, label: e.target.value } : l))}
-                        placeholder="e.g. Number printing" className="flex-1 min-w-0 bg-well border border-[rgba(0,0,0,.12)] rounded-[7px] px-[10px] py-[7px] text-[12.5px] outline-none focus:border-rose-500" />
-                      <input type="number" min="0" value={line.cost} onChange={e => setPosAddCustomLines(lines => lines.map((l, i) => i === li ? { ...l, cost: e.target.value } : l))}
-                        placeholder="MVR" className="w-20 flex-none bg-well border border-[rgba(0,0,0,.12)] rounded-[7px] px-2 py-[7px] text-[12.5px] tabular outline-none focus:border-rose-500" />
-                      <button type="button" onClick={() => setPosAddCustomLines(lines => lines.filter((_, i) => i !== li))}
-                        className="flex-none text-[13px] text-[#e81a2b] border-none bg-transparent cursor-pointer"><X size={13} /></button>
-                    </div>
-                  ))}
-                  {posAddCustomLines.length > 0 && (
-                    <div className="flex justify-between items-center text-[11.5px] text-sub mt-1">
-                      <span>Customization total</span>
-                      <span className="tabular font-bold text-body">MVR {posAddCustomLines.reduce((s, l) => s + (parseInt(l.cost) || 0), 0).toLocaleString()}</span>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
 
             <button
               onClick={addToCart}
-              disabled={!posAddItem.customizable && (!posLocId || inventoryStockForVariant(posInvRows, posAddItem.id, posAddColor, posAddSize) <= 0 || posAddQty > inventoryStockForVariant(posInvRows, posAddItem.id, posAddColor, posAddSize))}
+              disabled={!posLocId || inventoryStockForVariant(posInvRows, posAddItem.id, posAddColor, posAddSize) <= 0 || posAddQty > inventoryStockForVariant(posInvRows, posAddItem.id, posAddColor, posAddSize)}
               className="w-full bg-rose-500 text-[#200612] font-extrabold text-[14px] py-[13px] rounded-[10px] border-none cursor-pointer disabled:opacity-50 shadow-rose-sm">
               Add to Ticket
             </button>
@@ -5894,20 +4324,10 @@ export default function AdminPage() {
                         <span className="w-8 h-8 rounded-[7px] flex-none" style={{ background: li.img }} />
                         <div className="flex-1 min-w-0">
                           <div className="text-[12.5px] font-semibold">{li.name}</div>
-                              <div className="text-[11px] text-muted">{[li.size, li.color, li.sleeve, li.neck].filter(Boolean).join(' · ') || li.meta || '—'}</div>
-                              {li.customizationNote && <div className="text-[11px] text-sub italic mt-[2px]">{li.customizationNote}</div>}
-                              {li.customizationLines && li.customizationLines.length > 0 && (
-                                <div className="mt-[3px] flex flex-col gap-[2px]">
-                                  {li.customizationLines.map((l, k) => (
-                                    <div key={k} className="flex justify-between gap-2 text-[10.5px] text-muted">
-                                      <span className="truncate">{l.label}</span><span className="tabular flex-none">+MVR {l.cost.toLocaleString()}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
+                              <div className="text-[11px] text-muted">{[li.size, li.color].filter(Boolean).join(' · ') || li.meta || '—'}</div>
                         </div>
                         <div className="text-right flex-none">
-                          <div className="text-[12.5px] font-bold tabular">MVR {(li.price * li.qty + (li.customizationCost ?? 0)).toLocaleString()}</div>
+                          <div className="text-[12.5px] font-bold tabular">MVR {(li.price * li.qty).toLocaleString()}</div>
                           <div className="text-[11px] text-muted">×{li.qty} @ {li.price.toLocaleString()}</div>
                         </div>
                       </div>
@@ -5981,515 +4401,6 @@ export default function AdminPage() {
                 )}
               </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── QUOTE DETAIL DRAWER ── */}
-      {quoteDrawer && (
-        <div className="fixed inset-0 z-[85] flex animate-fade-in" onClick={() => { setQuoteDrawer(null); setQuoteItemEditor(null); }}>
-          <div className="flex-1 bg-[rgba(4,8,7,.6)] backdrop-blur-sm" />
-          <div className="w-full max-w-[620px] bg-surface border-l border-[rgba(0,0,0,.1)] flex flex-col h-full overflow-y-auto animate-slide-right" onClick={e => e.stopPropagation()}>
-            <div className="flex items-start justify-between p-5 border-b border-[rgba(0,0,0,.08)] flex-none">
-              <div>
-                <div className="font-bold text-[18px] text-rose-600">{quoteDrawer.id}</div>
-                <div className="text-[12px] text-muted mt-[3px]">{quoteDrawer.date}</div>
-                <div className="flex items-center gap-2 mt-2">
-                  <span className="text-[9px] font-extrabold uppercase px-[7px] py-[2px] rounded-full" style={{ color: STAGE_META[Math.min(quoteDrawer.stage, 3)].fg, background: STAGE_META[Math.min(quoteDrawer.stage, 3)].bg }}>{QUOTE_STAGES[quoteDrawer.stage]}</span>
-                  {quoteDrawer.price && <span className="text-[9px] font-extrabold text-rose-600 bg-[rgba(219,87,149,.08)] border border-[rgba(219,87,149,.2)] px-[7px] py-[2px] rounded-full">MVR {quoteDrawer.price.toLocaleString()}</span>}
-                </div>
-              </div>
-              <button onClick={() => { setQuoteDrawer(null); setQuoteItemEditor(null); }} className="border-none bg-transparent text-muted text-[22px] cursor-pointer flex-none"><X size={22} /></button>
-            </div>
-
-            <div className="p-5 flex flex-col gap-5 flex-1">
-              {/* Customer */}
-              <div>
-                <div className="text-[11px] font-extrabold uppercase tracking-[.07em] text-muted mb-3">Customer</div>
-                <div className="bg-well border border-[rgba(0,0,0,.07)] rounded-[12px] p-4 grid grid-cols-2 gap-3">
-                  <div><div className="text-[10.5px] text-muted mb-[3px]">Name</div><div className="text-[13px] font-semibold">{quoteDrawer.customer}</div></div>
-                  <div><div className="text-[10.5px] text-muted mb-[3px]">Email</div><div className="text-[12.5px] break-all">{quoteDrawer.email || '—'}</div></div>
-                  {quoteDrawer.mobile && <div><div className="text-[10.5px] text-muted mb-[3px]">Mobile</div><div className="text-[13px]">{quoteDrawer.mobile}</div></div>}
-                  {quoteDrawer.message && <div className="col-span-2"><div className="text-[10.5px] text-muted mb-[3px]">Message</div><div className="text-[12.5px] text-sub leading-[1.5]">{quoteDrawer.message}</div></div>}
-                </div>
-              </div>
-
-              {/* Line Items */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="text-[11px] font-extrabold uppercase tracking-[.07em] text-muted">
-                    Items {quoteDrawer.lineItems && quoteDrawer.lineItems.length > 0 && <span className="text-rose-600">({quoteDrawer.lineItems.length} config · {quoteDrawer.units} units)</span>}
-                  </div>
-                  <button onClick={() => openQIE(null)}
-                    className="text-[11px] font-extrabold text-rose-600 border border-[rgba(219,87,149,.3)] bg-transparent rounded-[7px] px-3 py-[4px] cursor-pointer hover:brightness-125 transition-all">
-                    + Add Item
-                  </button>
-                </div>
-
-                {/* Existing items — compact cards with Edit/Remove */}
-                {quoteDrawer.lineItems && quoteDrawer.lineItems.length > 0 ? (
-                  <div className="bg-well border border-[rgba(0,0,0,.07)] rounded-[12px] overflow-hidden">
-                    {quoteDrawer.lineItems.map((li) => (
-                      <div key={li.id} className="flex items-start gap-3 px-4 py-3 border-b border-[rgba(0,0,0,.07)] last:border-0">
-                        <span className="w-9 h-9 rounded-[8px] flex-none" style={{ background: li.swatch || '#8a1d50' }} />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[13px] font-semibold">{li.name}</div>
-                          {li.customizationProfileName && (
-                            <div className="text-[10.5px] text-rose-600 mt-[2px] font-bold uppercase tracking-[.06em]">{li.customizationProfileName}</div>
-                          )}
-                          {(li.type || li.fabric || li.sleeve || li.neck) && (
-                            <div className="text-[11px] text-muted mt-[2px] truncate">
-                              {[li.type, li.fabric, li.sleeve ? li.sleeve + ' sleeve' : null, li.neck ? li.neck + ' neck' : null].filter(Boolean).join(' · ')}
-                            </div>
-                          )}
-                          {li.customizationAnswers && Object.keys(li.customizationAnswers).length > 0 && (
-                            <div className="mt-[7px] flex flex-col gap-[4px]">
-                              {Object.entries(li.customizationAnswers).map(([label, value]) => (
-                                <div key={label} className="text-[11px] text-sub leading-[1.35]">
-                                  <span className="text-muted">{label}: </span>
-                                  {value && typeof value === 'object' && 'url' in value ? (
-                                    <a href={String((value as { url?: unknown }).url)} target="_blank" rel="noopener noreferrer" className="text-rose-600 no-underline hover:underline">
-                                      {String((value as { name?: unknown; url?: unknown }).name || (value as { url?: unknown }).url || '')}
-                                    </a>
-                                  ) : (
-                                    <span>
-                                      {Array.isArray(value) ? value.join(', ')
-                                        : typeof value === 'boolean' ? (value ? 'Yes' : 'No')
-                                          : String(value ?? '')}
-                                    </span>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          {li.sizesLabel ? (
-                            <div className="text-[11px] text-rose-600 mt-[2px] font-mono">{li.sizesLabel} <span className="text-muted font-sans">— {li.units} units</span></div>
-                          ) : (
-                            <div className="text-[11px] text-muted mt-[2px]">{li.units} unit{li.units !== 1 ? 's' : ''}</div>
-                          )}
-                          {(li.unitPrice > 0 || li.customizationCost > 0) && (
-                            <div className="text-[11px] text-sub mt-[3px] tabular">
-                              MVR {li.unitPrice.toLocaleString()} × {li.units}{li.customizationCost > 0 ? ` + ${formatMVR(li.customizationCost)} extra` : ''} = <span className="font-bold text-body">{formatMVR(li.unitPrice * li.units + li.customizationCost)}</span>
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 flex-none">
-                          <button onClick={() => openQIE(li)}
-                            className="text-[11px] font-bold text-sub border border-[rgba(0,0,0,.14)] bg-transparent rounded-[7px] px-3 py-[4px] cursor-pointer hover:text-body hover:border-[rgba(0,0,0,.28)] transition-colors">
-                            Edit
-                          </button>
-                          <button onClick={() => deleteQuoteItem(quoteDrawer.id, li.id)}
-                            className="text-[11px] font-bold text-[#e81a2b] border-none bg-transparent cursor-pointer hover:brightness-125 px-1"><X size={11} /></button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div>
-                    <div className="bg-well border border-[rgba(0,0,0,.07)] rounded-[12px] p-4 text-[12.5px] text-sub leading-[1.6]">{quoteDrawer.summary}</div>
-                    <div className="text-[12px] text-muted mt-2">{quoteDrawer.units} unit{quoteDrawer.units !== 1 ? 's' : ''} — use &quot;+ Add Item&quot; above to add detailed configurations.</div>
-                  </div>
-                )}
-              </div>
-
-              {quoteDrawer.artworks && quoteDrawer.artworks.length > 0 && (
-                <div>
-                  <div className="text-[11px] font-extrabold uppercase tracking-[.07em] text-muted mb-3">Artwork files</div>
-                  <div className="bg-well border border-[rgba(0,0,0,.07)] rounded-[12px] overflow-hidden">
-                    {quoteDrawer.artworks.map(file => (
-                      <a key={file.id} href={file.url} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[rgba(0,0,0,.07)] last:border-0 no-underline hover:bg-[rgba(0,0,0,.045)]">
-                        <div className="min-w-0">
-                          <div className="text-[12.5px] font-semibold text-body truncate">{file.name || file.url}</div>
-                          <div className="text-[10.5px] text-muted">
-                            {file.provider === 'google_drive' ? 'Google Drive' : 'Stored file'}
-                            {file.mimeType ? ` · ${file.mimeType}` : ''}
-                            {file.size ? ` · ${(file.size / 1048576).toFixed(1)} MB` : ''}
-                          </div>
-                        </div>
-                        <span className="text-[11px] font-bold text-rose-600 flex-none">Open</span>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Price + stage edit */}
-              <div>
-                <div className="text-[11px] font-extrabold uppercase tracking-[.07em] text-muted mb-3">Update Quote</div>
-                {quoteDrawer.stage === 3 && quoteDrawer.hasPendingRequest && !hasPermission(currentUser, 'quoteApprovals', 'edit') ? (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-[#8a6205] bg-[rgba(245,200,66,.1)] border border-[rgba(245,200,66,.25)] rounded-[7px] px-[10px] py-[6px] whitespace-nowrap"><Clock size={12} /> A change request is pending approver review</span>
-                ) : (
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[12px] text-muted">Price MVR</span>
-                      <input key={`price-${quoteDrawer.id}-${quoteDrawer.computedPrice}`}
-                        defaultValue={quoteDrawer.price ? String(quoteDrawer.price) : quoteDrawer.computedPrice ? String(quoteDrawer.computedPrice) : ''}
-                        onBlur={e => setQuotePrice(quoteDrawer.id, e.target.value)} placeholder="—"
-                        className="w-[100px] bg-well border border-[rgba(0,0,0,.12)] rounded-[8px] px-3 py-[8px] text-rose-600 font-bold text-[13px] outline-none tabular focus:border-rose-400" />
-                    </div>
-                    {quoteDrawer.computedPrice > 0 && quoteDrawer.price !== quoteDrawer.computedPrice && (
-                      <span className="text-[11px] text-muted">Suggested from items: MVR {quoteDrawer.computedPrice.toLocaleString()}</span>
-                    )}
-                    <select value={quoteDrawer.stage} onChange={e => setQuoteStage(quoteDrawer.id, +e.target.value)}
-                      className="bg-well border rounded-[8px] px-3 py-[9px] font-bold text-[12px] outline-none cursor-pointer"
-                      style={{ borderColor: STAGE_META[Math.min(quoteDrawer.stage, 3)].fg, color: STAGE_META[Math.min(quoteDrawer.stage, 3)].fg }}>
-                      {QUOTE_STAGES.map((st, i) => <option key={i} value={i}>{st}</option>)}
-                    </select>
-                  </div>
-                )}
-              </div>
-
-              {/* Customer confirm/reject link */}
-              {quoteDrawer.price != null && (
-                <div>
-                  <div className="text-[11px] font-extrabold uppercase tracking-[.07em] text-muted mb-3">Customer confirmation</div>
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <select value={sendConfirmTtl} onChange={e => setSendConfirmTtl(+e.target.value)}
-                      className="bg-well border border-[rgba(0,0,0,.12)] rounded-[8px] px-3 py-[9px] font-bold text-[12px] outline-none cursor-pointer">
-                      <option value={1}>Expires in 1 day</option>
-                      <option value={2}>Expires in 2 days</option>
-                      <option value={3}>Expires in 3 days</option>
-                    </select>
-                    <button onClick={() => sendQuoteConfirmation(quoteDrawer.id, sendConfirmTtl)} disabled={sendConfirmLoading}
-                      className="text-[12px] font-extrabold px-4 py-[8px] rounded-[9px] cursor-pointer border transition-all disabled:opacity-50"
-                      style={{ background: 'rgba(219,87,149,.1)', border: '1px solid rgba(219,87,149,.4)', color: '#600a32' }}>
-                      {sendConfirmLoading ? 'Sending…' : quoteDrawer.sentForConfirmationAt ? 'Resend confirmation link' : 'Send for confirmation'}
-                    </button>
-                    {quoteDrawer.customerDecision === 'confirmed' && (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-[#600a32] bg-[rgba(219,87,149,.08)] border border-[rgba(219,87,149,.25)] rounded-full px-[10px] py-[5px]"><Check size={11} /> Customer confirmed</span>
-                    )}
-                    {quoteDrawer.customerDecision === 'rejected' && (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-[#8a0510] bg-[rgba(232,26,43,.08)] border border-[rgba(232,26,43,.25)] rounded-full px-[10px] py-[5px]">Customer declined</span>
-                    )}
-                    {quoteDrawer.customerDecision === 'pending' && quoteDrawer.confirmationTokenExpiresAt && (
-                      new Date(quoteDrawer.confirmationTokenExpiresAt).getTime() < Date.now()
-                        ? <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-[#8a6205] bg-[rgba(245,200,66,.1)] border border-[rgba(245,200,66,.25)] rounded-full px-[10px] py-[5px]"><Clock size={11} /> Link expired</span>
-                        : <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-[#8a6205] bg-[rgba(245,200,66,.1)] border border-[rgba(245,200,66,.25)] rounded-full px-[10px] py-[5px]"><Clock size={11} /> Awaiting response — expires {new Date(quoteDrawer.confirmationTokenExpiresAt).toLocaleString()}</span>
-                    )}
-                    {(() => {
-                      const qSlip = quotePaymentSlip(quoteDrawer);
-                      if (qSlip) {
-                        return (
-                          <button onClick={() => setSlipModal({ url: qSlip.url, expired: qSlip.expired })}
-                            title={qSlip.expired ? 'Payment slip expired (auto-deleted after 90 days)' : 'View payment slip'}
-                            className={`inline-flex items-center gap-1 text-[11px] font-extrabold rounded-full px-[10px] py-[5px] border cursor-pointer transition-colors ${qSlip.expired ? 'text-[rgba(0,0,0,.3)] bg-transparent border-[rgba(0,0,0,.1)]' : 'text-[#600a32] bg-[rgba(219,87,149,.08)] border-[rgba(219,87,149,.25)] hover:brightness-105'}`}>
-                            <Check size={11} /> Payment slip uploaded
-                          </button>
-                        );
-                      }
-                      if (quoteDrawer.customerDecision === 'confirmed') {
-                        return (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-muted bg-[rgba(0,0,0,.04)] border border-[rgba(0,0,0,.1)] rounded-full px-[10px] py-[5px]"><Clock size={11} /> Awaiting payment slip</span>
-                        );
-                      }
-                      return null;
-                    })()}
-                  </div>
-                </div>
-              )}
-
-              {/* Links */}
-              <div className="flex items-center gap-3 flex-wrap">
-                <button onClick={() => generateQuotePdf(quoteDrawer.id)} disabled={genPdfLoading === quoteDrawer.id}
-                  className="text-[12px] font-bold px-4 py-[8px] rounded-[9px] cursor-pointer border transition-all disabled:opacity-50"
-                  style={{ background: 'rgba(219,87,149,.08)', borderColor: 'rgba(219,87,149,.3)', color: '#600a32' }}>
-                  {genPdfLoading === quoteDrawer.id ? 'Generating…' : quoteDrawer.pdfUrl ? <><RefreshCw size={12} className="inline mr-1" /> Regenerate PDF</> : <><Download size={12} className="inline mr-1" /> Generate PDF</>}
-                </button>
-                {quoteDrawer.pdfUrl && (
-                  <a href={quoteDrawer.pdfUrl} target="_blank" rel="noopener noreferrer"
-                    className="text-[12px] font-bold text-rose-600 border border-[rgba(219,87,149,.3)] bg-[rgba(219,87,149,.06)] px-4 py-[8px] rounded-[9px] no-underline hover:brightness-125 transition-all">
-                    ↓ Open PDF
-                  </a>
-                )}
-                {quoteDrawer.stage === 3 && !orders.some(o => o.quoteRef === quoteDrawer.id) && (
-                  <button onClick={() => { convertQuote(quoteDrawer.id); setQuoteDrawer(null); }} disabled={!quoteDrawer.price}
-                    className="text-[12px] font-extrabold px-4 py-[8px] rounded-[9px] cursor-pointer border transition-all disabled:opacity-40"
-                    style={{ background: 'rgba(219,87,149,.1)', border: '1px solid rgba(219,87,149,.4)', color: '#600a32' }}>
-                    → Convert to order
-                  </button>
-                )}
-                {orders.some(o => o.quoteRef === quoteDrawer.id) && <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-[#8a6205]"><Check size={11} /> Converted to order</span>}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── QUOTE ITEM EDITOR (QIE) MODAL ── */}
-      {quoteItemEditor !== null && quoteDrawer && (
-        <div className="fixed inset-0 z-[95] bg-[rgba(4,8,7,.88)] backdrop-blur-md flex items-center justify-center p-4 animate-fade-in" onClick={() => setQuoteItemEditor(null)}>
-          <div className="w-full max-w-[660px] max-h-[92vh] overflow-y-auto bg-surface border border-[rgba(0,0,0,.12)] rounded-[22px] p-6" onClick={e => e.stopPropagation()}>
-            <div className="flex items-start justify-between mb-5">
-              <div>
-                <div className="font-bold text-[20px]">{quoteItemEditor === 'new' ? 'Add Item' : 'Edit Item'}</div>
-                <div className="text-[12px] text-muted mt-1">Configure the item for this quote</div>
-              </div>
-              <button onClick={() => setQuoteItemEditor(null)} className="border-none bg-transparent text-muted text-[22px] cursor-pointer flex-none"><X size={22} /></button>
-            </div>
-
-            {/* Kind */}
-            <div className="mb-5">
-              <div className="text-[11px] font-extrabold uppercase tracking-[.07em] text-muted mb-3">Item Type</div>
-              <div className="grid grid-cols-3 gap-2">
-                {([['jersey','Jersey / Sports','Team jerseys, training kits'],['casual','Casual Print','T-shirts, hoodies, polos'],['office','Office Wear','Corporate uniform, shirts']] as [string,string,string][]).map(([k, lbl, desc]) => (
-                  <button key={k} onClick={() => setQieDraft(d => ({ ...d, kind: k }))}
-                    className="text-left rounded-[12px] p-3 cursor-pointer transition-all font-archivo"
-                    style={{ background: qieDraft.kind === k ? 'rgba(219,87,149,.08)' : '#f5f1f3', border: qieDraft.kind === k ? '1px solid rgba(219,87,149,.5)' : '1px solid rgba(0,0,0,.1)' }}>
-                    <div className="font-bold text-[13px]" style={{ color: qieDraft.kind === k ? '#600a32' : '#150d11' }}>{lbl}</div>
-                    <div className="text-[10.5px] text-[#705260] mt-1 leading-[1.4]">{desc}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Name */}
-            <div className="mb-4">
-              <label className="text-[11px] font-extrabold uppercase tracking-[.07em] text-muted block mb-2">Item Name *</label>
-              <input value={qieDraft.name} onChange={e => setQieDraft(d => ({ ...d, name: e.target.value }))} placeholder="e.g. Home Jersey, Away Kit, Polo Shirt"
-                className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-[13.5px] outline-none focus:border-rose-500" />
-            </div>
-
-            {/* Pricing — product-derived unit price + manually-entered extra costs */}
-            <div className="mb-5 bg-well border border-[rgba(0,0,0,.08)] rounded-[12px] p-4">
-              <label className="text-[11px] font-extrabold uppercase tracking-[.07em] text-muted block mb-2">Pricing</label>
-              <div className="mb-3">
-                <label className="text-[10.5px] text-muted block mb-1">Product (price is derived from the catalog price)</label>
-                <select value={qieDraft.productId} onChange={e => setQieDraft(d => ({ ...d, productId: e.target.value }))}
-                  className="w-full bg-surface border border-[rgba(0,0,0,.12)] rounded-[8px] px-3 py-[9px] text-[12.5px] outline-none cursor-pointer focus:border-rose-500">
-                  <option value="">No product — bespoke item</option>
-                  {allProducts.map(p => <option key={p.id} value={p.id}>{p.name} — {formatMVR(p.price)}</option>)}
-                </select>
-                {qieDraft.productId && (() => {
-                  const p = allProducts.find(x => x.id === qieDraft.productId);
-                  if (!p) return null;
-                  const unitPrice = p.price + ((p.sleeveAdjustments ?? {})[qieDraft.sleeve] ?? 0);
-                  return <div className="text-[11px] text-rose-600 mt-[6px]">Unit price: MVR {unitPrice.toLocaleString()}{qieDraft.sleeve ? ` (incl. ${qieDraft.sleeve} sleeve adjustment)` : ''}</div>;
-                })()}
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-[8px]">
-                  <label className="text-[10.5px] text-muted">Additional costs (e.g. design, printing)</label>
-                  <button type="button" onClick={() => setQieCustomLines(lines => [...lines, { label: '', cost: '' }])}
-                    className="text-[11px] font-extrabold text-rose-600 border border-[rgba(219,87,149,.3)] bg-transparent rounded-[7px] px-[10px] py-[4px] cursor-pointer hover:brightness-125 transition-all">
-                    + Add Line
-                  </button>
-                </div>
-                {qieCustomLines.map((line, li) => (
-                  <div key={li} className="flex items-center gap-2 mb-2">
-                    <input value={line.label} onChange={e => setQieCustomLines(lines => lines.map((l, i) => i === li ? { ...l, label: e.target.value } : l))}
-                      placeholder="e.g. Design fee" className="flex-1 min-w-0 bg-surface border border-[rgba(0,0,0,.12)] rounded-[7px] px-[10px] py-[7px] text-[12.5px] outline-none focus:border-rose-500" />
-                    <input type="number" min="0" value={line.cost} onChange={e => setQieCustomLines(lines => lines.map((l, i) => i === li ? { ...l, cost: e.target.value } : l))}
-                      placeholder="MVR" className="w-20 flex-none bg-surface border border-[rgba(0,0,0,.12)] rounded-[7px] px-2 py-[7px] text-[12.5px] tabular outline-none focus:border-rose-500" />
-                    <button type="button" onClick={() => setQieCustomLines(lines => lines.filter((_, i) => i !== li))}
-                      className="flex-none text-[13px] text-[#e81a2b] border-none bg-transparent cursor-pointer"><X size={13} /></button>
-                  </div>
-                ))}
-                {qieCustomLines.length > 0 && (
-                  <div className="flex justify-between items-center text-[11.5px] text-sub mt-1">
-                    <span>Additional cost total</span>
-                    <span className="tabular font-bold text-body">MVR {qieCustomLines.reduce((s, l) => s + (parseInt(l.cost) || 0), 0).toLocaleString()}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Type (style from builder options) */}
-            {data.builderOptions.types.length > 0 && (
-              <div className="mb-4">
-                <label className="text-[11px] font-extrabold uppercase tracking-[.07em] text-muted block mb-2">Style</label>
-                <div className="flex flex-wrap gap-2">
-                  {data.builderOptions.types.map(t => {
-                    const key = t.id.replace('t-', '');
-                    const on = qieDraft.type === key;
-                    return (
-                      <button key={t.id} onClick={() => setQieDraft(d => ({ ...d, type: on ? '' : key }))}
-                        className="text-[12px] font-bold px-3 py-[7px] rounded-[8px] cursor-pointer transition-all"
-                        style={{ background: on ? 'rgba(219,87,149,.1)' : 'transparent', border: on ? '1px solid rgba(219,87,149,.5)' : '1px solid rgba(0,0,0,.14)', color: on ? '#600a32' : '#705260' }}>
-                        {t.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Fabric */}
-            {data.builderOptions.fabrics.length > 0 && (
-              <div className="mb-4">
-                <label className="text-[11px] font-extrabold uppercase tracking-[.07em] text-muted block mb-2">Fabric</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {data.builderOptions.fabrics.map(f => {
-                    const key = f.id.replace('f-', '');
-                    const on = qieDraft.fabric === key;
-                    return (
-                      <button key={f.id} onClick={() => setQieDraft(d => ({ ...d, fabric: on ? '' : key }))}
-                        className="flex gap-[10px] items-center text-left rounded-[12px] p-[10px] cursor-pointer transition-all"
-                        style={{ background: on ? 'rgba(219,87,149,.06)' : '#f5f1f3', border: on ? '1px solid rgba(219,87,149,.5)' : '1px solid rgba(0,0,0,.1)' }}>
-                        <span className="w-[36px] h-[36px] rounded-[8px] flex-none relative overflow-hidden" style={{ background: 'linear-gradient(135deg,#8a1d50,#36021a)' }}>
-                          {f.img && <img src={f.img} alt={f.name} className="absolute inset-0 w-full h-full object-cover" />}
-                        </span>
-                        <div>
-                          <div className="font-bold text-[12.5px]" style={{ color: on ? '#600a32' : '#150d11' }}>{f.name}</div>
-                          {f.desc && <div className="text-[10.5px] text-[#705260] mt-[2px]">{f.desc}</div>}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Sleeve + Neck */}
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              {data.builderOptions.sleeves.length > 0 && (
-                <div>
-                  <label className="text-[11px] font-extrabold uppercase tracking-[.07em] text-muted block mb-2">Sleeve</label>
-                  <div className="flex gap-2 flex-wrap">
-                    {data.builderOptions.sleeves.map(s => {
-                      const key = s.label.toLowerCase();
-                      const on = qieDraft.sleeve === key;
-                      return (
-                        <button key={s.id} onClick={() => setQieDraft(d => ({ ...d, sleeve: on ? '' : key }))}
-                          className="text-[12px] font-bold px-4 py-[8px] rounded-[9px] cursor-pointer border transition-all"
-                          style={{ background: on ? '#db5795' : 'transparent', border: on ? 'none' : '1px solid rgba(0,0,0,.14)', color: on ? '#200612' : '#705260' }}>
-                          {s.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              {data.builderOptions.necks.length > 0 && (
-                <div>
-                  <label className="text-[11px] font-extrabold uppercase tracking-[.07em] text-muted block mb-2">Neck</label>
-                  <div className="flex gap-2 flex-wrap">
-                    {data.builderOptions.necks.map(n => {
-                      const key = n.id.replace('n-', '');
-                      const on = qieDraft.neck === key;
-                      return (
-                        <button key={n.id} onClick={() => setQieDraft(d => ({ ...d, neck: on ? '' : key }))}
-                          className="text-[12px] font-bold px-4 py-[8px] rounded-[9px] cursor-pointer border transition-all"
-                          style={{ background: on ? '#db5795' : 'transparent', border: on ? 'none' : '1px solid rgba(0,0,0,.14)', color: on ? '#200612' : '#705260' }}>
-                          {n.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Colour */}
-            {data.builderOptions.colors.length > 0 && (
-              <div className="mb-4">
-                <label className="text-[11px] font-extrabold uppercase tracking-[.07em] text-muted block mb-2">Base Colour</label>
-                <div className="flex flex-wrap gap-[9px] mb-3">
-                  {data.builderOptions.colors.map(c => (
-                    <button key={c.id} onClick={() => setQieDraft(d => ({ ...d, swatch: c.hex }))} title={c.name}
-                      className="w-8 h-8 rounded-[9px] cursor-pointer border-0 transition-all"
-                      style={{ background: c.hex, boxShadow: qieDraft.swatch === c.hex ? '0 0 0 2px #ffffff,0 0 0 4px #db5795' : '0 0 0 1px rgba(0,0,0,.16)' }} />
-                  ))}
-                </div>
-                <div>
-                  <label className="text-[10.5px] text-muted block mb-1">Accent colour</label>
-                  <input value={qieDraft.accent} onChange={e => setQieDraft(d => ({ ...d, accent: e.target.value }))} placeholder="e.g. Black, White, Gold"
-                    className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[8px] px-3 py-[8px] text-[12.5px] outline-none focus:border-rose-500" />
-                </div>
-              </div>
-            )}
-
-            {/* Inventory colour — required to decrement stock on quote conversion. The
-                swatch above is display-only and doesn't map to Inventory's colour key. */}
-            {qieDraft.productId && (() => {
-              const p = allProducts.find(x => x.id === qieDraft.productId);
-              if (!p || p.colors.length === 0) return null;
-              return (
-                <div className="mb-4">
-                  <label className="text-[11px] font-extrabold uppercase tracking-[.07em] text-muted block mb-2">Inventory Colour</label>
-                  <div className="flex flex-wrap gap-[7px]">
-                    {p.colors.map(c => {
-                      const on = qieDraft.colorName === c;
-                      return (
-                        <button key={c} onClick={() => setQieDraft(d => ({ ...d, colorName: on ? '' : c }))}
-                          className="text-[12px] font-bold px-3 py-[6px] rounded-[8px] cursor-pointer border transition-all"
-                          style={{ background: on ? '#db5795' : 'transparent', border: on ? 'none' : '1px solid rgba(0,0,0,.14)', color: on ? '#200612' : '#705260' }}>
-                          {c}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {!qieDraft.colorName && (
-                    <div className="text-[11px] text-amber-400 mt-[6px]">No inventory colour selected — this item won&apos;t deduct stock when the quote is converted.</div>
-                  )}
-                </div>
-              );
-            })()}
-
-            {/* Sizes */}
-            <div className="mb-4">
-              <label className="text-[11px] font-extrabold uppercase tracking-[.07em] text-muted block mb-2">Sizes &amp; Quantities</label>
-              {data.builderOptions.sizes.length > 0 ? (
-                <div className="grid grid-cols-4 gap-2">
-                  {data.builderOptions.sizes.map(s => (
-                    <div key={s.id} className="bg-well border border-[rgba(0,0,0,.08)] rounded-[10px] p-2 text-center">
-                      <div className="text-[11px] font-bold text-sub mb-2">{s.label}</div>
-                      <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => setQieSizes(z => ({ ...z, [s.label]: Math.max(0, (z[s.label] || 0) - 1) }))}
-                          className="w-7 h-7 rounded-[6px] bg-[rgba(0,0,0,.08)] border border-[rgba(0,0,0,.1)] text-muted font-bold cursor-pointer hover:text-body transition-colors flex items-center justify-center text-[15px]">−</button>
-                        <span className="text-[14px] font-bold tabular w-7 text-center">{qieSizes[s.label] || 0}</span>
-                        <button onClick={() => setQieSizes(z => ({ ...z, [s.label]: (z[s.label] || 0) + 1 }))}
-                          className="w-7 h-7 rounded-[6px] bg-[rgba(219,87,149,.1)] border border-[rgba(219,87,149,.3)] text-rose-600 font-bold cursor-pointer hover:brightness-125 transition-all flex items-center justify-center text-[15px]">+</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <input value={Object.entries(qieSizes).map(([k, v]) => k + v).join(' ')} onChange={e => {
-                  const sz: Record<string, number> = {};
-                  for (const p of e.target.value.trim().split(/\s+/)) { const m = p.match(/^([A-Za-z]+)(\d+)$/); if (m) sz[m[1].toUpperCase()] = parseInt(m[2]); }
-                  setQieSizes(sz);
-                }} placeholder="e.g. S2 M4 L8 XL6"
-                  className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[8px] px-3 py-[9px] text-[12.5px] outline-none focus:border-rose-500" />
-              )}
-              <div className="text-[11px] text-muted mt-2 tabular">{Object.values(qieSizes).reduce((a, b) => a + b, 0)} units total</div>
-            </div>
-
-            {/* Logo / Artwork / Placement */}
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div>
-                <label className="text-[11px] font-extrabold uppercase tracking-[.07em] text-muted block mb-2">Logo name</label>
-                <input value={qieDraft.logoName} onChange={e => setQieDraft(d => ({ ...d, logoName: e.target.value }))} placeholder="e.g. Club crest"
-                  className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[8px] px-3 py-[9px] text-[12.5px] outline-none focus:border-rose-500" />
-              </div>
-              <div>
-                <label className="text-[11px] font-extrabold uppercase tracking-[.07em] text-muted block mb-2">Artwork / Print</label>
-                <input value={qieDraft.artName} onChange={e => setQieDraft(d => ({ ...d, artName: e.target.value }))} placeholder="e.g. Sublimation design"
-                  className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[8px] px-3 py-[9px] text-[12.5px] outline-none focus:border-rose-500" />
-              </div>
-              <div className="col-span-2">
-                <label className="text-[11px] font-extrabold uppercase tracking-[.07em] text-muted block mb-2">Placement</label>
-                <input value={qieDraft.placement} onChange={e => setQieDraft(d => ({ ...d, placement: e.target.value }))} placeholder="e.g. Left chest, Centre front"
-                  className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[8px] px-3 py-[9px] text-[12.5px] outline-none focus:border-rose-500" />
-              </div>
-            </div>
-
-            {/* Specs + Notes */}
-            <div className="mb-4">
-              <label className="text-[11px] font-extrabold uppercase tracking-[.07em] text-muted block mb-2">Specs (shown in PDF)</label>
-              <input value={qieDraft.specs} onChange={e => setQieDraft(d => ({ ...d, specs: e.target.value }))} placeholder="Leave blank to auto-compose from selections above"
-                className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[8px] px-3 py-[9px] text-[12.5px] outline-none focus:border-rose-500" />
-            </div>
-            <div className="mb-6">
-              <label className="text-[11px] font-extrabold uppercase tracking-[.07em] text-muted block mb-2">Internal notes</label>
-              <input value={qieDraft.notes} onChange={e => setQieDraft(d => ({ ...d, notes: e.target.value }))} placeholder="Admin-only notes (not in PDF)"
-                className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[8px] px-3 py-[9px] text-[12.5px] outline-none focus:border-rose-500" />
-            </div>
-
-            <button onClick={saveQIE} disabled={qieSaving || !qieDraft.name.trim()}
-              className="w-full border-none bg-rose-500 text-[#200612] font-extrabold text-[14px] py-[13px] rounded-[11px] cursor-pointer disabled:opacity-50 transition-opacity">
-              {qieSaving ? 'Saving…' : quoteItemEditor === 'new' ? 'Add to Quote' : 'Save Changes'}
-            </button>
           </div>
         </div>
       )}

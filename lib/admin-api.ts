@@ -1,6 +1,5 @@
 'use client';
-import type { Order, Quote, QuoteChangeRequest, PromoCode, Redemption, AdminUser, AdminRole, Location, DeliveryArea, SizeChart, CustomizationProfile, Customer, NotificationLog, Review, Product } from '@/lib/types';
-import type { BuilderKind } from '@/lib/validation';
+import type { Order, PromoCode, Redemption, AdminUser, AdminRole, Location, DeliveryArea, SizeChart, Customer, NotificationLog, Review, Product } from '@/lib/types';
 import type { Permissions } from '@/lib/permissions';
 
 export interface InventoryItem {
@@ -47,7 +46,7 @@ export interface PosOrderResult {
   date: string;
   pdfUrl: string | null;
   receiptUrl?: string | null;
-  items: Array<{ name: string; qty: number; price: number; size: string; sleeve: string; neck: string; color: string; customizationNote?: string; customizationLines?: { label: string; cost: number }[]; customizationCost?: number }>;
+  items: Array<{ name: string; qty: number; price: number; size: string; color: string }>;
 }
 
 export interface ReferrerSummary {
@@ -90,8 +89,8 @@ export const adminApi = {
   deleteProduct: (id: string) => req(`/api/admin/products/${id}`, 'DELETE'),
 
   // collections
-  createCollection: (label: string, bespoke: boolean, sizeChartId?: string | null) => req('/api/admin/collections', 'POST', { label, bespoke, sizeChartId }),
-  updateCollection: (id: string, label: string, bespoke: boolean, sizeChartId?: string | null) => req(`/api/admin/collections/${id}`, 'PATCH', { label, bespoke, sizeChartId }),
+  createCollection: (label: string, sizeChartId?: string | null) => req('/api/admin/collections', 'POST', { label, sizeChartId }),
+  updateCollection: (id: string, label: string, sizeChartId?: string | null) => req(`/api/admin/collections/${id}`, 'PATCH', { label, sizeChartId }),
   deleteCollection: (id: string) => req(`/api/admin/collections/${id}`, 'DELETE'),
 
   // size charts
@@ -105,41 +104,15 @@ export const adminApi = {
   updateCategory: (id: string, body: Record<string, unknown>) => req(`/api/admin/categories/${id}`, 'PATCH', body),
   deleteCategory: (id: string) => req(`/api/admin/categories/${id}`, 'DELETE'),
 
-  // builder options
-  createBuilder: (kind: BuilderKind, body: Record<string, unknown>) => req(`/api/admin/builder/${kind}`, 'POST', body),
-  updateBuilder: (kind: BuilderKind, id: string, body: Record<string, unknown>) => req(`/api/admin/builder/${kind}/${id}`, 'PATCH', body),
-  deleteBuilder: (kind: BuilderKind, id: string) => req(`/api/admin/builder/${kind}/${id}`, 'DELETE'),
-
-  // customization profiles
-  listCustomizationProfiles: () => req<{ profiles: CustomizationProfile[] }>('/api/admin/customization-profiles', 'GET'),
-  createCustomizationProfile: (body: Record<string, unknown>) => req<{ profile: CustomizationProfile }>('/api/admin/customization-profiles', 'POST', body),
-  updateCustomizationProfile: (id: string, body: Record<string, unknown>) => req<{ profile: CustomizationProfile }>(`/api/admin/customization-profiles/${id}`, 'PATCH', body),
-  deleteCustomizationProfile: (id: string) => req(`/api/admin/customization-profiles/${id}`, 'DELETE'),
-  assignCustomizationProfile: (body: Record<string, unknown>) => req('/api/admin/customization-profiles/assignments', 'POST', body),
-
-  // orders & quotes
+  // orders
   listOrders: () => req<{ orders: Order[] }>('/api/admin/orders', 'GET'),
   createManualOrder: (body: Record<string, unknown>) => req<{ order: Order }>('/api/admin/orders', 'POST', body),
   updateOrder: (id: string, body: { stage?: number; paid?: boolean; paidCash?: number; paidCard?: number; paidTransfer?: number }) => req<{ order: Order }>(`/api/admin/orders/${id}`, 'PATCH', body),
   generateOrderReceipt: (id: string) => req<{ url: string }>(`/api/admin/orders/${id}/receipt`, 'POST'),
   deleteOrder: (id: string) => req(`/api/admin/orders/${id}`, 'DELETE'),
-  listQuotes: () => req<{ quotes: Quote[] }>('/api/admin/quotes', 'GET'),
-  createManualQuote: (body: Record<string, unknown>) => req<{ quote: Quote }>('/api/admin/quotes', 'POST', body),
-  updateQuote: (id: string, body: { stage?: number; price?: number | null }) => req<{ queued: boolean; quote?: Quote; request?: { id: string; status: string; createdAt: string } }>(`/api/admin/quotes/${id}`, 'PATCH', body),
-  convertQuote: (id: string) => req<{ order: { id: string; quoteRef: string } }>(`/api/admin/quotes/${id}/convert`, 'POST'),
-  sendQuoteConfirmation: (id: string, ttlDays: number) => req<{ quote: Pick<Quote, 'id' | 'customerDecision' | 'sentForConfirmationAt' | 'confirmationTokenExpiresAt' | 'respondedAt'> }>(`/api/admin/quotes/${id}/send-confirmation`, 'POST', { ttlDays }),
-  listQuoteRequests: () => req<{ requests: QuoteChangeRequest[] }>('/api/admin/quote-requests', 'GET'),
-  acceptQuoteRequest: (id: string) => req<{ quote: { id: string; stage: number; price: number | null } }>(`/api/admin/quote-requests/${id}/accept`, 'POST'),
-  rejectQuoteRequest: (id: string, note?: string) => req<{ request: { id: string; status: string } }>(`/api/admin/quote-requests/${id}/reject`, 'POST', note ? { note } : undefined),
-  generateQuotePdf: (id: string) => req<{ url: string }>(`/api/admin/quotes/${id}/pdf`, 'POST'),
-  addQuoteItem: (quoteId: string, body: Record<string, unknown>) => req<{ item: import('@/lib/types').QuoteItemDetail; quote: { units: number; configs: number; computedPrice: number } }>(`/api/admin/quotes/${quoteId}/items`, 'POST', body),
-  updateQuoteItem: (quoteId: string, itemId: string, body: Record<string, unknown>) => req<{ item: import('@/lib/types').QuoteItemDetail; quote: { units: number; configs: number; computedPrice: number } }>(`/api/admin/quotes/${quoteId}/items/${itemId}`, 'PATCH', body),
-  deleteQuoteItem: (quoteId: string, itemId: string) => req<{ ok: true; quote: { units: number; configs: number; computedPrice: number } }>(`/api/admin/quotes/${quoteId}/items/${itemId}`, 'DELETE'),
 
   // settings
   updateSettings: (body: Record<string, unknown>) => req('/api/admin/settings', 'PATCH', body),
-  testGoogleDrive: (folderId: string) => req<{ folderId: string; folderName: string; lastTestAt: string | null; connectedEmail: string }>('/api/admin/settings/google-drive/test', 'POST', { folderId }),
-  disconnectGoogleDrive: () => req<{ disconnected: boolean }>('/api/admin/settings/google-drive/oauth/disconnect', 'POST'),
   testTelegram: (botToken: string, chatId: string) => req<{ username: string; chatId: string; lastTestAt: string | null; enabled: boolean }>('/api/admin/settings/telegram/test', 'POST', { botToken: botToken || undefined, chatId }),
   detectTelegramChats: (botToken: string) => req<{ chats: { id: string; title: string }[] }>('/api/admin/settings/telegram/detect-chat-id', 'POST', { botToken: botToken || undefined }),
   disconnectTelegram: () => req<{ disconnected: boolean }>('/api/admin/settings/telegram/disconnect', 'POST'),

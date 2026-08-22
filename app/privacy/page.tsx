@@ -4,9 +4,9 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 
 const SECTIONS = [
-  { n: 1, title: 'What we collect', body: 'When you place an order, request a quote, or contact us, we collect your name, email, mobile number, delivery address (if applicable) and any artwork or notes you provide. We do not collect card or bank login details.' },
-  { n: 2, title: 'How we use it', body: 'We use your details solely to process and deliver your order, prepare quotes, send order updates, and respond to enquiries. We never sell your data.' },
-  { n: 3, title: 'Artwork & uploads', body: 'Logos and designs you upload are compressed in your browser and sent to us only to produce your order. We retain them while your order is active and remove them on request.' },
+  { n: 1, title: 'What we collect', body: 'When you place an order or contact us, we collect your name, email, mobile number, delivery address (if applicable) and any notes you provide. We do not collect card or bank login details.' },
+  { n: 2, title: 'How we use it', body: 'We use your details solely to process and deliver your order, send order updates, and respond to enquiries. We never sell your data.' },
+  { n: 3, title: 'Payment slips', body: 'A payment slip you upload to confirm a bank transfer is sent to us only to verify and process your order. We retain it while your order is active and remove it on request.' },
   { n: 4, title: 'Your choices', body: 'You can ask us to access, correct, or delete your personal information at any time by emailing us. We keep order records as required for accounting purposes.' },
 ];
 

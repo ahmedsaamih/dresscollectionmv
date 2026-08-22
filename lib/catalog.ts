@@ -5,17 +5,13 @@ import type {
   StoreSetting,
   StoreCollection,
   StoreCategory,
-  BuilderOptions,
   SizeChart,
   BankAccount,
-  BuilderField,
   Location,
   DeliveryArea,
   ProductSection,
-  CustomizationProfile,
   Testimonial,
 } from '@/lib/types';
-import { customizationProfileInclude, serializeCustomizationProfile } from '@/lib/customization-profiles';
 import { normalizeStorefrontCopy } from '@/lib/storefront-copy';
 
 type ProductRow = Awaited<ReturnType<typeof prisma.product.findMany<{ include: { inventory: { include: { location: true } } } }>>>[number];
@@ -54,15 +50,7 @@ export function mapProduct(p: ProductRow): Product {
     sizes: Object.keys(sizeStock),
     sizeStock,
     colorSizeStock,
-    sleeves: p.sleeves,
-    necks: p.necks,
-    materials: p.materials,
-    sleeveImages: (p.sleeveImages as Record<string, string>) ?? {},
-    colorImages: (p.colorImages as Record<string, string>) ?? {},
-    sleeveAdjustments: (p.sleeveAdjustments as Record<string, number>) ?? {},
-    sizeAdjustments: (p.sizeAdjustments as Record<string, number>) ?? {},
     descriptionSections: (p.descriptionSections as unknown as ProductSection[]) ?? [],
-    customizable: p.customizable,
     showInWebStore: p.showInWebStore,
     img: p.img,
   };
@@ -73,8 +61,6 @@ export interface CatalogData {
   collections: StoreCollection[];
   categories: StoreCategory[];
   products: Product[];
-  customizationProfiles: CustomizationProfile[];
-  builderOptions: BuilderOptions;
   locations: Location[];
   deliveryAreas: DeliveryArea[];
   sizeCharts: SizeChart[];
@@ -88,16 +74,9 @@ export async function getCatalog(): Promise<CatalogData> {
     collections,
     categories,
     rawProducts,
-    types,
-    fabrics,
-    sleeves,
-    necks,
-    colors,
-    sizes,
     locations,
     deliveryAreas,
     sizeCharts,
-    customizationProfiles,
     reviewRows,
   ] = await Promise.all([
     prisma.setting.findUnique({ where: { id: 'singleton' } }),
@@ -108,19 +87,9 @@ export async function getCatalog(): Promise<CatalogData> {
       include: { inventory: { include: { location: true } } },
       orderBy: { name: 'asc' },
     }),
-    prisma.builderType.findMany(),
-    prisma.builderFabric.findMany(),
-    prisma.builderSleeve.findMany(),
-    prisma.builderNeck.findMany(),
-    prisma.builderColor.findMany(),
-    prisma.builderSize.findMany(),
     prisma.location.findMany({ orderBy: { sortOrder: 'asc' } }),
     prisma.deliveryArea.findMany({ where: { active: true }, orderBy: { sortOrder: 'asc' } }),
     prisma.sizeChart.findMany({ orderBy: { createdAt: 'asc' } }),
-    prisma.customizationProfile.findMany({
-      include: customizationProfileInclude,
-      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-    }),
     prisma.review.findMany({
       where: { status: 'approved', featured: true },
       orderBy: { resolvedAt: 'desc' },
@@ -131,7 +100,7 @@ export async function getCatalog(): Promise<CatalogData> {
   // Only include products that have stock in at least one web-visible location
   const products = rawProducts
     .map(mapProduct)
-    .filter(p => p.stock > 0 || p.customizable);
+    .filter(p => p.stock > 0);
 
   // Recompute category counts from live products
   const countByCategory = new Map<string, number>();
@@ -149,7 +118,6 @@ export async function getCatalog(): Promise<CatalogData> {
         address: setting.address,
         bank: setting.bank,
         bankAccounts: (setting.bankAccounts as BankAccount[] | null) ?? [],
-        builderFields: (setting.builderFields as BuilderField[] | null) ?? [],
         currency: setting.currency,
         pickupEnabled: setting.pickupEnabled,
         deliveryFee: setting.deliveryFee,
@@ -162,18 +130,11 @@ export async function getCatalog(): Promise<CatalogData> {
         categoryCustomImage: setting.categoryCustomImage,
         categoryCasualImage: setting.categoryCasualImage,
         categoryAccessoriesImage: setting.categoryAccessoriesImage,
-        customizationGuidePdfUrl: setting.customizationGuidePdfUrl,
-        customizationTemplateXlsxUrl: setting.customizationTemplateXlsxUrl,
         storefrontCopy: normalizeStorefrontCopy(setting.storefrontCopy),
         taxId: setting.taxId,
         taxRate: setting.taxRate,
         taxLabel: setting.taxLabel,
         termsConditions: setting.termsConditions,
-        googleDriveUploadsEnabled: setting.googleDriveUploadsEnabled,
-        googleDriveFolderId: setting.googleDriveFolderId,
-        googleDriveFolderName: setting.googleDriveFolderName,
-        googleDriveLastTestAt: setting.googleDriveLastTestAt?.toISOString() ?? null,
-        googleDriveConnectedEmail: setting.googleDriveConnectedEmail,
         telegramConnected: !!setting.telegramBotToken,
         telegramChatId: setting.telegramChatId,
         telegramBotUsername: setting.telegramBotUsername,
@@ -193,7 +154,7 @@ export async function getCatalog(): Promise<CatalogData> {
 
   return {
     settings,
-    collections: collections.map((c) => ({ id: c.id, key: c.key, label: c.label, bespoke: c.bespoke, sizeChartId: c.sizeChartId })),
+    collections: collections.map((c) => ({ id: c.id, key: c.key, label: c.label, sizeChartId: c.sizeChartId })),
     categories: categories.map((c) => ({
       id: c.id,
       name: c.name,
@@ -201,15 +162,6 @@ export async function getCatalog(): Promise<CatalogData> {
       count: countByCategory.get(c.name) ?? c.count,
     })),
     products,
-    customizationProfiles: customizationProfiles.map(serializeCustomizationProfile),
-    builderOptions: {
-      types: types.map((t) => ({ id: t.id, label: t.label, desc: t.desc })),
-      fabrics: fabrics.map((f) => ({ id: f.id, name: f.name, desc: f.desc, img: f.img ?? '' })),
-      sleeves: sleeves.map((s) => ({ id: s.id, label: s.label })),
-      necks: necks.map((n) => ({ id: n.id, label: n.label })),
-      colors: colors.map((c) => ({ id: c.id, name: c.name, hex: c.hex })),
-      sizes: sizes.map((s) => ({ id: s.id, label: s.label })),
-    },
     locations: locations.map((l) => ({
       id: l.id, name: l.name, showOnWeb: l.showOnWeb, isWebDefault: l.isWebDefault, sortOrder: l.sortOrder,
     })),
@@ -239,7 +191,6 @@ const EMPTY_SETTINGS: StoreSetting = {
   address: '',
   bank: '',
   bankAccounts: [],
-  builderFields: [],
   currency: 'MVR',
   pickupEnabled: true,
   deliveryFee: 0,
@@ -252,18 +203,11 @@ const EMPTY_SETTINGS: StoreSetting = {
   categoryCustomImage: '',
   categoryCasualImage: '',
   categoryAccessoriesImage: '',
-  customizationGuidePdfUrl: '',
-  customizationTemplateXlsxUrl: '',
   storefrontCopy: normalizeStorefrontCopy(null),
   taxId: '',
   taxRate: 0,
   taxLabel: 'GST',
   termsConditions: '',
-  googleDriveUploadsEnabled: false,
-  googleDriveFolderId: '',
-  googleDriveFolderName: '',
-  googleDriveLastTestAt: null,
-  googleDriveConnectedEmail: '',
   telegramConnected: false,
   telegramChatId: '',
   telegramBotUsername: '',

@@ -25,9 +25,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<StoreData>(MMStore.seed());
   const [loading, setLoading] = useState(true);
 
-  // Pull the live catalog (settings, collections, categories, products,
-  // builderOptions) from the DB. Orders/quotes are NOT returned by /api/store —
-  // they stay on the local snapshot until Phase 6 gives admin an authed source.
+  // Pull the live catalog (settings, collections, categories, products) from
+  // the DB. Orders are NOT returned by /api/store — they stay on the local
+  // snapshot until Phase 6 gives admin an authed source.
   const refresh = useCallback(async () => {
     try {
       const res = await fetch('/api/store', { cache: 'no-store' });

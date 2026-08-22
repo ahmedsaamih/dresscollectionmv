@@ -68,7 +68,7 @@ export default function SizeGuidePage() {
           <div className="border border-[rgba(219,87,149,.16)] rounded-[14px] p-5" style={{ background: 'linear-gradient(135deg,#fbeaf2,#f7f2f4)' }}>
             <div className="font-bold text-[15px] mb-[10px]">{copy.sizeGuideTeamTitle}</div>
             <div className="text-[13px] text-sub leading-[1.6]">{copy.sizeGuideTeamBody}</div>
-            <Link href="/contact" className="inline-block mt-[14px] text-rose-700 no-underline font-bold text-[13px]">{copy.sizeGuideBuilderCta} →</Link>
+            <Link href="/contact" className="inline-block mt-[14px] text-rose-700 no-underline font-bold text-[13px]">{copy.sizeGuideContactCta} →</Link>
           </div>
         </div>
       </div>
