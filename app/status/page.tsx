@@ -62,7 +62,7 @@ export default function StatusPage() {
   return (
     <div className="min-h-screen bg-page text-body font-archivo">
       <Header/>
-      <div className="max-w-[760px] mx-auto px-5 sm:px-8 py-10 pb-[90px]">
+      <div className="max-w-[760px] mx-auto px-5 sm:px-8 py-[44px] pb-[90px]">
         <div className="text-center mb-[30px]">
           <div className="inline-flex items-center gap-[9px] text-[12px] font-bold tracking-[.18em] uppercase text-rose-600 mb-[14px]">
             <span className="w-[22px] h-[2px] bg-rose-500" style={{ transform:'skewX(-24deg)' }}/>{copy.statusEyebrow}
@@ -73,7 +73,7 @@ export default function StatusPage() {
           </p>
         </div>
 
-        <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-2xl p-[18px] sm:p-[22px] flex flex-col sm:flex-row gap-3 items-stretch sm:items-start">
+        <div className="bg-surface rounded-2xl p-[18px] sm:p-[22px] flex flex-col sm:flex-row gap-3 items-stretch sm:items-start">
           <div className="flex-1">
             <input value={ref} onChange={e=>{ setRef(e.target.value); setError(''); }}
               onKeyDown={e=>{ if(e.key==='Enter') track(); }}
@@ -89,11 +89,11 @@ export default function StatusPage() {
             <div className="flex gap-2 mt-[11px] flex-wrap items-center">
               <span className="text-[11.5px] text-muted">Try:</span>
               {[['DC-26-48213','amina@email.mv']].map(([s,c])=>(
-                <button key={s} onClick={()=>{ setRef(s); setContact(c); setError(''); }} className="border border-[rgba(0,0,0,.12)] bg-transparent text-sub font-archivo text-[11.5px] px-[10px] py-1 rounded-[7px] cursor-pointer hover:border-[rgba(219,87,149,.3)] hover:text-rose-700 transition-colors tabular">{s}</button>
+                <button key={s} onClick={()=>{ setRef(s); setContact(c); setError(''); }} className="border border-[rgba(0,0,0,.12)] bg-transparent text-sub font-archivo text-[11.5px] px-[10px] py-1 rounded-full cursor-pointer hover:border-[rgba(219,87,149,.3)] hover:text-rose-700 transition-colors tabular">{s}</button>
               ))}
             </div>
           </div>
-          <button onClick={()=>track()} disabled={loading} className="border-none bg-rose-500 text-[#200612] font-extrabold text-[14.5px] px-[22px] py-[14px] rounded-xl cursor-pointer whitespace-nowrap hover:brightness-105 transition-all disabled:opacity-60 disabled:cursor-not-allowed">{loading ? 'Tracking…' : 'Track →'}</button>
+          <button onClick={()=>track()} disabled={loading} className="border-none bg-rose-500 text-[#200612] font-bold uppercase tracking-[.06em] text-[13px] px-[22px] py-[14px] rounded-xl cursor-pointer whitespace-nowrap hover:brightness-105 transition-all disabled:opacity-60 disabled:cursor-not-allowed">{loading ? 'Tracking…' : 'Track →'}</button>
         </div>
 
         {/* Result */}

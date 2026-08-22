@@ -42,7 +42,7 @@ export default function ContactPage() {
   return (
     <div className="min-h-screen bg-page text-body font-archivo">
       <Header active="contact" />
-      <div className="max-w-[1180px] mx-auto px-5 sm:px-8 py-10 pb-[90px]">
+      <div className="max-w-[1180px] mx-auto px-5 sm:px-8 py-[44px] pb-[90px]">
         <h1 className="font-archivo-narrow font-bold text-[28px] sm:text-[40px] tracking-[.01em]">Get in touch</h1>
         <p className="text-[14.5px] text-sub mt-[9px] mb-[30px] max-w-[540px]">
           Questions about an order, sizing, or a custom request? Send us a message — we're online only, so this is the fastest way to reach us.
@@ -50,14 +50,14 @@ export default function ContactPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-7 items-start">
           {/* Form */}
-          <section className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[18px] p-[26px]">
+          <section className="bg-surface rounded-[18px] p-[26px]">
             {sent ? (
               <div className="text-center py-[30px]">
                 <div className="w-16 h-16 rounded-[17px] bg-rose-500 text-[#200612] inline-flex items-center justify-center animate-pop"><Check size={32} strokeWidth={3} /></div>
                 <h3 className="font-archivo-narrow font-bold text-[24px] mt-[18px]">Message sent</h3>
                 <p className="text-[13.5px] text-sub mt-[9px] leading-[1.55]">Thanks {name} — we will reply within one business day.</p>
                 <button onClick={() => { setSent(false); setName(''); setEmail(''); setMessage(''); }}
-                  className="mt-5 border border-[rgba(0,0,0,.16)] bg-transparent text-body font-bold text-[13px] px-5 py-[11px] rounded-[10px] cursor-pointer">
+                  className="mt-5 border border-[rgba(0,0,0,.16)] bg-transparent text-body font-bold uppercase tracking-[.06em] text-[11.5px] px-5 py-[11px] rounded-full cursor-pointer hover:border-[rgba(0,0,0,.3)] transition-colors">
                   Send another
                 </button>
               </div>
@@ -84,7 +84,7 @@ export default function ContactPage() {
                         const on = topic === t.k;
                         return (
                           <button key={t.k} onClick={() => setTopic(t.k)}
-                            className="font-semibold text-[12.5px] px-[14px] py-2 rounded-[9px] cursor-pointer transition-all"
+                            className="font-semibold text-[12.5px] px-[14px] py-2 rounded-full cursor-pointer transition-all"
                             style={{ border: on ? 'none' : '1px solid rgba(0,0,0,.14)', background: on ? '#db5795' : 'transparent', color: on ? '#200612' : '#705260' }}>
                             {t.label}
                           </button>
@@ -99,7 +99,7 @@ export default function ContactPage() {
                   </div>
                   {error && <div className="text-[12px] text-[#e81a2b]">{error}</div>}
                   <button onClick={submit}
-                    className="border-none bg-rose-500 text-[#200612] font-extrabold text-[15px] py-[14px] rounded-xl cursor-pointer shadow-rose-lg hover:brightness-105 transition-all">
+                    className="border-none bg-rose-500 text-[#200612] font-bold uppercase tracking-[.06em] text-[13.5px] py-[14px] rounded-xl cursor-pointer shadow-rose-lg hover:brightness-105 transition-all">
                     Send message
                   </button>
                 </div>
@@ -109,11 +109,11 @@ export default function ContactPage() {
 
           {/* Info */}
           <aside className="flex flex-col gap-4">
-            <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-2xl p-[22px]">
+            <div className="bg-surface rounded-2xl p-[22px]">
               <div className="text-[11px] font-bold tracking-[.14em] uppercase text-muted mb-4">Get in touch</div>
               {INFO.map(c => (
                 <div key={c.label} className="flex gap-[13px] items-start mb-[15px]">
-                  <span className="w-[34px] h-[34px] rounded-[9px] flex-none bg-[rgba(219,87,149,.1)] text-rose-700 inline-flex items-center justify-center"><c.icon size={15} /></span>
+                  <span className="w-[34px] h-[34px] rounded-full flex-none bg-[rgba(219,87,149,.1)] text-rose-700 inline-flex items-center justify-center"><c.icon size={15} /></span>
                   <div>
                     <div className="text-[12px] text-muted">{c.label}</div>
                     <div className="text-[13.5px] text-body mt-[3px] font-semibold">{c.value}</div>
@@ -121,7 +121,7 @@ export default function ContactPage() {
                 </div>
               ))}
             </div>
-            <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-2xl p-[22px]">
+            <div className="bg-surface rounded-2xl p-[22px]">
               <div className="text-[11px] font-bold tracking-[.14em] uppercase text-muted mb-[14px]">Support hours</div>
               {HOURS.map(h => (
                 <div key={h.day} className="flex items-center justify-between py-2 border-b border-[rgba(0,0,0,.07)]">
