@@ -25,39 +25,6 @@ const contact = {
   mobile: requiredMobile,
 };
 
-// ─── Checkout (fixed-price order) ────────────────────────────────────────────
-
-const fixedItem = z.object({
-  sku: z.string().trim().min(1).max(120),
-  name: z.string().trim().min(1).max(180),
-  meta: z.string().max(300).optional().default(''),
-  img: z.string().max(2048).optional().default(''),
-  size: z.string().trim().max(60).optional().default(''),
-  color: z.string().trim().max(80).optional().default(''),
-  qty: z.number().int().positive().max(100),
-});
-
-export const checkoutSchema = z
-  .object({
-    ...contact,
-    method: z.enum(['pickup', 'delivery']),
-    address: z.string().trim().max(500).nullish(),
-    deliveryAreaId: z.string().trim().nullish(),
-    notes: z.string().trim().max(1000).nullish(),
-    items: z.array(fixedItem).min(1, 'Cart is empty').max(50),
-    promoCode: z.string().trim().max(40).nullish(),
-  })
-  .refine((d) => d.method !== 'delivery' || !!d.address?.trim(), {
-    message: 'Delivery address is required',
-    path: ['address'],
-  })
-  .refine((d) => d.method !== 'delivery' || !!d.deliveryAreaId?.trim(), {
-    message: 'Delivery area is required',
-    path: ['deliveryAreaId'],
-  });
-
-export type CheckoutInput = z.infer<typeof checkoutSchema>;
-
 // A URL a client claims points at an uploaded file must actually point at our
 // own storage (local dev path, Vercel Blob, or the configured R2 host) —
 // never an arbitrary scheme like `javascript:`/`data:`, since these URLs get
@@ -89,6 +56,43 @@ function isSafeStorageUrl(value: string): boolean {
 }
 export const storageUrl = (max = 2048) =>
   z.string().min(1).max(max).refine(isSafeStorageUrl, 'File URL is not from an allowed storage host');
+
+// ─── Checkout (fixed-price order) ────────────────────────────────────────────
+
+const fixedItem = z.object({
+  sku: z.string().trim().min(1).max(120),
+  name: z.string().trim().min(1).max(180),
+  meta: z.string().max(300).optional().default(''),
+  img: z.string().max(2048).optional().default(''),
+  size: z.string().trim().max(60).optional().default(''),
+  color: z.string().trim().max(80).optional().default(''),
+  qty: z.number().int().positive().max(100),
+});
+
+export const checkoutSchema = z
+  .object({
+    ...contact,
+    method: z.enum(['pickup', 'delivery']),
+    address: z.string().trim().max(500).nullish(),
+    deliveryAreaId: z.string().trim().nullish(),
+    notes: z.string().trim().max(1000).nullish(),
+    items: z.array(fixedItem).min(1, 'Cart is empty').max(50),
+    promoCode: z.string().trim().max(40).nullish(),
+    // Stock is committed (decremented) immediately at checkout — a fixed-price
+    // ready-to-wear order, not a deposit against future production — so proof
+    // of payment is required up front rather than deferred to a follow-up upload.
+    paymentSlipUrl: storageUrl(),
+  })
+  .refine((d) => d.method !== 'delivery' || !!d.address?.trim(), {
+    message: 'Delivery address is required',
+    path: ['address'],
+  })
+  .refine((d) => d.method !== 'delivery' || !!d.deliveryAreaId?.trim(), {
+    message: 'Delivery area is required',
+    path: ['deliveryAreaId'],
+  });
+
+export type CheckoutInput = z.infer<typeof checkoutSchema>;
 
 // ─── Admin: products ─────────────────────────────────────────────────────────
 

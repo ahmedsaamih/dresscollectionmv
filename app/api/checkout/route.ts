@@ -10,6 +10,7 @@ import { evaluatePromo, computeCommission } from '@/lib/promo';
 import { upsertCustomerFromContact } from '@/lib/customers';
 import { rateLimitResponse } from '@/lib/rate-limit';
 import { decrementStock, InsufficientStockError } from '@/lib/inventory';
+import { RECEIPT_TTL_MS } from '@/lib/receipts';
 
 /**
  * POST /api/checkout
@@ -155,6 +156,9 @@ export async function POST(request: Request) {
         });
         await tx.promoCode.update({ where: { id: promoId }, data: { timesUsed: { increment: 1 } } });
       }
+      await tx.receipt.create({
+        data: { orderId: ref, url: data.paymentSlipUrl, kind: 'payment_slip', expiresAt: new Date(Date.now() + RECEIPT_TTL_MS) },
+      });
       return created;
     });
 

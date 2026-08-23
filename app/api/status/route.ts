@@ -53,15 +53,15 @@ function orderStatus(o: OrderRow) {
   const steps = delivery
     ? [
         { title: 'Order placed', desc: 'We received your order.', date: o.date },
-        { title: 'In production', desc: 'Printing & finishing your items.', date: null },
+        { title: 'Payment confirmed', desc: "We've confirmed your payment.", date: null },
         { title: 'Ready for delivery', desc: 'Your order is packed and queued for delivery.', date: o.readyForDeliveryAt?.toISOString() ?? null },
         { title: 'Out for delivery', desc: 'On its way to your address.', date: null },
         { title: cancelled ? 'Cancelled' : 'Completed', desc: cancelled ? 'This order was cancelled.' : 'Delivery completed.', date: null },
       ]
     : [
         { title: 'Order placed', desc: 'We received your order.', date: o.date },
-        { title: 'In production', desc: 'Printing & finishing your items.', date: null },
-        { title: 'Ready for pickup', desc: 'Collect at our Malé workshop.', date: null },
+        { title: 'Payment confirmed', desc: "We've confirmed your payment.", date: null },
+        { title: 'Ready for pickup', desc: 'Collect at our Malé store.', date: null },
         { title: cancelled ? 'Cancelled' : 'Completed', desc: cancelled ? 'This order was cancelled.' : 'Order collected.', date: null },
       ];
   const stage = cancelled ? steps.length - 1 : delivery ? deliveryStep(o.stage) : pickupStep(o.stage);

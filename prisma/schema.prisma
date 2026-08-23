@@ -285,7 +285,7 @@ model Order {
   deliveryAreaId String? // → DeliveryArea.id; set when method = Delivery
   total        Int // subtotal + fee − discount
   method       OrderMethod
-  stage        Int         @default(0) // 0=Placed 1=In Production 2=Ready for Pickup 3=Ready for Delivery 4=Out for Delivery 5=Completed 6=Cancelled (restocks Inventory on transition in; irreversible)
+  stage        Int         @default(0) // 0=Placed 1=Payment Confirmed 2=Ready for Pickup 3=Ready for Delivery 4=Out for Delivery 5=Completed 6=Cancelled (restocks Inventory on transition in; irreversible)
   readyForDeliveryAt DateTime?
   paid         Boolean     @default(false)
   paidCash     Int         @default(0) // MVR collected in cash at POS

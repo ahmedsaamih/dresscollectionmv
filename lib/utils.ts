@@ -28,7 +28,7 @@ export const COLOR_MAP: Record<string, string> = {
 
 export const ORDER_STAGES = [
   'Placed',            // 0
-  'In Production',     // 1
+  'Payment Confirmed', // 1
   'Ready for Pickup',  // 2
   'Ready for Delivery',// 3
   'Out for Delivery',  // 4
@@ -43,7 +43,7 @@ export const DELIVERY_STAGE_IDS = [0, 1, 3, 4, 5, 6];
 
 export const STAGE_META = [
   { fg: '#ff6370', bg: 'rgba(255,61,77,.12)'   },  // 0 Placed
-  { fg: '#f5c842', bg: 'rgba(245,200,66,.12)'   },  // 1 In Production
+  { fg: '#f5c842', bg: 'rgba(245,200,66,.12)'   },  // 1 Payment Confirmed
   { fg: '#c13978', bg: 'rgba(193,57,120,.14)'   },  // 2 Ready for Pickup
   { fg: '#e63387', bg: 'rgba(51,230,198,.13)'   },  // 3 Ready for Delivery
   { fg: '#600a32', bg: 'rgba(219,87,149,.12)'    },  // 4 Out for Delivery

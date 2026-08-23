@@ -24,6 +24,7 @@ export default function CheckoutPage() {
   const [address, setAddress] = useState('');
   const [deliveryAreaId, setDeliveryAreaId] = useState('');
   const [notes, setNotes] = useState('');
+  const [paymentSlipUrl, setPaymentSlipUrl] = useState('');
   const [errors, setErrors] = useState<Record<string,boolean>>({});
   const [placed, setPlaced] = useState(false);
   const [conf, setConf] = useState<Conf|null>(null);
@@ -65,6 +66,7 @@ export default function CheckoutPage() {
     if (!mobile.trim()) e.mobile=true;
     if (!address.trim()) e.address=true;
     if (!deliveryAreaId) e.deliveryAreaId=true;
+    if (!paymentSlipUrl) e.paymentSlipUrl=true;
     if (Object.keys(e).length) { setErrors(e); return; }
     setSubmitting(true); setApiError('');
     try {
@@ -78,6 +80,7 @@ export default function CheckoutPage() {
           notes: notes || null,
           items: cart.fixed,
           promoCode: promo?.code ?? null,
+          paymentSlipUrl,
         }),
       });
       const json = await res.json();
@@ -219,6 +222,13 @@ export default function CheckoutPage() {
               ) : (
                 <div className="text-[13px] text-sub">{data.settings.bank}</div>
               )}
+              <div className="mt-[16px]">
+                <SlipUpload
+                  required
+                  onUploaded={(url) => { setPaymentSlipUrl(url); setErrors(er => { const { paymentSlipUrl: _drop, ...rest } = er; return rest; }); }}
+                />
+                {errors.paymentSlipUrl && <div className="text-[11.5px] text-[#e81a2b] mt-[8px]">Upload your payment slip to place the order.</div>}
+              </div>
             </section>
           </div>
           <aside className="lg:sticky lg:top-[84px] bg-surface rounded-2xl p-5">
