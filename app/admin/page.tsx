@@ -693,6 +693,16 @@ export default function AdminPage() {
     if (fallback) setCustomersSubTab(fallback);
   }, [tab, customersSubTab, currentUser]);
 
+  // Default both location pickers to the lowest-sortOrder location once locations load,
+  // so staff aren't forced to reselect it every session.
+  useEffect(() => {
+    if (!posLocId && data.locations.length > 0) setPosLocId(data.locations[0].id);
+  }, [posLocId, data.locations]);
+
+  useEffect(() => {
+    if (!invLocId && data.locations.length > 0) { const id = data.locations[0].id; setInvLocId(id); loadInv(id); }
+  }, [invLocId, data.locations, loadInv]);
+
   useEffect(() => {
     loadPosInventory(posLocId);
   }, [posLocId, loadPosInventory]);
@@ -2259,10 +2269,10 @@ export default function AdminPage() {
 
               {/* ── SALES ── */}
               {posTab === 'sales' && (
-                <div className="flex flex-1 min-h-0">
+                <div className="flex flex-col lg:flex-row flex-1 min-h-0">
 
                   {/* Panel 1: Product browser */}
-                  <div className="w-[270px] flex-none flex flex-col min-h-0 border-r border-[rgba(0,0,0,.08)]">
+                  <div className="w-full lg:w-[270px] flex-none flex flex-col min-h-0 border-b lg:border-b-0 lg:border-r border-[rgba(0,0,0,.08)]">
                     <div className="p-3 flex flex-col gap-2 border-b border-[rgba(0,0,0,.08)]">
                       <div className="inline-flex items-center gap-[6px] text-[10.5px] font-extrabold uppercase tracking-[.08em] text-muted"><MapPin size={11} /> 1 · Location &amp; product</div>
                       <select value={posLocId} onChange={e => setPosLocId(e.target.value)}
@@ -2291,7 +2301,7 @@ export default function AdminPage() {
                         })}
                       </div>
                     </div>
-                    <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-[5px]">
+                    <div className="max-h-[46vh] lg:max-h-none flex-1 overflow-y-auto p-2 flex flex-col gap-[5px]">
                       {!posLocId ? (
                         <div className="text-center text-[12.5px] text-rose-600 bg-[rgba(219,87,149,.06)] border border-[rgba(219,87,149,.2)] rounded-[9px] py-8 px-3 mt-2">
                           Select a location above to browse products.
@@ -2315,7 +2325,7 @@ export default function AdminPage() {
                   </div>
 
                   {/* Panel 2: Ticket */}
-                  <div className="flex-1 flex flex-col min-w-0 min-h-0 border-r border-[rgba(0,0,0,.08)]">
+                  <div className="flex-1 flex flex-col min-w-0 min-h-0 border-b lg:border-b-0 lg:border-r border-[rgba(0,0,0,.08)]">
                     <div className="p-4 border-b border-[rgba(0,0,0,.08)] flex items-center justify-between flex-none">
                       <span className="inline-flex items-center gap-[6px] font-bold text-[14px]"><span className="inline-flex items-center gap-[4px] text-muted font-extrabold"><Receipt size={12} /> 2 ·</span> Ticket</span>
                       {posCart.length > 0 && <button onClick={() => { setPosCart([]); setPosReceipt(null); }} className="text-[12px] text-[#e81a2b] border-none bg-transparent cursor-pointer">Clear</button>}
@@ -2346,7 +2356,7 @@ export default function AdminPage() {
                       </div>
                     )}
 
-                    <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2">
+                    <div className="max-h-[42vh] lg:max-h-none flex-1 overflow-y-auto p-3 flex flex-col gap-2">
                       {posCart.length === 0 && !posReceipt && <div className="text-center text-muted text-[12.5px] py-12">Select a product to add it here.</div>}
                       {posCart.map((item, i) => {
                         const effPrice = item.unitPrice;
@@ -2359,14 +2369,14 @@ export default function AdminPage() {
                             </div>
                             <div className="flex flex-col items-end gap-[6px]">
                               <div className="flex items-center gap-1">
-                                <button onClick={() => setPosCart(c => c.map((x, j) => j === i ? { ...x, qty: Math.max(1, x.qty - 1) } : x))} className="w-6 h-6 bg-[rgba(0,0,0,.08)] border border-[rgba(0,0,0,.1)] rounded-[5px] text-[13px] cursor-pointer">−</button>
+                                <button onClick={() => setPosCart(c => c.map((x, j) => j === i ? { ...x, qty: Math.max(1, x.qty - 1) } : x))} className="w-8 h-8 lg:w-6 lg:h-6 bg-[rgba(0,0,0,.08)] border border-[rgba(0,0,0,.1)] rounded-[5px] text-[13px] cursor-pointer">−</button>
                                 <span className="w-6 text-center text-[13px] font-bold tabular">{item.qty}</span>
                                 <button onClick={() => setPosCart(c => c.map((x, j) => {
                                   if (j !== i) return x;
                                   const available = inventoryStockForVariant(posInvRows, x.sku, x.color, x.size);
                                   if (x.qty >= available) { flash(`Only ${available} unit${available !== 1 ? 's' : ''} available at this location.`); return x; }
                                   return { ...x, qty: x.qty + 1 };
-                                }))} className="w-6 h-6 bg-[rgba(0,0,0,.08)] border border-[rgba(0,0,0,.1)] rounded-[5px] text-[13px] cursor-pointer">+</button>
+                                }))} className="w-8 h-8 lg:w-6 lg:h-6 bg-[rgba(0,0,0,.08)] border border-[rgba(0,0,0,.1)] rounded-[5px] text-[13px] cursor-pointer">+</button>
                               </div>
                               <span className="text-[13px] font-bold tabular">MVR {(effPrice * item.qty).toLocaleString()}</span>
                               <button onClick={() => setPosCart(c => c.filter((_, j) => j !== i))} className="text-[11px] text-[#e81a2b] border-none bg-transparent cursor-pointer"><X size={11} /></button>
@@ -2404,7 +2414,7 @@ export default function AdminPage() {
                   </div>
 
                   {/* Panel 3: Customer + Payment */}
-                  <div className="w-[300px] flex-none flex flex-col min-h-0">
+                  <div className="w-full lg:w-[300px] flex-none flex flex-col min-h-0">
                     <div className="flex-1 overflow-y-auto">
                       <div className="p-4 border-b border-[rgba(0,0,0,.08)]">
                         <div className="text-[13px] font-bold mb-3"><span className="inline-flex items-center gap-[4px] text-muted font-extrabold"><Users size={12} /> 3 ·</span> Customer</div>
@@ -2503,7 +2513,7 @@ export default function AdminPage() {
                                 const current = m === 'Cash' ? posCash : m === 'Card' ? posCard : posTransfer;
                                 if (!parseInt(current)) (m === 'Cash' ? setPosCash : m === 'Card' ? setPosCard : setPosTransfer)(String(posTotal));
                               }}
-                              className="rounded-[8px] px-2 py-[9px] text-[11px] font-extrabold border cursor-pointer transition-colors flex flex-col items-center gap-[2px]"
+                              className="rounded-[8px] px-2 py-[11px] lg:py-[9px] text-[11px] font-extrabold border cursor-pointer transition-colors flex flex-col items-center gap-[2px]"
                               style={{ background: !posPaymentSplit && posPaymentMethod === m ? 'rgba(219,87,149,.08)' : 'transparent', color: !posPaymentSplit && posPaymentMethod === m ? '#600a32' : '#705260', borderColor: !posPaymentSplit && posPaymentMethod === m ? 'rgba(219,87,149,.45)' : 'rgba(0,0,0,.12)' }}>
                               <MethodIcon size={14} />
                               <span>{m}</span>
@@ -2515,7 +2525,7 @@ export default function AdminPage() {
                         {!posPaymentSplit ? (
                           <div className="flex items-center gap-2 mb-2">
                             <label className="text-[12px] font-semibold text-sub w-[60px] flex-none">{posPaymentMethod}</label>
-                            <input key={posPaymentMethod} autoFocus type="number" min="0"
+                            <input key={posPaymentMethod} type="number" min="0"
                               value={posPaymentMethod === 'Cash' ? posCash : posPaymentMethod === 'Card' ? posCard : posTransfer}
                               onChange={e => (posPaymentMethod === 'Cash' ? setPosCash : posPaymentMethod === 'Card' ? setPosCard : setPosTransfer)(e.target.value)}
                               placeholder="0"
@@ -2616,42 +2626,86 @@ export default function AdminPage() {
                       className="flex-1 max-w-[380px] bg-surface border border-[rgba(0,0,0,.12)] rounded-[9px] px-3 py-[9px] text-[13px] outline-none focus:border-rose-500" />
                     <span className="text-[12px] text-muted">{orders.filter(o => o.method === 'Delivery').length} delivery orders</span>
                   </div>
-                  <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[14px] overflow-x-auto">
-                    <div className="grid px-4 py-3 bg-[rgba(0,0,0,.045)] border-b border-[rgba(0,0,0,.07)] text-[11px] font-extrabold tracking-[.06em] uppercase text-muted" style={{ gridTemplateColumns: '130px 1.1fr 1.5fr .75fr .75fr .85fr 1.2fr' }}>
-                      <span>Ref</span><span>Customer</span><span>Address</span><span>Fee</span><span>Total</span><span>Waiting</span><span>Status</span>
-                    </div>
-                    {orders
+                  {(() => {
+                    const deliveryOrders = orders
                       .filter(o => o.method === 'Delivery' && (!posOrderSearch || [o.id, o.customer, o.mobile ?? '', o.address ?? ''].some(v => v.toLowerCase().includes(posOrderSearch.toLowerCase()))))
-                      .sort((a, b) => (a.stage === 3 || a.stage === 4 ? 0 : 1) - (b.stage === 3 || b.stage === 4 ? 0 : 1) || daysSinceReady(b) - daysSinceReady(a))
-                      .map(o => {
-                        const m = STAGE_META[Math.min(o.stage, STAGE_META.length - 1)];
-                        const origin = orderOriginMeta(o);
-                        const waiting = o.stage === 3 || o.stage === 4 ? `${daysSinceReady(o)} day${daysSinceReady(o) === 1 ? '' : 's'}` : '—';
-                        return (
-                          <div key={o.id} className="grid px-4 py-3 border-b border-[rgba(0,0,0,.07)] items-center hover:bg-[rgba(0,0,0,.04)] transition-colors" style={{ gridTemplateColumns: '130px 1.1fr 1.5fr .75fr .75fr .85fr 1.2fr' }}>
-                            <div>
-                              <button onClick={() => setOrderDrawer(o)} className="text-[12px] font-bold text-rose-700 hover:underline border-none bg-transparent cursor-pointer p-0">{o.id}</button>
-                              <span className="block text-[8px] font-extrabold uppercase rounded px-1 mt-[2px] w-fit border" style={{ color: origin.tone, background: origin.bg, borderColor: origin.border }}>{origin.label}</span>
-                            </div>
-                            <div className="min-w-0"><div className="text-[12.5px] font-semibold truncate">{o.customer}</div><div className="text-[11px] text-muted">{o.mobile || o.email || '—'}</div></div>
-                            <span className="text-[11.5px] text-sub truncate">{o.address || 'No address'}</span>
-                            <span className="text-[12px] tabular">MVR {(o.deliveryFee ?? 0).toLocaleString()}</span>
-                            <span className="text-[12.5px] font-bold tabular">MVR {o.total.toLocaleString()}</span>
-                            <span className="text-[11.5px] text-muted">{waiting}</span>
-                            {o.origin === 'pos_sale' ? (
-                              <span className="justify-self-start text-[10.5px] font-extrabold uppercase px-2 py-[5px] rounded-[7px] border" style={{ borderColor: m.fg, color: m.fg, background: m.bg }}>{ORDER_STAGES[o.stage]}</span>
-                            ) : (
-                              <select value={o.stage} onChange={e => setOrderStage(o.id, +e.target.value)}
-                                className="bg-well border rounded-[7px] px-[8px] py-[6px] font-archivo font-bold text-[11.5px] outline-none cursor-pointer"
-                                style={{ borderColor: m.fg, color: m.fg }}>
-                                {stageOptionsFor(o).map(st => <option key={st.value} value={st.value}>{st.label}</option>)}
-                              </select>
-                            )}
+                      .sort((a, b) => (a.stage === 3 || a.stage === 4 ? 0 : 1) - (b.stage === 3 || b.stage === 4 ? 0 : 1) || daysSinceReady(b) - daysSinceReady(a));
+                    return (
+                      <>
+                        {/* Desktop: full grid */}
+                        <div className="hidden lg:block bg-surface border border-[rgba(0,0,0,.08)] rounded-[14px] overflow-x-auto">
+                          <div className="grid px-4 py-3 bg-[rgba(0,0,0,.045)] border-b border-[rgba(0,0,0,.07)] text-[11px] font-extrabold tracking-[.06em] uppercase text-muted" style={{ gridTemplateColumns: '130px 1.1fr 1.5fr .75fr .75fr .85fr 1.2fr' }}>
+                            <span>Ref</span><span>Customer</span><span>Address</span><span>Fee</span><span>Total</span><span>Waiting</span><span>Status</span>
                           </div>
-                        );
-                      })}
-                    {orders.filter(o => o.method === 'Delivery').length === 0 && <div className="py-10 text-center text-[13px] text-muted">No delivery orders yet.</div>}
-                  </div>
+                          {deliveryOrders.map(o => {
+                            const m = STAGE_META[Math.min(o.stage, STAGE_META.length - 1)];
+                            const origin = orderOriginMeta(o);
+                            const waiting = o.stage === 3 || o.stage === 4 ? `${daysSinceReady(o)} day${daysSinceReady(o) === 1 ? '' : 's'}` : '—';
+                            return (
+                              <div key={o.id} className="grid px-4 py-3 border-b border-[rgba(0,0,0,.07)] items-center hover:bg-[rgba(0,0,0,.04)] transition-colors" style={{ gridTemplateColumns: '130px 1.1fr 1.5fr .75fr .75fr .85fr 1.2fr' }}>
+                                <div>
+                                  <button onClick={() => setOrderDrawer(o)} className="text-[12px] font-bold text-rose-700 hover:underline border-none bg-transparent cursor-pointer p-0">{o.id}</button>
+                                  <span className="block text-[8px] font-extrabold uppercase rounded px-1 mt-[2px] w-fit border" style={{ color: origin.tone, background: origin.bg, borderColor: origin.border }}>{origin.label}</span>
+                                </div>
+                                <div className="min-w-0"><div className="text-[12.5px] font-semibold truncate">{o.customer}</div><div className="text-[11px] text-muted">{o.mobile || o.email || '—'}</div></div>
+                                <span className="text-[11.5px] text-sub truncate">{o.address || 'No address'}</span>
+                                <span className="text-[12px] tabular">MVR {(o.deliveryFee ?? 0).toLocaleString()}</span>
+                                <span className="text-[12.5px] font-bold tabular">MVR {o.total.toLocaleString()}</span>
+                                <span className="text-[11.5px] text-muted">{waiting}</span>
+                                {o.origin === 'pos_sale' ? (
+                                  <span className="justify-self-start text-[10.5px] font-extrabold uppercase px-2 py-[5px] rounded-[7px] border" style={{ borderColor: m.fg, color: m.fg, background: m.bg }}>{ORDER_STAGES[o.stage]}</span>
+                                ) : (
+                                  <select value={o.stage} onChange={e => setOrderStage(o.id, +e.target.value)}
+                                    className="bg-well border rounded-[7px] px-[8px] py-[6px] font-archivo font-bold text-[11.5px] outline-none cursor-pointer"
+                                    style={{ borderColor: m.fg, color: m.fg }}>
+                                    {stageOptionsFor(o).map(st => <option key={st.value} value={st.value}>{st.label}</option>)}
+                                  </select>
+                                )}
+                              </div>
+                            );
+                          })}
+                          {deliveryOrders.length === 0 && <div className="py-10 text-center text-[13px] text-muted">No delivery orders yet.</div>}
+                        </div>
+
+                        {/* Mobile: stacked cards */}
+                        <div className="lg:hidden flex flex-col gap-[10px]">
+                          {deliveryOrders.map(o => {
+                            const m = STAGE_META[Math.min(o.stage, STAGE_META.length - 1)];
+                            const origin = orderOriginMeta(o);
+                            const waiting = o.stage === 3 || o.stage === 4 ? `${daysSinceReady(o)} day${daysSinceReady(o) === 1 ? '' : 's'}` : '—';
+                            return (
+                              <div key={o.id} className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[12px] p-4">
+                                <div className="flex items-start justify-between gap-2 mb-2">
+                                  <div>
+                                    <button onClick={() => setOrderDrawer(o)} className="text-[13px] font-bold text-rose-700 hover:underline border-none bg-transparent cursor-pointer p-0">{o.id}</button>
+                                    <span className="block text-[8px] font-extrabold uppercase rounded px-1 mt-[3px] w-fit border" style={{ color: origin.tone, background: origin.bg, borderColor: origin.border }}>{origin.label}</span>
+                                  </div>
+                                  <span className="text-[13px] font-bold tabular flex-none">MVR {o.total.toLocaleString()}</span>
+                                </div>
+                                <div className="text-[12.5px] font-semibold">{o.customer}</div>
+                                <div className="text-[11.5px] text-muted mb-1">{o.mobile || o.email || '—'}</div>
+                                <div className="text-[11.5px] text-sub mb-2">{o.address || 'No address'}</div>
+                                <div className="flex items-center justify-between text-[11px] text-muted mb-3">
+                                  <span>Fee: MVR {(o.deliveryFee ?? 0).toLocaleString()}</span>
+                                  <span>Waiting: {waiting}</span>
+                                </div>
+                                {o.origin === 'pos_sale' ? (
+                                  <span className="inline-block text-[10.5px] font-extrabold uppercase px-2 py-[5px] rounded-[7px] border" style={{ borderColor: m.fg, color: m.fg, background: m.bg }}>{ORDER_STAGES[o.stage]}</span>
+                                ) : (
+                                  <select value={o.stage} onChange={e => setOrderStage(o.id, +e.target.value)}
+                                    className="w-full bg-well border rounded-[7px] px-[8px] py-[9px] font-archivo font-bold text-[12px] outline-none cursor-pointer"
+                                    style={{ borderColor: m.fg, color: m.fg }}>
+                                    {stageOptionsFor(o).map(st => <option key={st.value} value={st.value}>{st.label}</option>)}
+                                  </select>
+                                )}
+                              </div>
+                            );
+                          })}
+                          {deliveryOrders.length === 0 && <div className="py-10 text-center text-[13px] text-muted">No delivery orders yet.</div>}
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -2769,62 +2823,107 @@ export default function AdminPage() {
                   {!invLoading && !invLocId && <div className="text-center text-muted text-[13px] py-12">Select a location to view its stock.</div>}
                   {!invLoading && invLocId && invRows.length === 0 && <div className="text-center text-muted text-[13px] py-12">No inventory rows for this location.</div>}
                   {!invLoading && invRows.length > 0 && (
-                    <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[14px] overflow-auto">
-                      <table className="w-full text-[12.5px]">
-                        <thead>
-                          <tr className="border-b border-[rgba(0,0,0,.08)]">
-                            <th className="text-left px-4 py-3 text-sub font-semibold w-[44px]"></th>
-                            <th className="text-left px-4 py-3 text-sub font-semibold">Product</th>
-                            <th className="text-center px-4 py-3 text-sub font-semibold">Size</th>
-                            <th className="text-center px-4 py-3 text-sub font-semibold">Colour</th>
-                            <th className="text-left px-4 py-3 text-sub font-semibold min-w-[190px]">Physical location</th>
-                            <th className="text-right px-4 py-3 text-sub font-semibold">Qty</th>
-                            <th className="px-4 py-3"></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {invRows.map((r, i) => (
-                            <tr key={i} className="border-b border-[rgba(0,0,0,.07)] last:border-0 hover:bg-[rgba(0,0,0,.04)]">
-                              <td className="px-4 py-3"><span className="w-8 h-8 rounded-[7px] block" style={{ background: r.productImg }} /></td>
-                              <td className="px-4 py-3 font-medium">{r.productName}</td>
-                              <td className="px-4 py-3 text-center text-sub">{r.size || '—'}</td>
-                              <td className="px-4 py-3 text-center text-sub">{r.color || 'Unassigned'}</td>
-                              <td className="px-4 py-3">
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    value={r.physicalLocation ?? ''}
-                                    onChange={e => {
-                                      const value = e.target.value;
-                                      setInvRows(rows => rows.map(x => x.locationId === r.locationId && x.productId === r.productId ? { ...x, physicalLocation: value } : x));
-                                    }}
-                                    onBlur={e => saveInventoryPlacement(r, e.target.value)}
-                                    onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-                                    placeholder="Shelf A3 / Bin 12"
-                                    className="w-full min-w-[160px] bg-well border border-[rgba(0,0,0,.12)] rounded-[8px] px-3 py-[7px] text-[12px] text-body outline-none focus:border-rose-500"
-                                  />
-                                  {invPlacementSaving[`${r.locationId}:${r.productId}`] && <span className="text-[10.5px] text-sub">Saving…</span>}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 text-right font-bold tabular" style={{ color: r.qty === 0 ? '#b80f1d' : r.qty <= 5 ? '#e81a2b' : '#705260' }}>{r.qty}</td>
-                              <td className="px-4 py-3 text-right">
-                                <div className="flex items-center gap-1 justify-end">
-                                  <button onClick={() => setInvReceive({ productId: r.productId, productName: r.productName, size: r.size, color: r.color, qty: '1' })}
-                                    className="text-[11px] text-rose-700 border border-[rgba(219,87,149,.3)] rounded-[6px] px-2 py-1 bg-transparent cursor-pointer hover:bg-[rgba(219,87,149,.06)] transition-colors">
-                                    + Receive
-                                  </button>
-                                  {hasPermission(currentUser, 'posInventory', 'edit') && (
-                                    <button onClick={() => setAdjModal({ productId: r.productId, productName: r.productName, size: r.size, color: r.color, qty: '', reason: 'correction', note: '' })}
-                                      className="text-[11px] text-[#e81a2b] border border-[rgba(255,61,77,.3)] rounded-[6px] px-2 py-1 bg-transparent cursor-pointer hover:bg-[rgba(255,61,77,.06)] transition-colors">
-                                      ± Adjust
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
+                    <>
+                      {/* Desktop: full table */}
+                      <div className="hidden lg:block bg-surface border border-[rgba(0,0,0,.08)] rounded-[14px] overflow-auto">
+                        <table className="w-full text-[12.5px]">
+                          <thead>
+                            <tr className="border-b border-[rgba(0,0,0,.08)]">
+                              <th className="text-left px-4 py-3 text-sub font-semibold w-[44px]"></th>
+                              <th className="text-left px-4 py-3 text-sub font-semibold">Product</th>
+                              <th className="text-center px-4 py-3 text-sub font-semibold">Size</th>
+                              <th className="text-center px-4 py-3 text-sub font-semibold">Colour</th>
+                              <th className="text-left px-4 py-3 text-sub font-semibold min-w-[190px]">Physical location</th>
+                              <th className="text-right px-4 py-3 text-sub font-semibold">Qty</th>
+                              <th className="px-4 py-3"></th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                          </thead>
+                          <tbody>
+                            {invRows.map((r, i) => (
+                              <tr key={i} className="border-b border-[rgba(0,0,0,.07)] last:border-0 hover:bg-[rgba(0,0,0,.04)]">
+                                <td className="px-4 py-3"><span className="w-8 h-8 rounded-[7px] block" style={{ background: r.productImg }} /></td>
+                                <td className="px-4 py-3 font-medium">{r.productName}</td>
+                                <td className="px-4 py-3 text-center text-sub">{r.size || '—'}</td>
+                                <td className="px-4 py-3 text-center text-sub">{r.color || 'Unassigned'}</td>
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      value={r.physicalLocation ?? ''}
+                                      onChange={e => {
+                                        const value = e.target.value;
+                                        setInvRows(rows => rows.map(x => x.locationId === r.locationId && x.productId === r.productId ? { ...x, physicalLocation: value } : x));
+                                      }}
+                                      onBlur={e => saveInventoryPlacement(r, e.target.value)}
+                                      onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                                      placeholder="Shelf A3 / Bin 12"
+                                      className="w-full min-w-[160px] bg-well border border-[rgba(0,0,0,.12)] rounded-[8px] px-3 py-[7px] text-[12px] text-body outline-none focus:border-rose-500"
+                                    />
+                                    {invPlacementSaving[`${r.locationId}:${r.productId}`] && <span className="text-[10.5px] text-sub">Saving…</span>}
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-right font-bold tabular" style={{ color: r.qty === 0 ? '#b80f1d' : r.qty <= 5 ? '#e81a2b' : '#705260' }}>{r.qty}</td>
+                                <td className="px-4 py-3 text-right">
+                                  <div className="flex items-center gap-1 justify-end">
+                                    <button onClick={() => setInvReceive({ productId: r.productId, productName: r.productName, size: r.size, color: r.color, qty: '1' })}
+                                      className="text-[11px] text-rose-700 border border-[rgba(219,87,149,.3)] rounded-[6px] px-2 py-1 bg-transparent cursor-pointer hover:bg-[rgba(219,87,149,.06)] transition-colors">
+                                      + Receive
+                                    </button>
+                                    {hasPermission(currentUser, 'posInventory', 'edit') && (
+                                      <button onClick={() => setAdjModal({ productId: r.productId, productName: r.productName, size: r.size, color: r.color, qty: '', reason: 'correction', note: '' })}
+                                        className="text-[11px] text-[#e81a2b] border border-[rgba(255,61,77,.3)] rounded-[6px] px-2 py-1 bg-transparent cursor-pointer hover:bg-[rgba(255,61,77,.06)] transition-colors">
+                                        ± Adjust
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Mobile: stacked cards */}
+                      <div className="lg:hidden flex flex-col gap-[10px]">
+                        {invRows.map((r, i) => (
+                          <div key={i} className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[12px] p-4">
+                            <div className="flex items-center gap-3 mb-3">
+                              <span className="w-9 h-9 rounded-[7px] flex-none" style={{ background: r.productImg }} />
+                              <div className="flex-1 min-w-0">
+                                <div className="text-[13px] font-semibold truncate">{r.productName}</div>
+                                <div className="text-[11.5px] text-muted">{[r.size, r.color || 'Unassigned'].filter(Boolean).join(' · ')}</div>
+                              </div>
+                              <span className="text-[14px] font-bold tabular flex-none" style={{ color: r.qty === 0 ? '#b80f1d' : r.qty <= 5 ? '#e81a2b' : '#705260' }}>{r.qty}</span>
+                            </div>
+                            <div className="flex items-center gap-2 mb-3">
+                              <input
+                                value={r.physicalLocation ?? ''}
+                                onChange={e => {
+                                  const value = e.target.value;
+                                  setInvRows(rows => rows.map(x => x.locationId === r.locationId && x.productId === r.productId ? { ...x, physicalLocation: value } : x));
+                                }}
+                                onBlur={e => saveInventoryPlacement(r, e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                                placeholder="Shelf A3 / Bin 12"
+                                className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[8px] px-3 py-[9px] text-[12.5px] text-body outline-none focus:border-rose-500"
+                              />
+                              {invPlacementSaving[`${r.locationId}:${r.productId}`] && <span className="text-[10.5px] text-sub flex-none">Saving…</span>}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => setInvReceive({ productId: r.productId, productName: r.productName, size: r.size, color: r.color, qty: '1' })}
+                                className="flex-1 text-[12px] text-rose-700 border border-[rgba(219,87,149,.3)] rounded-[7px] px-2 py-[8px] bg-transparent cursor-pointer hover:bg-[rgba(219,87,149,.06)] transition-colors">
+                                + Receive
+                              </button>
+                              {hasPermission(currentUser, 'posInventory', 'edit') && (
+                                <button onClick={() => setAdjModal({ productId: r.productId, productName: r.productName, size: r.size, color: r.color, qty: '', reason: 'correction', note: '' })}
+                                  className="flex-1 text-[12px] text-[#e81a2b] border border-[rgba(255,61,77,.3)] rounded-[7px] px-2 py-[8px] bg-transparent cursor-pointer hover:bg-[rgba(255,61,77,.06)] transition-colors">
+                                  ± Adjust
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
                   )}
                 </div>
               )}
