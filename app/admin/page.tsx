@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/contexts/StoreContext';
 import { adminApi, ApiError, type ReferrerSummary, type InventoryItem, type XfrRecord, type PosOrderResult } from '@/lib/admin-api';
-import { ORDER_STAGES, STAGE_META, formatMVR, PICKUP_STAGE_IDS, DELIVERY_STAGE_IDS, PRODUCT_SIZES, COLOR_MAP } from '@/lib/utils';
+import { ORDER_STAGES, STAGE_META, formatMVR, PICKUP_STAGE_IDS, DELIVERY_STAGE_IDS, PRODUCT_SIZES, COLOR_MAP, productColorHex } from '@/lib/utils';
 import { ORDER_NOTIFICATION_EVENTS, NOTIFICATION_EVENT_LABELS } from '@/lib/notify/event-labels';
 import type { Order, SizeChart, PromoCode, Redemption, AdminUser, AdminRole, Product, ProductSection, Customer, NotificationLog, Review, DeliveryArea } from '@/lib/types';
 import { hasPermission, MODULES, type ModuleKey, type Permissions } from '@/lib/permissions';
@@ -17,7 +17,7 @@ import {
   Tag, Ruler, Store, Receipt, Truck, Undo2, ArrowLeftRight,
   Percent, RefreshCw, Download, Info, Trash2, Pencil, X,
   Check, ArrowUpRight, LogOut, Star, DollarSign, MapPin, Users, Menu,
-  ChevronDown,
+  ChevronDown, Phone, CheckCircle2,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -166,6 +166,13 @@ function daysSinceReady(o: Order) {
   const source = o.readyForDeliveryAt ? new Date(o.readyForDeliveryAt) : new Date(o.date);
   if (Number.isNaN(source.getTime())) return 0;
   return Math.max(0, Math.floor((Date.now() - source.getTime()) / 86400000));
+}
+
+// mobile is free-form (digits, +, -, spaces, parens — see optionalMobile in lib/validation.ts);
+// tel: needs just digits and a leading +. Returns null when there's nothing dialable.
+function telHref(mobile: string | null | undefined): string | null {
+  const cleaned = (mobile ?? '').replace(/[^\d+]/g, '');
+  return cleaned ? `tel:${cleaned}` : null;
 }
 
 function paymentSlip(o: Order) {
@@ -764,6 +771,7 @@ export default function AdminPage() {
           price: draft.price, was: draft.was || null, status, badge: draft.badge ?? '', img: draft.img,
           colors: Array.isArray(draft.colors) ? draft.colors : [],
           colorImages: draft.colorImages ?? {},
+          colorHex: draft.colorHex ?? {},
           descriptionSections: (Array.isArray(draft.descriptionSections) ? draft.descriptionSections as ProductSection[] : [])
             .filter(sec => sec.title.trim() || sec.body.trim()),
           showInWebStore: draft.showInWebStore !== false,
@@ -846,7 +854,7 @@ export default function AdminPage() {
   const openModal = (kind: string, item?: Record<string, any>) => {
     const firstCol = data.collections[0]?.key ?? 'ready';
     const defaults: Record<string, Record<string, any>> = {
-      product:    { name:'', collection: firstCol, category: data.categories[0]?.name ?? '', sub:'', price:'', was:'', locationId: data.locations.find(l => l.isWebDefault)?.id ?? '', stock:'0', status:'active', badge:'', img: GRADIENTS[0], colors: [], sizes: [], sizeStock: {}, colorSizeStock: {}, colorImages: {}, descriptionSections: [], showInWebStore: true },
+      product:    { name:'', collection: firstCol, category: data.categories[0]?.name ?? '', sub:'', price:'', was:'', locationId: data.locations.find(l => l.isWebDefault)?.id ?? '', stock:'0', status:'active', badge:'', img: GRADIENTS[0], colors: [], sizes: [], sizeStock: {}, colorSizeStock: {}, colorImages: {}, colorHex: {}, descriptionSections: [], showInWebStore: true },
       collection: { label:'', sizeChartId: null },
       category:   { name:'', collection: firstCol },
     };
@@ -2670,74 +2678,118 @@ export default function AdminPage() {
                     const deliveryOrders = orders
                       .filter(o => o.method === 'Delivery' && (!posOrderSearch || [o.id, o.customer, o.mobile ?? '', o.address ?? ''].some(v => v.toLowerCase().includes(posOrderSearch.toLowerCase()))))
                       .sort((a, b) => (a.stage === 3 || a.stage === 4 ? 0 : 1) - (b.stage === 3 || b.stage === 4 ? 0 : 1) || daysSinceReady(b) - daysSinceReady(a));
+                    // "Out for delivery" or "Ready for delivery" — the one-tap Mark Delivered
+                    // shortcut only makes sense in these; POS-sale-origin orders keep the
+                    // existing read-only status badge (their stage isn't editable here at all).
+                    const canMarkDelivered = (o: Order) => (o.stage === 3 || o.stage === 4) && o.origin !== 'pos_sale';
+                    const markDelivered = (o: Order) => {
+                      if (window.confirm(`Mark ${o.id} (${o.customer}) as delivered?`)) setOrderStage(o.id, 5);
+                    };
                     return (
                       <>
                         {/* Desktop: full grid */}
                         <div className="hidden lg:block bg-surface border border-[rgba(0,0,0,.08)] rounded-[14px] overflow-x-auto">
-                          <div className="grid px-4 py-3 bg-[rgba(0,0,0,.045)] border-b border-[rgba(0,0,0,.07)] text-[11px] font-extrabold tracking-[.06em] uppercase text-muted" style={{ gridTemplateColumns: '130px 1.1fr 1.5fr .75fr .75fr .85fr 1.2fr' }}>
+                          <div className="grid px-4 py-3 bg-[rgba(0,0,0,.045)] border-b border-[rgba(0,0,0,.07)] text-[11px] font-extrabold tracking-[.06em] uppercase text-muted" style={{ gridTemplateColumns: '130px 1.1fr 1.5fr .75fr .75fr .85fr 1.5fr' }}>
                             <span>Ref</span><span>Customer</span><span>Address</span><span>Fee</span><span>Total</span><span>Waiting</span><span>Status</span>
                           </div>
                           {deliveryOrders.map(o => {
                             const m = STAGE_META[Math.min(o.stage, STAGE_META.length - 1)];
                             const origin = orderOriginMeta(o);
                             const waiting = o.stage === 3 || o.stage === 4 ? `${daysSinceReady(o)} day${daysSinceReady(o) === 1 ? '' : 's'}` : '—';
+                            const tel = telHref(o.mobile);
                             return (
-                              <div key={o.id} className="grid px-4 py-3 border-b border-[rgba(0,0,0,.07)] items-center hover:bg-[rgba(0,0,0,.04)] transition-colors" style={{ gridTemplateColumns: '130px 1.1fr 1.5fr .75fr .75fr .85fr 1.2fr' }}>
+                              <div key={o.id} className="grid px-4 py-3 border-b border-[rgba(0,0,0,.07)] items-center hover:bg-[rgba(0,0,0,.04)] transition-colors" style={{ gridTemplateColumns: '130px 1.1fr 1.5fr .75fr .75fr .85fr 1.5fr' }}>
                                 <div>
                                   <button onClick={() => setOrderDrawer(o)} className="text-[12px] font-bold text-rose-700 hover:underline border-none bg-transparent cursor-pointer p-0">{o.id}</button>
                                   <span className="block text-[8px] font-extrabold uppercase rounded px-1 mt-[2px] w-fit border" style={{ color: origin.tone, background: origin.bg, borderColor: origin.border }}>{origin.label}</span>
                                 </div>
-                                <div className="min-w-0"><div className="text-[12.5px] font-semibold truncate">{o.customer}</div><div className="text-[11px] text-muted">{o.mobile || o.email || '—'}</div></div>
+                                <div className="min-w-0 flex items-center gap-[6px]">
+                                  <div className="min-w-0">
+                                    <div className="text-[12.5px] font-semibold truncate">{o.customer}</div>
+                                    <div className="text-[11px] text-muted">{o.mobile || o.email || '—'}</div>
+                                  </div>
+                                  {tel && (
+                                    <a href={tel} title={`Call ${o.mobile}`} onClick={e => e.stopPropagation()}
+                                      className="flex-none inline-flex items-center justify-center w-[26px] h-[26px] rounded-full bg-[rgba(219,87,149,.1)] text-rose-700 hover:bg-[rgba(219,87,149,.18)] transition-colors no-underline">
+                                      <Phone size={12} />
+                                    </a>
+                                  )}
+                                </div>
                                 <span className="text-[11.5px] text-sub truncate">{o.address || 'No address'}</span>
                                 <span className="text-[12px] tabular">MVR {(o.deliveryFee ?? 0).toLocaleString()}</span>
                                 <span className="text-[12.5px] font-bold tabular">MVR {o.total.toLocaleString()}</span>
                                 <span className="text-[11.5px] text-muted">{waiting}</span>
-                                {o.origin === 'pos_sale' ? (
-                                  <span className="justify-self-start text-[10.5px] font-extrabold uppercase px-2 py-[5px] rounded-[7px] border" style={{ borderColor: m.fg, color: m.fg, background: m.bg }}>{ORDER_STAGES[o.stage]}</span>
-                                ) : (
-                                  <select value={o.stage} onChange={e => setOrderStage(o.id, +e.target.value)}
-                                    className="bg-well border rounded-[7px] px-[8px] py-[6px] font-archivo font-bold text-[11.5px] outline-none cursor-pointer"
-                                    style={{ borderColor: m.fg, color: m.fg }}>
-                                    {stageOptionsFor(o).map(st => <option key={st.value} value={st.value}>{st.label}</option>)}
-                                  </select>
-                                )}
+                                <div className="flex items-center gap-[8px]">
+                                  {o.origin === 'pos_sale' ? (
+                                    <span className="text-[10.5px] font-extrabold uppercase px-2 py-[5px] rounded-[7px] border" style={{ borderColor: m.fg, color: m.fg, background: m.bg }}>{ORDER_STAGES[o.stage]}</span>
+                                  ) : (
+                                    <>
+                                      {canMarkDelivered(o) && (
+                                        <button onClick={() => markDelivered(o)}
+                                          className="inline-flex items-center gap-[5px] bg-rose-500 text-[#200612] font-extrabold text-[11px] px-[10px] py-[6px] rounded-[7px] border-none cursor-pointer whitespace-nowrap hover:brightness-105 transition-all">
+                                          <CheckCircle2 size={12} /> Mark Delivered
+                                        </button>
+                                      )}
+                                      <select value={o.stage} onChange={e => setOrderStage(o.id, +e.target.value)}
+                                        className="bg-well border rounded-[7px] px-[8px] py-[6px] font-archivo font-bold text-[11.5px] outline-none cursor-pointer"
+                                        style={{ borderColor: m.fg, color: m.fg }}>
+                                        {stageOptionsFor(o).map(st => <option key={st.value} value={st.value}>{st.label}</option>)}
+                                      </select>
+                                    </>
+                                  )}
+                                </div>
                               </div>
                             );
                           })}
                           {deliveryOrders.length === 0 && <div className="py-10 text-center text-[13px] text-muted">No delivery orders yet.</div>}
                         </div>
 
-                        {/* Mobile: stacked cards */}
-                        <div className="lg:hidden flex flex-col gap-[10px]">
+                        {/* Mobile: runner-focused cards — customer, call, address and the
+                            Mark Delivered shortcut come first; everything else is secondary. */}
+                        <div className="lg:hidden flex flex-col gap-[12px]">
                           {deliveryOrders.map(o => {
                             const m = STAGE_META[Math.min(o.stage, STAGE_META.length - 1)];
                             const origin = orderOriginMeta(o);
                             const waiting = o.stage === 3 || o.stage === 4 ? `${daysSinceReady(o)} day${daysSinceReady(o) === 1 ? '' : 's'}` : '—';
+                            const tel = telHref(o.mobile);
                             return (
-                              <div key={o.id} className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[12px] p-4">
-                                <div className="flex items-start justify-between gap-2 mb-2">
-                                  <div>
-                                    <button onClick={() => setOrderDrawer(o)} className="text-[13px] font-bold text-rose-700 hover:underline border-none bg-transparent cursor-pointer p-0">{o.id}</button>
-                                    <span className="block text-[8px] font-extrabold uppercase rounded px-1 mt-[3px] w-fit border" style={{ color: origin.tone, background: origin.bg, borderColor: origin.border }}>{origin.label}</span>
+                              <div key={o.id} className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[14px] p-4">
+                                <div className="flex items-start justify-between gap-2 mb-3">
+                                  <div className="min-w-0">
+                                    <div className="text-[16px] font-bold truncate">{o.customer}</div>
+                                    <button onClick={() => setOrderDrawer(o)} className="text-[11.5px] font-bold text-rose-700 hover:underline border-none bg-transparent cursor-pointer p-0">{o.id}</button>
+                                    <span className="ml-[6px] text-[8px] font-extrabold uppercase rounded px-1 border" style={{ color: origin.tone, background: origin.bg, borderColor: origin.border }}>{origin.label}</span>
                                   </div>
-                                  <span className="text-[13px] font-bold tabular flex-none">MVR {o.total.toLocaleString()}</span>
+                                  {tel && (
+                                    <a href={tel} title={`Call ${o.mobile}`}
+                                      className="flex-none inline-flex items-center justify-center w-[46px] h-[46px] rounded-full bg-rose-500 text-[#200612] no-underline shadow-rose-sm">
+                                      <Phone size={19} />
+                                    </a>
+                                  )}
                                 </div>
-                                <div className="text-[12.5px] font-semibold">{o.customer}</div>
-                                <div className="text-[11.5px] text-muted mb-1">{o.mobile || o.email || '—'}</div>
-                                <div className="text-[11.5px] text-sub mb-2">{o.address || 'No address'}</div>
-                                <div className="flex items-center justify-between text-[11px] text-muted mb-3">
-                                  <span>Fee: MVR {(o.deliveryFee ?? 0).toLocaleString()}</span>
-                                  <span>Waiting: {waiting}</span>
+                                <div className="text-[14px] text-body leading-[1.4] mb-3">{o.address || 'No address on file'}</div>
+                                <div className="flex items-center justify-between text-[12.5px] mb-3">
+                                  <span className="font-bold tabular">MVR {o.total.toLocaleString()} <span className="font-normal text-muted">total</span></span>
+                                  <span className="text-muted">Waiting {waiting}</span>
                                 </div>
                                 {o.origin === 'pos_sale' ? (
                                   <span className="inline-block text-[10.5px] font-extrabold uppercase px-2 py-[5px] rounded-[7px] border" style={{ borderColor: m.fg, color: m.fg, background: m.bg }}>{ORDER_STAGES[o.stage]}</span>
                                 ) : (
-                                  <select value={o.stage} onChange={e => setOrderStage(o.id, +e.target.value)}
-                                    className="w-full bg-well border rounded-[7px] px-[8px] py-[9px] font-archivo font-bold text-[12px] outline-none cursor-pointer"
-                                    style={{ borderColor: m.fg, color: m.fg }}>
-                                    {stageOptionsFor(o).map(st => <option key={st.value} value={st.value}>{st.label}</option>)}
-                                  </select>
+                                  <>
+                                    {canMarkDelivered(o) && (
+                                      <button onClick={() => markDelivered(o)}
+                                        className="w-full inline-flex items-center justify-center gap-[7px] bg-rose-500 text-[#200612] font-extrabold text-[14px] py-[13px] rounded-[10px] border-none cursor-pointer shadow-rose-sm hover:brightness-105 transition-all mb-2">
+                                        <CheckCircle2 size={16} /> Mark Delivered
+                                      </button>
+                                    )}
+                                    <select value={o.stage} onChange={e => setOrderStage(o.id, +e.target.value)}
+                                      className="w-full bg-well border rounded-[7px] px-[8px] py-[8px] font-archivo font-bold text-[11.5px] outline-none cursor-pointer"
+                                      style={{ borderColor: m.fg, color: m.fg }}>
+                                      {stageOptionsFor(o).map(st => <option key={st.value} value={st.value}>{st.label}</option>)}
+                                    </select>
+                                  </>
                                 )}
+                                <div className="text-[10.5px] text-muted mt-2">Fee: MVR {(o.deliveryFee ?? 0).toLocaleString()}</div>
                               </div>
                             );
                           })}
@@ -3693,8 +3745,11 @@ export default function AdminPage() {
                     <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Colours <span className="text-muted font-normal">· pick a swatch or type a custom name</span></label>
                     <div className="flex gap-[8px] flex-wrap mb-[10px]">
                       {(Array.isArray(modal.draft.colors) ? modal.draft.colors as string[] : []).map((c: string) => (
-                        <span key={c} className="inline-flex items-center gap-[6px] font-semibold text-[12px] px-[11px] h-[32px] rounded-[8px] bg-[rgba(219,87,149,.1)] border border-[rgba(219,87,149,.35)] text-[#150d11]">
-                          <span className="w-[12px] h-[12px] rounded-full flex-none border border-[rgba(0,0,0,.12)]" style={{ background: COLOR_MAP[c] ?? '#888' }} />
+                        <span key={c} className="inline-flex items-center gap-[6px] font-semibold text-[12px] pl-[6px] pr-[11px] h-[32px] rounded-[8px] bg-[rgba(219,87,149,.1)] border border-[rgba(219,87,149,.35)] text-[#150d11]">
+                          <input type="color" title={`Pick an exact colour for "${c}"`}
+                            value={productColorHex(modal.draft.colorHex as Record<string, string> | undefined, c)}
+                            onChange={e => setDraftField('colorHex', { ...(modal.draft.colorHex as Record<string, string> ?? {}), [c]: e.target.value })}
+                            className="w-[20px] h-[20px] rounded-full flex-none border border-[rgba(0,0,0,.12)] p-0 cursor-pointer [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-full [&::-webkit-color-swatch]:border-none" />
                           {c}
                           <button type="button" onClick={() => {
                             const origStock = (modal.draft.colorSizeStockOriginal ?? {}) as Record<string, Record<string, number>>;
@@ -3841,7 +3896,7 @@ export default function AdminPage() {
                           const isUploading = !!colorImgUploading[colorLabel];
                           return (
                             <div key={colorLabel} className="flex items-center gap-[8px] bg-well border border-[rgba(0,0,0,.1)] rounded-[10px] px-[10px] py-[8px]">
-                              <span className="w-[30px] h-[30px] rounded-[7px] flex-none border border-[rgba(0,0,0,.1)]" style={{ background: existingImg || COLOR_MAP[colorLabel] || '#e8e0e4' }} />
+                              <span className="w-[30px] h-[30px] rounded-[7px] flex-none border border-[rgba(0,0,0,.1)]" style={{ background: existingImg || productColorHex(modal.draft.colorHex as Record<string, string> | undefined, colorLabel) }} />
                               <span className="text-[12px] font-semibold">{colorLabel}</span>
                               <label className="inline-flex items-center border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.06)] text-rose-700 font-bold text-[11.5px] px-[10px] py-[6px] rounded-[7px] cursor-pointer hover:brightness-105 transition-all">
                                 <input type="file" accept="image/*" className="hidden"
@@ -3978,8 +4033,9 @@ export default function AdminPage() {
                       if (posLocId && inventoryStockForVariant(posInvRows, posAddItem.id, c, posAddSize) === 0) {
                         setPosAddSize(firstAvailableSize(posInvRows, posAddItem, c));
                       }
-                    }} className="px-3 py-[7px] rounded-[8px] text-[12.5px] font-bold border transition-all cursor-pointer"
+                    }} className="inline-flex items-center gap-[6px] px-3 py-[7px] rounded-[8px] text-[12.5px] font-bold border transition-all cursor-pointer"
                       style={{ background: posAddColor === c ? '#db5795' : 'transparent', color: posAddColor === c ? '#200612' : '#705260', borderColor: posAddColor === c ? '#db5795' : 'rgba(0,0,0,.16)' }}>
+                      <span className="w-[11px] h-[11px] rounded-full flex-none border border-[rgba(0,0,0,.15)]" style={{ background: productColorHex(posAddItem.colorHex, c) }} />
                       {c}
                     </button>
                   ))}

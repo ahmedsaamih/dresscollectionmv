@@ -13,7 +13,7 @@ import { MMCart, groupFixedLines } from '@/lib/cart';
 import { useStore } from '@/contexts/StoreContext';
 import { useCart } from '@/contexts/CartContext';
 import { useReveal } from '@/lib/useReveal';
-import { formatMVR, COLOR_MAP, LOW_STOCK_THRESHOLD, STOCK_BAR_MAX } from '@/lib/utils';
+import { formatMVR, productColorHex, LOW_STOCK_THRESHOLD, STOCK_BAR_MAX } from '@/lib/utils';
 import { resolveSizeChart } from '@/lib/sizeChart';
 import { Store, Home, Undo2, Check } from 'lucide-react';
 import { StarRating } from '@/components/StarRating';
@@ -58,7 +58,7 @@ export default function ProductPage() {
   useReveal();
   const realProduct = data.products.find(p => p.id === params.id);
   const product = realProduct ?? data.products[0];
-  const colorHex = (name: string) => COLOR_MAP[name] ?? '#888';
+  const colorHex = (name: string) => productColorHex(product.colorHex, name);
   const colMeta = data.collections.find(c => c.key === product.collection);
   const colLabel = colMeta?.label ?? product.collection;
   const isCasual = product.collection === 'casual';
@@ -87,6 +87,22 @@ export default function ProductPage() {
 
   const displayPrice = product.price;
 
+  // Quantity of this exact sku+color+size already sitting in the customer's
+  // own cart — subtracted from the raw DB stock so the picker can't be
+  // re-used to add more than what's really left.
+  const cartQtyFor = (c: string, s: string) =>
+    cart.fixed.filter(i => i.sku === product.id && i.color === c && i.size === s).reduce((a, i) => a + i.qty, 0);
+
+  const stockForSize = (s: string) =>
+    Math.max(0, ((product.colorSizeStock?.[color] ?? {})[s] ?? 0) - cartQtyFor(color, s));
+
+  // Sizes actually orderable in the selected colour — out-of-stock sizes are hidden
+  // from the picker entirely rather than shown disabled.
+  const availableSizes = product.sizes.filter(s => stockForSize(s) > 0);
+  // A sized product where every size is sold out in this colour: distinct from the
+  // "no sizes configured at all" (accessory-style) case below, which stays as-is.
+  const noStockForColor = product.sizes.length > 0 && availableSizes.length === 0;
+
   // Compact "S2 M4 L4"-style label — matches the format used in
   // app/casual-wear/page.tsx's inline equivalent.
   const sizesLabelStr = product.sizes.filter(s => sizes[s]).map(s => s + sizes[s]).join(' ');
@@ -98,6 +114,7 @@ export default function ProductPage() {
     : displayPrice * qty;
 
   const addToCart = () => {
+    if (noStockForColor) return;
     if (product.sizes.length > 0) {
       const entries = Object.entries(sizes).filter(([, q]) => q > 0);
       if (entries.length === 0) { setSizeError(true); return; }
@@ -120,10 +137,10 @@ export default function ProductPage() {
   // users won't look at if their eyes stay on the button they just pressed).
   const addToCartLabel = justAdded
     ? <span className="inline-flex items-center gap-[7px]"><Check key="added-check" size={16} strokeWidth={3} className="animate-tick-pop" /> Added</span>
-    : <>Add to Cart · {formatMVR(lineTotal)}</>;
+    : noStockForColor ? 'Out of Stock' : <>Add to Cart · {formatMVR(lineTotal)}</>;
   const addToCartLabelCompact = justAdded
     ? <span className="inline-flex items-center gap-[6px]"><Check key="added-check-sm" size={14} strokeWidth={3} className="animate-tick-pop" /> Added</span>
-    : 'Add to Cart';
+    : noStockForColor ? 'Out of Stock' : 'Add to Cart';
 
   // Live summary of everything accumulated for this product across repeated
   // colour picks — addFixed already merges correctly per combo, this just
@@ -152,15 +169,6 @@ export default function ProductPage() {
   const accordions = (product.descriptionSections?.length ?? 0) > 0
     ? product.descriptionSections!.map(s => ({ title: s.title, body: s.body }))
     : defaultAccordions;
-
-  // Quantity of this exact sku+color+size already sitting in the customer's
-  // own cart — subtracted from the raw DB stock so the picker can't be
-  // re-used to add more than what's really left.
-  const cartQtyFor = (c: string, s: string) =>
-    cart.fixed.filter(i => i.sku === product.id && i.color === c && i.size === s).reduce((a, i) => a + i.qty, 0);
-
-  const stockForSize = (s: string) =>
-    Math.max(0, ((product.colorSizeStock?.[color] ?? {})[s] ?? 0) - cartQtyFor(color, s));
 
   // realProduct is undefined until either the live catalog resolves this id
   // or it genuinely doesn't exist. Every hook above still runs against the
@@ -263,9 +271,13 @@ export default function ProductPage() {
                 <SizeChartTrigger chart={chart} />
               </div>
               <div className="flex flex-col gap-[9px]">
-                {product.sizes.map(s => {
+                {noStockForColor && (
+                  <div className="text-[13px] text-muted px-[14px] py-[9px] rounded-xl" style={{ border: '1px solid rgba(0,0,0,.12)', background: 'rgba(0,0,0,.03)' }}>
+                    Out of stock in this colour.
+                  </div>
+                )}
+                {availableSizes.map(s => {
                   const stock = stockForSize(s);
-                  const outOfStock = stock === 0;
                   const q = sizes[s] ?? 0;
                   return (
                     <div
@@ -273,12 +285,11 @@ export default function ProductPage() {
                       className="relative flex items-center justify-between gap-[14px] px-[14px] py-[9px] rounded-xl transition-all"
                       style={{
                         border: '1px solid rgba(0,0,0,.16)',
-                        background: outOfStock ? 'rgba(0,0,0,.05)' : q > 0 ? 'rgba(219,87,149,.06)' : 'transparent',
-                        opacity: outOfStock ? .6 : 1,
+                        background: q > 0 ? 'rgba(219,87,149,.06)' : 'transparent',
                       }}
                     >
                       <div className="flex-1 min-w-0">
-                        <span className="font-bold text-[13.5px]" style={{ color: outOfStock ? 'rgba(0,0,0,.25)' : '#705260', textDecoration: outOfStock ? 'line-through' : 'none' }}>
+                        <span className="font-bold text-[13.5px]" style={{ color: '#705260' }}>
                           {s}
                         </span>
                         <div className="mt-[6px] max-w-[120px]">
@@ -287,13 +298,12 @@ export default function ProductPage() {
                       </div>
                       <div className="inline-flex items-center border border-[rgba(0,0,0,.14)] rounded-xl overflow-hidden">
                         <button
-                          disabled={outOfStock}
                           onClick={() => { setSizes(sv => ({ ...sv, [s]: Math.max(0, (sv[s] ?? 0) - 1) })); setSizeError(false); }}
                           className="border-none bg-[rgba(0,0,0,.06)] text-rose-700 w-[46px] h-[52px] text-[20px] cursor-pointer font-archivo disabled:cursor-not-allowed disabled:opacity-50"
                         >−</button>
                         <span key={q} className="w-[52px] text-center font-bold text-[16px] tabular animate-tick-pop">{q}</span>
                         <button
-                          disabled={outOfStock}
+                          disabled={q >= stock}
                           onClick={() => {
                             setSizes(sv => {
                               const current = sv[s] ?? 0;
@@ -334,7 +344,7 @@ export default function ProductPage() {
                   </div>
                 );
               })()}
-              <Button onClick={addToCart} className="flex-1">
+              <Button onClick={addToCart} disabled={noStockForColor} className="flex-1">
                 {addToCartLabel}
               </Button>
             </div>
@@ -410,7 +420,7 @@ export default function ProductPage() {
             {formatMVR(lineTotal)}
           </div>
         </div>
-        <Button size="sm" onClick={addToCart} className="flex-1">
+        <Button size="sm" onClick={addToCart} disabled={noStockForColor} className="flex-1">
           {addToCartLabelCompact}
         </Button>
       </div>

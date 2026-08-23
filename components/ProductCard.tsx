@@ -3,10 +3,8 @@ import React from 'react';
 import Link from 'next/link';
 import { ProductImage } from '@/components/ProductImage';
 import { useStore } from '@/contexts/StoreContext';
-import { COLOR_MAP } from '@/lib/utils';
+import { productColorHex } from '@/lib/utils';
 import type { Product } from '@/lib/types';
-
-const colorHex = (name: string) => COLOR_MAP[name] ?? '#888';
 
 const BADGE_CLASS: Record<NonNullable<Product['badge']>, string> = {
   New: 'bg-rose-500 text-[#200612]',
@@ -85,7 +83,7 @@ export function ProductCard({ product: p, variant = 'default' }: {
           {p.colors.length > 0 && (
             <div className="flex gap-[5px]">
               {p.colors.slice(0, 5).map(c => (
-                <span key={c} title={c} className="w-[11px] h-[11px] rounded-full border border-[rgba(0,0,0,.14)]" style={{ background: colorHex(c) }} />
+                <span key={c} title={c} className="w-[11px] h-[11px] rounded-full border border-[rgba(0,0,0,.14)]" style={{ background: productColorHex(p.colorHex, c) }} />
               ))}
             </div>
           )}

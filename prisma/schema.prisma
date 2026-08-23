@@ -169,6 +169,7 @@ model Product {
   showInWebStore Boolean       @default(true)  // false = POS-only, never shown on storefront
   img            String // gradient placeholder → real URL later
   colorImages    Json          @default("{}") // Record<colorName, imgCss> — optional, falls back to img
+  colorHex       Json          @default("{}") // Record<colorName, "#rrggbb"> — optional, falls back to COLOR_MAP then grey
   inventory      Inventory[]
   placements     InventoryPlacement[]
   transfers      StockTransfer[]
