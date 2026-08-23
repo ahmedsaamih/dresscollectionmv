@@ -168,6 +168,7 @@ model Product {
   descriptionSections Json @default("[]") // ProductSection[] — optional, admin-authored page text
   showInWebStore Boolean       @default(true)  // false = POS-only, never shown on storefront
   img            String // gradient placeholder → real URL later
+  colorImages    Json          @default("{}") // Record<colorName, imgCss> — optional, falls back to img
   inventory      Inventory[]
   placements     InventoryPlacement[]
   transfers      StockTransfer[]

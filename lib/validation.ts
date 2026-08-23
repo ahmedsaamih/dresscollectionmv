@@ -123,6 +123,7 @@ const productFields = {
   })),
   showInWebStore: z.boolean(),
   img: z.string(),
+  colorImages: z.record(z.string(), z.string()),
 };
 
 export const productCreateSchema = z.object({
@@ -144,12 +145,19 @@ export const productCreateSchema = z.object({
   descriptionSections: productFields.descriptionSections.optional().default([]),
   showInWebStore: productFields.showInWebStore.optional().default(true),
   img: productFields.img.optional().default(''),
+  colorImages: productFields.colorImages.optional().default({}),
 });
 
 // Partial — only provided keys are updated (preserves colors/sizes the admin UI doesn't edit).
-// colorSizeStock is omitted: stock can only be changed via product creation or the
-// Inventory menu (Receive/Adjust/Transfer) — never by editing an existing product.
-export const productUpdateSchema = z.object(productFields).omit({ colorSizeStock: true }).partial();
+// colorSizeStock is omitted: existing stock can only be changed via product creation or the
+// Inventory menu (Receive/Adjust/Transfer) — never by editing an existing product. The one
+// exception is newColorSizeStock below, which lets the edit form seed *brand-new* colour/size
+// combos (ones with no Inventory row anywhere yet) so a newly added colour isn't stranded at
+// 0 stock — additive-only, never touches a combo that already has an Inventory row.
+export const productUpdateSchema = z.object(productFields).omit({ colorSizeStock: true }).partial().extend({
+  newColorSizeStock: z.record(z.string(), z.record(z.string(), z.number().int().nonnegative())).optional(),
+  newStockLocationId: z.string().trim().optional(),
+});
 
 // ─── Admin: collections & categories ─────────────────────────────────────────
 

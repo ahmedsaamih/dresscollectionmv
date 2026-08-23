@@ -162,6 +162,7 @@ export interface Product {
   colorSizeStock: Record<string, Record<string, number>>; // { "Teal": { "S": 5, "M": 10 }, "": { "S": 2 } }
   showInWebStore: boolean;  // false = POS-only, hidden from storefront
   img: string;          // gradient placeholder → replace with URL
+  colorImages: Record<string, string>; // { "Teal": "url(...) center/cover no-repeat" } — optional, falls back to img
   descriptionSections?: ProductSection[]; // optional — falls back to template copy on the product page when empty/absent
 }
 

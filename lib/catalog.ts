@@ -53,6 +53,7 @@ export function mapProduct(p: ProductRow): Product {
     descriptionSections: (p.descriptionSections as unknown as ProductSection[]) ?? [],
     showInWebStore: p.showInWebStore,
     img: p.img,
+    colorImages: (p.colorImages as Record<string, string>) ?? {},
   };
 }
 

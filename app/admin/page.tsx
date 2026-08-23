@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/contexts/StoreContext';
 import { adminApi, ApiError, type ReferrerSummary, type InventoryItem, type XfrRecord, type PosOrderResult } from '@/lib/admin-api';
-import { ORDER_STAGES, STAGE_META, formatMVR, PICKUP_STAGE_IDS, DELIVERY_STAGE_IDS, PRODUCT_SIZES } from '@/lib/utils';
+import { ORDER_STAGES, STAGE_META, formatMVR, PICKUP_STAGE_IDS, DELIVERY_STAGE_IDS, PRODUCT_SIZES, COLOR_MAP } from '@/lib/utils';
 import { ORDER_NOTIFICATION_EVENTS, NOTIFICATION_EVENT_LABELS } from '@/lib/notify/event-labels';
 import type { Order, SizeChart, PromoCode, Redemption, AdminUser, AdminRole, Product, ProductSection, Customer, NotificationLog, Review, DeliveryArea } from '@/lib/types';
 import { hasPermission, MODULES, type ModuleKey, type Permissions } from '@/lib/permissions';
@@ -200,6 +200,9 @@ export default function AdminPage() {
   // Product image upload.
   const imgInputRef = useRef<HTMLInputElement>(null);
   const [imgUploading, setImgUploading] = useState(false);
+
+  // Per-colour product image upload.
+  const [colorImgUploading, setColorImgUploading] = useState<Record<string, boolean>>({});
 
   // Homepage hero image upload.
   const heroImgInputRef = useRef<HTMLInputElement>(null);
@@ -760,18 +763,35 @@ export default function AdminPage() {
           name: draft.name, collection: draft.collection, category: draft.category, sub: draft.sub ?? '',
           price: draft.price, was: draft.was || null, status, badge: draft.badge ?? '', img: draft.img,
           colors: Array.isArray(draft.colors) ? draft.colors : [],
+          colorImages: draft.colorImages ?? {},
           descriptionSections: (Array.isArray(draft.descriptionSections) ? draft.descriptionSections as ProductSection[] : [])
             .filter(sec => sec.title.trim() || sec.body.trim()),
           showInWebStore: draft.showInWebStore !== false,
         };
         if (currentUser?.role === 'admin') body.costPrice = parseInt(String(draft.costPrice ?? 0)) || 0;
         if (!modal.id) {
-          // Initial stock is only set at creation — edits never touch Inventory.
+          // Initial stock is only set at creation — edits never touch existing Inventory.
           body.stock = computedStock;
           body.sizes = computedSizes;
           body.sizeStock = sizeStock;
           body.colorSizeStock = colorSizeStock;
           body.locationId = draft.locationId;
+        } else {
+          // Edits may only seed brand-new colour/size combos (no existing Inventory row) —
+          // never touch a combo that's already tracked.
+          const origStock: Record<string, Record<string, number>> = (draft.colorSizeStockOriginal as Record<string, Record<string, number>>) ?? {};
+          const newColorSizeStock: Record<string, Record<string, number>> = {};
+          for (const [color, bySize] of Object.entries(colorSizeStock)) {
+            for (const [size, qty] of Object.entries(bySize)) {
+              if (qty > 0 && origStock[color]?.[size] === undefined) {
+                (newColorSizeStock[color] ??= {})[size] = qty;
+              }
+            }
+          }
+          if (Object.keys(newColorSizeStock).length > 0) {
+            body.newColorSizeStock = newColorSizeStock;
+            body.newStockLocationId = draft.newStockLocationId ?? data.locations[0]?.id;
+          }
         }
         if (modal.id) await adminApi.updateProduct(modal.id, body) as any;
         else await adminApi.createProduct(body) as any;
@@ -826,7 +846,7 @@ export default function AdminPage() {
   const openModal = (kind: string, item?: Record<string, any>) => {
     const firstCol = data.collections[0]?.key ?? 'ready';
     const defaults: Record<string, Record<string, any>> = {
-      product:    { name:'', collection: firstCol, category: data.categories[0]?.name ?? '', sub:'', price:'', was:'', locationId: data.locations.find(l => l.isWebDefault)?.id ?? '', stock:'0', status:'active', badge:'', img: GRADIENTS[0], colors: [], sizes: [], sizeStock: {}, colorSizeStock: {}, descriptionSections: [], showInWebStore: true },
+      product:    { name:'', collection: firstCol, category: data.categories[0]?.name ?? '', sub:'', price:'', was:'', locationId: data.locations.find(l => l.isWebDefault)?.id ?? '', stock:'0', status:'active', badge:'', img: GRADIENTS[0], colors: [], sizes: [], sizeStock: {}, colorSizeStock: {}, colorImages: {}, descriptionSections: [], showInWebStore: true },
       collection: { label:'', sizeChartId: null },
       category:   { name:'', collection: firstCol },
     };
@@ -838,6 +858,10 @@ export default function AdminPage() {
       draft = {
         ...draft,
         colorSizeStock: (item.colorSizeStock as Record<string, Record<string, number>>) ?? {},
+        // Frozen snapshot from when the modal opened — used only to tell which colour/size
+        // combos are genuinely new (no existing Inventory row) vs already-tracked, so edits
+        // never get misclassified as new just because the admin typed into the grid.
+        colorSizeStockOriginal: (item.colorSizeStock as Record<string, Record<string, number>>) ?? {},
         costPrice: costPriceProducts.find(p => p.id === item.id)?.costPrice ?? 0,
       };
     }
@@ -1255,6 +1279,22 @@ export default function AdminPage() {
     } catch (e) {
       setModal(m => m ? { ...m, error: e instanceof Error ? e.message : 'Upload failed.' } : m);
     } finally { setImgUploading(false); }
+  };
+
+  const uploadColorImage = async (colorLabel: string, file: File) => {
+    if (!file || colorImgUploading[colorLabel]) return;
+    setColorImgUploading(u => ({ ...u, [colorLabel]: true }));
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('kind', 'product');
+      const res = await fetch('/api/upload', { method: 'POST', body: form });
+      const { url } = await res.json();
+      if (!res.ok || !url) throw new Error('Upload failed');
+      setDraftField('colorImages', { ...(modal?.draft.colorImages as Record<string, string> ?? {}), [colorLabel]: `url(${url}) center/cover no-repeat` });
+    } catch (e) {
+      setModal(m => m ? { ...m, error: e instanceof Error ? e.message : 'Upload failed.' } : m);
+    } finally { setColorImgUploading(u => ({ ...u, [colorLabel]: false })); }
   };
 
   // ── homepage hero image upload ──
@@ -3648,16 +3688,37 @@ export default function AdminPage() {
                       ))}
                     </div>
                   </div>
-                  {/* Colours (free-form per-product) */}
+                  {/* Colours */}
                   <div className="col-span-2">
-                    <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Colours <span className="text-muted font-normal">· e.g. Black, Teal, Maroon</span></label>
-                    <div className="flex gap-[8px] flex-wrap mb-[8px]">
+                    <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Colours <span className="text-muted font-normal">· pick a swatch or type a custom name</span></label>
+                    <div className="flex gap-[8px] flex-wrap mb-[10px]">
                       {(Array.isArray(modal.draft.colors) ? modal.draft.colors as string[] : []).map((c: string) => (
                         <span key={c} className="inline-flex items-center gap-[6px] font-semibold text-[12px] px-[11px] h-[32px] rounded-[8px] bg-[rgba(219,87,149,.1)] border border-[rgba(219,87,149,.35)] text-[#150d11]">
+                          <span className="w-[12px] h-[12px] rounded-full flex-none border border-[rgba(0,0,0,.12)]" style={{ background: COLOR_MAP[c] ?? '#888' }} />
                           {c}
-                          <button type="button" onClick={() => setDraftField('colors', (modal.draft.colors as string[]).filter((x: string) => x !== c))} className="border-none bg-transparent text-muted text-[14px] cursor-pointer leading-none hover:text-[#e81a2b]">×</button>
+                          <button type="button" onClick={() => {
+                            const origStock = (modal.draft.colorSizeStockOriginal ?? {}) as Record<string, Record<string, number>>;
+                            const hasStock = Object.values(origStock[c] ?? {}).some(q => q > 0);
+                            if (hasStock && !window.confirm(`"${c}" still has stock in Inventory. Removing it here only hides it from the storefront — the stock itself stays put and can be moved or zeroed via Inventory → Adjust/Transfer. Remove anyway?`)) return;
+                            setDraftField('colors', (modal.draft.colors as string[]).filter((x: string) => x !== c));
+                          }} className="border-none bg-transparent text-muted text-[14px] cursor-pointer leading-none hover:text-[#e81a2b]">×</button>
                         </span>
                       ))}
+                    </div>
+                    <div className="flex gap-[8px] flex-wrap mb-[10px]">
+                      {Object.entries(COLOR_MAP).map(([name, hex]) => {
+                        const cur = Array.isArray(modal.draft.colors) ? modal.draft.colors as string[] : [];
+                        const on = cur.includes(name);
+                        return (
+                          <button key={name} type="button"
+                            onClick={() => setDraftField('colors', on ? cur.filter((x: string) => x !== name) : [...cur, name])}
+                            className="inline-flex items-center gap-[6px] font-semibold text-[12px] px-[10px] h-[32px] rounded-[8px] border cursor-pointer transition-all"
+                            style={{ background: on ? 'rgba(219,87,149,.1)' : 'transparent', borderColor: on ? 'rgba(219,87,149,.45)' : 'rgba(0,0,0,.14)' }}>
+                            <span className="w-[14px] h-[14px] rounded-full flex-none border border-[rgba(0,0,0,.12)]" style={{ background: hex }} />
+                            {name}
+                          </button>
+                        );
+                      })}
                     </div>
                     <div className="flex gap-[7px]">
                       <input
@@ -3673,7 +3734,7 @@ export default function AdminPage() {
                             setColorInput('');
                           }
                         }}
-                        placeholder="Type a colour name and press Enter"
+                        placeholder="Or type a custom colour name and press Enter"
                         className="flex-1 bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[12px] py-[8px] text-body font-archivo text-[13px] outline-none focus:border-rose-500"
                       />
                       <button type="button" onClick={() => {
@@ -3685,70 +3746,114 @@ export default function AdminPage() {
                       }} className="border border-[rgba(219,87,149,.4)] bg-transparent text-rose-700 font-bold text-[13px] px-[14px] rounded-[9px] cursor-pointer hover:bg-[rgba(219,87,149,.08)] transition-colors">+ Add</button>
                     </div>
                   </div>
-                  {/* Colour × size stock grid — editable only at creation; read-only afterwards */}
+                  {/* Colour × size stock grid — fully editable at creation; at edit time, only
+                      colour/size combos with no existing Inventory row (e.g. a colour just added)
+                      are editable, seeding fresh stock. Combos that already carry Inventory stay
+                      read-only here — change those via Inventory → Receive/Adjust/Transfer. */}
                   <div className="col-span-2">
                     <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">
                       Stock per colour & size{' '}
                       {isEditingProduct
-                        ? <span className="text-muted font-normal">· read-only — manage stock via Inventory → Receive/Adjust/Transfer</span>
+                        ? <span className="text-muted font-normal">· only new colours/sizes are editable here — manage existing stock via Inventory → Receive/Adjust/Transfer</span>
                         : <span className="text-muted font-normal">· set qty for each combination; 0 removes it</span>}
                     </label>
                     {(() => {
                       const csStock = (modal.draft.colorSizeStock ?? {}) as Record<string, Record<string, number>>;
+                      const origStock = (modal.draft.colorSizeStockOriginal ?? {}) as Record<string, Record<string, number>>;
                       const rowColors = Array.isArray(modal.draft.colors) && modal.draft.colors.length > 0 ? modal.draft.colors as string[] : [''];
                       const cols = [...PRODUCT_SIZES, ''];
+                      const hasNewCombo = isEditingProduct && rowColors.some(color => cols.some(size => origStock[color]?.[size] === undefined));
                       return (
-                        <div className="overflow-auto border border-[rgba(0,0,0,.1)] rounded-[10px]">
-                          <table className="w-full border-collapse text-[12px]">
-                            <thead>
-                              <tr>
-                                <th className="text-left font-semibold text-sub px-[10px] py-[8px] border-b border-[rgba(0,0,0,.1)]">Colour</th>
-                                {cols.map(size => (
-                                  <th key={size || '__none'} className="text-center font-semibold text-sub px-[6px] py-[8px] border-b border-l border-[rgba(0,0,0,.1)] whitespace-nowrap">
-                                    {size || 'No size'}
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {rowColors.map(color => (
-                                <tr key={color || '__none'}>
-                                  <td className="px-[10px] py-[6px] font-semibold border-b border-[rgba(0,0,0,.08)] whitespace-nowrap">{color || 'All colours'}</td>
-                                  {cols.map(size => {
-                                    const qty = csStock[color]?.[size] ?? 0;
-                                    return (
-                                      <td key={size || '__none'} className="border-b border-l border-[rgba(0,0,0,.08)] p-0">
-                                        <div className="flex items-center justify-center gap-[4px] py-[4px]">
-                                          {isEditingProduct ? (
-                                            <span className="w-[30px] text-center font-bold tabular select-none" style={{ color: qty > 0 ? '#600a32' : '#b29fa8' }}>{qty}</span>
-                                          ) : (
-                                            <>
-                                              <button type="button" onClick={() => setColorSizeQty(color, size, -1)} disabled={qty === 0}
-                                                className="border-none bg-transparent text-rose-700 w-[18px] h-[22px] text-[14px] cursor-pointer disabled:opacity-30 disabled:cursor-default leading-none">−</button>
-                                              <input
-                                                type="number" min="0" inputMode="numeric"
-                                                value={qty === 0 ? '' : qty}
-                                                placeholder="0"
-                                                onChange={e => setColorSizeQtyValue(color, size, e.target.value === '' ? 0 : parseInt(e.target.value) || 0)}
-                                                className="w-[30px] text-center font-bold tabular select-none bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                                style={{ color: qty > 0 ? '#600a32' : '#b29fa8' }}
-                                              />
-                                              <button type="button" onClick={() => setColorSizeQty(color, size, 1)}
-                                                className="border-none bg-transparent text-rose-700 w-[18px] h-[22px] text-[14px] cursor-pointer leading-none">+</button>
-                                            </>
-                                          )}
-                                        </div>
-                                      </td>
-                                    );
-                                  })}
+                        <>
+                          {hasNewCombo && (
+                            <div className="flex items-center gap-[8px] mb-[8px]">
+                              <span className="text-[11.5px] text-sub">New stock goes to:</span>
+                              <select value={(modal.draft.newStockLocationId as string) ?? data.locations[0]?.id ?? ''}
+                                onChange={e => setDraftField('newStockLocationId', e.target.value)}
+                                className="bg-well border border-[rgba(0,0,0,.12)] rounded-[8px] px-[10px] py-[6px] text-[12px] font-semibold outline-none cursor-pointer">
+                                {data.locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                              </select>
+                            </div>
+                          )}
+                          <div className="overflow-auto border border-[rgba(0,0,0,.1)] rounded-[10px]">
+                            <table className="w-full border-collapse text-[12px]">
+                              <thead>
+                                <tr>
+                                  <th className="text-left font-semibold text-sub px-[10px] py-[8px] border-b border-[rgba(0,0,0,.1)]">Colour</th>
+                                  {cols.map(size => (
+                                    <th key={size || '__none'} className="text-center font-semibold text-sub px-[6px] py-[8px] border-b border-l border-[rgba(0,0,0,.1)] whitespace-nowrap">
+                                      {size || 'No size'}
+                                    </th>
+                                  ))}
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
+                              </thead>
+                              <tbody>
+                                {rowColors.map(color => (
+                                  <tr key={color || '__none'}>
+                                    <td className="px-[10px] py-[6px] font-semibold border-b border-[rgba(0,0,0,.08)] whitespace-nowrap">{color || 'All colours'}</td>
+                                    {cols.map(size => {
+                                      const qty = csStock[color]?.[size] ?? 0;
+                                      const isNew = isEditingProduct && origStock[color]?.[size] === undefined;
+                                      const locked = isEditingProduct && !isNew;
+                                      return (
+                                        <td key={size || '__none'} className="border-b border-l border-[rgba(0,0,0,.08)] p-0">
+                                          <div className="flex items-center justify-center gap-[4px] py-[4px]">
+                                            {locked ? (
+                                              <span className="w-[30px] text-center font-bold tabular select-none" style={{ color: qty > 0 ? '#600a32' : '#b29fa8' }}>{qty}</span>
+                                            ) : (
+                                              <>
+                                                <button type="button" onClick={() => setColorSizeQty(color, size, -1)} disabled={qty === 0}
+                                                  className="border-none bg-transparent text-rose-700 w-[18px] h-[22px] text-[14px] cursor-pointer disabled:opacity-30 disabled:cursor-default leading-none">−</button>
+                                                <input
+                                                  type="number" min="0" inputMode="numeric"
+                                                  value={qty === 0 ? '' : qty}
+                                                  placeholder="0"
+                                                  onChange={e => setColorSizeQtyValue(color, size, e.target.value === '' ? 0 : parseInt(e.target.value) || 0)}
+                                                  className="w-[30px] text-center font-bold tabular select-none bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                  style={{ color: qty > 0 ? '#600a32' : '#b29fa8' }}
+                                                />
+                                                <button type="button" onClick={() => setColorSizeQty(color, size, 1)}
+                                                  className="border-none bg-transparent text-rose-700 w-[18px] h-[22px] text-[14px] cursor-pointer leading-none">+</button>
+                                              </>
+                                            )}
+                                          </div>
+                                        </td>
+                                      );
+                                    })}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </>
                       );
                     })()}
                   </div>
+                  {/* Colour variant images (optional, falls back to main product image) */}
+                  {Array.isArray(modal.draft.colors) && (modal.draft.colors as string[]).length > 0 && (
+                    <div className="col-span-2">
+                      <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">
+                        Images per colour <span className="text-muted font-normal">(optional — falls back to main product image)</span>
+                      </label>
+                      <div className="flex flex-wrap gap-[10px]">
+                        {(modal.draft.colors as string[]).map(colorLabel => {
+                          const existingImg = (modal.draft.colorImages as Record<string, string> | undefined)?.[colorLabel];
+                          const isUploading = !!colorImgUploading[colorLabel];
+                          return (
+                            <div key={colorLabel} className="flex items-center gap-[8px] bg-well border border-[rgba(0,0,0,.1)] rounded-[10px] px-[10px] py-[8px]">
+                              <span className="w-[30px] h-[30px] rounded-[7px] flex-none border border-[rgba(0,0,0,.1)]" style={{ background: existingImg || COLOR_MAP[colorLabel] || '#e8e0e4' }} />
+                              <span className="text-[12px] font-semibold">{colorLabel}</span>
+                              <label className="inline-flex items-center border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.06)] text-rose-700 font-bold text-[11.5px] px-[10px] py-[6px] rounded-[7px] cursor-pointer hover:brightness-105 transition-all">
+                                <input type="file" accept="image/*" className="hidden"
+                                  onChange={e => { const f = e.target.files?.[0]; if (f) { uploadColorImage(colorLabel, f); e.target.value = ''; } }} />
+                                {isUploading ? 'Uploading…' : existingImg ? '↑ Replace' : '↑ Upload'}
+                              </label>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                   {/* Product page text sections (optional, freeform) */}
                   <div className="col-span-2">
                     <div className="flex items-center justify-between mb-[6px]">
