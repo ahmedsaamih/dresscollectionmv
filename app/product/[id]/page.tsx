@@ -82,8 +82,8 @@ export default function ProductPage() {
   }, [product.colors, color]);
 
   useEffect(() => {
-    setActiveImg(product.img);
-  }, [product]);
+    setActiveImg(product.colorImages?.[color] || product.img);
+  }, [color, product]);
 
   const displayPrice = product.price;
 
