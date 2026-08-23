@@ -6,15 +6,9 @@ import type {
   AdminAlertProvider,
   OrderPlacedEvent,
   OrderPaymentConfirmedEvent,
-  QuoteRequestedEvent,
-  AdminQuoteAlertEvent,
   AdminOrderAlertEvent,
-  QuotePricedEvent,
   OrderStatusEvent,
   OrderReviewRequestEvent,
-  QuoteConfirmationRequestedEvent,
-  QuoteDecisionEvent,
-  AdminQuoteStageAlertEvent,
   AdminOrderStageAlertEvent,
   AdminOrderPaymentAlertEvent,
 } from './types';
@@ -25,9 +19,6 @@ import { prisma } from '@/lib/prisma';
 import { decryptSecret } from '@/lib/crypto';
 
 export type { Notifier } from './types';
-
-/** Env-configured fallback, used only until an admin email is saved via Admin → Settings. */
-const ADMIN_EMAIL_FALLBACK = process.env.ADMIN_EMAIL || 'admin@dresscollectionmv.com';
 
 /**
  * Env-configured fallback, used only until credentials are saved via
@@ -75,7 +66,7 @@ function makeAdminAlertProvider(): AdminAlertProvider {
  * and SMS (MsgOwl) are resolved fresh from the database on every send, so the
  * Settings-page cards take effect immediately without a redeploy. Delivery
  * is best-effort — failures are logged, never thrown, so they cannot break the
- * order/quote write path that awaits them.
+ * order write path that awaits them.
  */
 class CompositeNotifier implements Notifier {
   constructor(
@@ -138,17 +129,6 @@ class CompositeNotifier implements Notifier {
       console.error('[notify] failed to resolve DB-configured Telegram alert provider, falling back to env', e);
     }
     return this.envAlert;
-  }
-
-  /** Resolves the "new quote" admin-alert recipient fresh on every send, mirroring the other resolvers. */
-  private async resolveAdminEmail(): Promise<string> {
-    try {
-      const setting = await prisma.setting.findUnique({ where: { id: 'singleton' } });
-      if (setting?.adminEmail) return setting.adminEmail;
-    } catch (e) {
-      console.error('[notify] failed to resolve DB-configured admin email, falling back to env', e);
-    }
-    return ADMIN_EMAIL_FALLBACK;
   }
 
   /**
@@ -250,43 +230,8 @@ class CompositeNotifier implements Notifier {
     }
   }
 
-  async quoteRequested(q: QuoteRequestedEvent) {
-    const pref = await this.resolveChannelPref('quoteRequested');
-    if (pref.email) {
-      const email = await this.resolveEmailProvider();
-      await this.sendEmail(email, q.email, templates.quoteRequested(q), { event: 'quote.requested', orderRef: q.ref });
-    }
-    if (pref.sms) {
-      const sms = await this.resolveSmsProvider();
-      if (sms.available && q.mobile && q.smsAllowed) {
-        await this.sendSms(sms, q.mobile, templates.quoteRequestedSms(q), { event: 'quote.requested', orderRef: q.ref });
-      }
-    }
-  }
-
-  async adminQuoteAlert(q: AdminQuoteAlertEvent) {
-    const adminEmail = await this.resolveAdminEmail();
-    const email = await this.resolveEmailProvider();
-    await this.sendEmail(email, adminEmail, templates.adminQuoteAlert(q), { event: 'quote.admin_alert', orderRef: q.ref });
-    await this.sendAlert(templates.adminQuoteAlert(q).text, { event: 'quote.admin_alert', orderRef: q.ref });
-  }
-
   async adminOrderAlert(o: AdminOrderAlertEvent) {
     await this.sendAlert(templates.adminOrderAlertText(o), { event: 'order.admin_alert', orderRef: o.ref });
-  }
-
-  async quotePriced(q: QuotePricedEvent) {
-    const pref = await this.resolveChannelPref('quotePriced');
-    if (pref.email) {
-      const email = await this.resolveEmailProvider();
-      await this.sendEmail(email, q.email, templates.quotePriced(q), { event: 'quote.priced', orderRef: q.ref });
-    }
-    if (pref.sms) {
-      const sms = await this.resolveSmsProvider();
-      if (sms.available && q.mobile && q.smsAllowed) {
-        await this.sendSms(sms, q.mobile, templates.quotePricedSms(q), { event: 'quote.priced', orderRef: q.ref });
-      }
-    }
   }
 
   async orderStatusUpdated(o: OrderStatusEvent) {
@@ -317,57 +262,7 @@ class CompositeNotifier implements Notifier {
     }
   }
 
-  /** Fired when an admin sends a priced quote's confirm/reject link to the customer. */
-  async quoteConfirmationRequested(q: QuoteConfirmationRequestedEvent) {
-    const pref = await this.resolveChannelPref('quoteConfirmationRequested');
-    if (pref.email) {
-      const email = await this.resolveEmailProvider();
-      await this.sendEmail(email, q.email, templates.quoteConfirmationRequested(q), { event: 'quote.confirmation_requested', orderRef: q.ref });
-    }
-    if (pref.sms) {
-      const sms = await this.resolveSmsProvider();
-      if (sms.available && q.mobile && q.smsAllowed) {
-        await this.sendSms(sms, q.mobile, templates.quoteConfirmationRequestedSms(q), { event: 'quote.confirmation_requested', orderRef: q.ref });
-      }
-    }
-    await this.sendAlert(templates.adminQuoteConfirmationSentAlertText(q), { event: 'quote.admin_alert.confirmation_sent', orderRef: q.ref });
-  }
-
-  async quoteConfirmed(q: QuoteDecisionEvent) {
-    const pref = await this.resolveChannelPref('quoteConfirmed');
-    if (pref.email) {
-      const email = await this.resolveEmailProvider();
-      await this.sendEmail(email, q.email, templates.quoteConfirmed(q), { event: 'quote.confirmed', orderRef: q.ref });
-    }
-    if (pref.sms) {
-      const sms = await this.resolveSmsProvider();
-      if (sms.available && q.mobile && q.smsAllowed) {
-        await this.sendSms(sms, q.mobile, templates.quoteConfirmedSms(q), { event: 'quote.confirmed', orderRef: q.ref });
-      }
-    }
-    await this.sendAlert(templates.adminQuoteDecisionAlertText(q, 'confirmed'), { event: 'quote.admin_alert.decision', orderRef: q.ref });
-  }
-
-  async quoteRejected(q: QuoteDecisionEvent) {
-    const pref = await this.resolveChannelPref('quoteRejected');
-    if (pref.email) {
-      const email = await this.resolveEmailProvider();
-      await this.sendEmail(email, q.email, templates.quoteRejected(q), { event: 'quote.rejected', orderRef: q.ref });
-    }
-    if (pref.sms) {
-      const sms = await this.resolveSmsProvider();
-      if (sms.available && q.mobile && q.smsAllowed) {
-        await this.sendSms(sms, q.mobile, templates.quoteRejectedSms(q), { event: 'quote.rejected', orderRef: q.ref });
-      }
-    }
-    await this.sendAlert(templates.adminQuoteDecisionAlertText(q, 'rejected'), { event: 'quote.admin_alert.decision', orderRef: q.ref });
-  }
-
   /** Telegram-only — admin visibility into stage/payment transitions, not customer-facing. */
-  async adminQuoteStageAlert(e: AdminQuoteStageAlertEvent) {
-    await this.sendAlert(templates.adminQuoteStageAlertText(e), { event: 'quote.admin_alert.stage', orderRef: e.ref });
-  }
-
   async adminOrderStageAlert(e: AdminOrderStageAlertEvent) {
     await this.sendAlert(templates.adminOrderStageAlertText(e), { event: 'order.admin_alert.stage', orderRef: e.ref });
   }

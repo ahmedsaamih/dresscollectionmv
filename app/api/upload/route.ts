@@ -10,11 +10,11 @@ import { rateLimitResponse } from '@/lib/rate-limit';
  * Stores an uploaded file and returns its URL. Accepts either:
  *
  *  • JSON: { dataUrl: "data:image/jpeg;base64,…", fileName?, kind? }
- *      — used by the builder's client-compressed crest/logo
+ *      — used by client-compressed image uploads
  *  • multipart/form-data: file=<File>, kind=<bucket>
  *      — used for bank-transfer receipts / product photos
  *
- * `kind` ∈ artwork | receipt | product | site (default: artwork).
+ * `kind` ∈ receipt | product | site (default: product).
  */
 const ALLOWED_TYPES = new Set([
   'image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml', 'application/pdf',
@@ -28,11 +28,11 @@ const HEIC_TYPES = new Set([
   'image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence',
 ]);
 const MAX_BYTES = 100 * 1024 * 1024; // 100MB — native Illustrator/Photoshop files can be large
-const BUCKETS: Bucket[] = ['artwork', 'receipt', 'product', 'site', 'fabric'];
-const PUBLIC_BUCKETS = new Set<Bucket>(['artwork', 'receipt']);
+const BUCKETS: Bucket[] = ['receipt', 'product', 'site'];
+const PUBLIC_BUCKETS = new Set<Bucket>(['receipt']);
 
 function normalizeKind(v: unknown): Bucket {
-  return BUCKETS.includes(v as Bucket) ? (v as Bucket) : 'artwork';
+  return BUCKETS.includes(v as Bucket) ? (v as Bucket) : 'product';
 }
 
 /** iPhone/Android cameras default to HEIC/HEIF, which most browsers can't render — convert to JPEG on upload. */
@@ -57,8 +57,7 @@ function sameOrigin(request: Request): boolean {
 async function requireBucketAccess(request: Request, bucket: Bucket) {
   if (PUBLIC_BUCKETS.has(bucket)) return null;
   if (!sameOrigin(request)) return fail('Invalid request origin', 403);
-  if (bucket === 'fabric') await requirePermission('builder', 'edit');
-  else await requirePermission('products', 'edit');
+  await requirePermission('products', 'edit');
   return null;
 }
 

@@ -45,10 +45,10 @@ export default function AboutPage() {
       </div>
 
       {/* stats */}
-      <div className="max-w-[1180px] mx-auto px-5 sm:px-8 py-12">
+      <div className="max-w-[1180px] mx-auto px-5 sm:px-8 py-[48px]">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-[18px]">
           {stats.map(s => (
-            <div key={s.label} className="bg-surface border border-[rgba(0,0,0,.08)] rounded-2xl p-6">
+            <div key={s.label} className="bg-surface rounded-2xl p-6">
               <div className="font-archivo-narrow font-bold text-[38px] text-rose-700 tracking-[.01em]">{s.value}</div>
               <div className="text-[12.5px] text-sub mt-1.5 leading-[1.4]">{s.label}</div>
             </div>
@@ -57,11 +57,11 @@ export default function AboutPage() {
       </div>
 
       {/* values */}
-      <div className="max-w-[1180px] mx-auto px-5 sm:px-8 pb-10">
+      <div className="max-w-[1180px] mx-auto px-5 sm:px-8 pb-[48px]">
         <h2 className="font-archivo-narrow font-bold text-[30px] mb-[22px]">What we stand for</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-[18px]">
           {values.map(v => (
-            <div key={v.title} className="bg-surface border border-[rgba(0,0,0,.08)] rounded-2xl p-6">
+            <div key={v.title} className="bg-surface rounded-2xl p-6 transition-shadow hover:shadow-card-hover">
               <div className="w-[46px] h-[46px] rounded-xl bg-[rgba(219,87,149,.1)] flex items-center justify-center text-rose-700"><v.icon size={22} /></div>
               <div className="font-extrabold text-[16px] mt-4">{v.title}</div>
               <div className="text-[13px] text-[#705260] mt-2 leading-[1.6]">{v.body}</div>
@@ -88,7 +88,7 @@ export default function AboutPage() {
 
       {/* CTA */}
       <div className="max-w-[1180px] mx-auto px-5 sm:px-8 pb-[72px]">
-        <div className="text-center bg-surface border border-[rgba(0,0,0,.08)] rounded-[20px] py-12 px-8">
+        <div className="text-center bg-surface rounded-[20px] py-[52px] px-8">
           <h2 className="font-archivo-narrow font-bold text-[30px]">Ready to find your next dress?</h2>
           <div className="flex gap-3 justify-center mt-[22px] flex-wrap">
             <Link href="/ready-made" className="no-underline bg-rose-500 text-[#200612] font-extrabold text-[14px] px-[26px] py-[14px] rounded-xl hover:brightness-105 transition-all">Shop new arrivals</Link>

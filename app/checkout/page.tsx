@@ -24,6 +24,7 @@ export default function CheckoutPage() {
   const [address, setAddress] = useState('');
   const [deliveryAreaId, setDeliveryAreaId] = useState('');
   const [notes, setNotes] = useState('');
+  const [paymentSlipUrl, setPaymentSlipUrl] = useState('');
   const [errors, setErrors] = useState<Record<string,boolean>>({});
   const [placed, setPlaced] = useState(false);
   const [conf, setConf] = useState<Conf|null>(null);
@@ -65,6 +66,7 @@ export default function CheckoutPage() {
     if (!mobile.trim()) e.mobile=true;
     if (!address.trim()) e.address=true;
     if (!deliveryAreaId) e.deliveryAreaId=true;
+    if (!paymentSlipUrl) e.paymentSlipUrl=true;
     if (Object.keys(e).length) { setErrors(e); return; }
     setSubmitting(true); setApiError('');
     try {
@@ -78,11 +80,12 @@ export default function CheckoutPage() {
           notes: notes || null,
           items: cart.fixed,
           promoCode: promo?.code ?? null,
+          paymentSlipUrl,
         }),
       });
       const json = await res.json();
       if (!res.ok) { setApiError(json.error || 'Could not place order. Please try again.'); setSubmitting(false); return; }
-      cart.fixed.slice().forEach(i => MMCart.remove('fixed', i.id));
+      cart.fixed.slice().forEach(i => MMCart.remove(i.id));
       refresh();
       setConf({ name, email, total: formatMVR(json.total), method: 'Delivery', ref: json.ref, discount: json.discount || 0, code: json.discountCode || null });
       setPlaced(true);
@@ -161,8 +164,8 @@ export default function CheckoutPage() {
         <p className="text-[13.5px] text-sub mb-7">{copy.checkoutNoCardLine}</p>
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-7 items-start">
           <div className="flex flex-col gap-[18px]">
-            <section className="bg-surface border border-[rgba(0,0,0,.08)] rounded-2xl p-[22px]">
-              <h2 className="font-archivo-narrow font-bold text-[18px] mb-4">Your details</h2>
+            <section className="bg-surface rounded-2xl p-[22px]">
+              <h2 className="font-archivo-narrow font-bold text-[16px] uppercase tracking-[.04em] mb-5">Your details</h2>
               <div className="flex flex-col gap-[14px]">
                 <div><label className="text-[12px] font-semibold text-sub block mb-[7px]">Full name</label>{inp(name,setName,'e.g. Ahmed Saleem',!!errors.name,'name')}{errors.name&&<span className="text-[11.5px] text-[#e81a2b] mt-1.5 block">Please enter your name.</span>}</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-[14px]">
@@ -171,8 +174,8 @@ export default function CheckoutPage() {
                 </div>
               </div>
             </section>
-            <section className="bg-surface border border-[rgba(0,0,0,.08)] rounded-2xl p-[22px]">
-              <h2 className="font-archivo-narrow font-bold text-[18px] mb-4">Delivery details</h2>
+            <section className="bg-surface rounded-2xl p-[22px]">
+              <h2 className="font-archivo-narrow font-bold text-[16px] uppercase tracking-[.04em] mb-5">Delivery details</h2>
               <div className="flex flex-col gap-[14px]">
                 <div>
                   <label className="text-[12px] font-semibold text-sub block mb-[7px]">Delivery area</label>
@@ -219,9 +222,16 @@ export default function CheckoutPage() {
               ) : (
                 <div className="text-[13px] text-sub">{data.settings.bank}</div>
               )}
+              <div className="mt-[16px]">
+                <SlipUpload
+                  required
+                  onUploaded={(url) => { setPaymentSlipUrl(url); setErrors(er => { const { paymentSlipUrl: _drop, ...rest } = er; return rest; }); }}
+                />
+                {errors.paymentSlipUrl && <div className="text-[11.5px] text-[#e81a2b] mt-[8px]">Upload your payment slip to place the order.</div>}
+              </div>
             </section>
           </div>
-          <aside className="lg:sticky lg:top-[84px] bg-surface border border-[rgba(0,0,0,.08)] rounded-2xl p-5">
+          <aside className="lg:sticky lg:top-[84px] bg-surface rounded-2xl p-5">
             <div className="font-extrabold text-[14px] mb-[14px]">Order summary</div>
             <div className="flex flex-col gap-[11px] max-h-[230px] overflow-auto">
               {cart.fixed.map(i=>(
@@ -231,7 +241,7 @@ export default function CheckoutPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-[12.5px] font-semibold text-[#705260] truncate">{i.name}</div>
-                    <div className="text-[11px] text-muted">{[i.size, i.color, i.sleeve, i.neck].filter(Boolean).join(' · ')}</div>
+                    <div className="text-[11px] text-muted">{[i.size, i.color].filter(Boolean).join(' · ')}</div>
                   </div>
                   <span className="text-[12.5px] font-bold text-rose-700 tabular">{formatMVR(i.price*i.qty)}</span>
                 </div>

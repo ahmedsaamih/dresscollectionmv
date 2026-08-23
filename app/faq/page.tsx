@@ -35,19 +35,19 @@ export default function FAQPage() {
   return (
     <div className="min-h-screen bg-page text-body font-archivo">
       <Header />
-      <div className="max-w-[820px] mx-auto px-5 sm:px-8 py-12 pb-[90px]">
+      <div className="max-w-[820px] mx-auto px-5 sm:px-8 py-[52px] pb-[90px]">
         <h1 className="font-archivo-narrow font-bold text-[30px] sm:text-[42px] tracking-[.01em] text-center">Frequently asked questions</h1>
         <p className="text-[14.5px] text-sub mt-[11px] text-center mb-9">Everything about ordering, sizing, payment and delivery.</p>
 
         {DATA.map((g, gi) => (
           <div key={gi} className="mb-[30px]">
             <div className="text-[12px] font-bold tracking-[.14em] uppercase text-rose-600 mb-3">{g.title}</div>
-            <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-2xl overflow-hidden">
+            <div className="bg-surface rounded-2xl overflow-hidden">
               {g.items.map((item, ii) => {
                 const key = `${gi}-${ii}`;
                 const on = open === key;
                 return (
-                  <div key={ii} className="border-b border-[rgba(0,0,0,.08)]">
+                  <div key={ii} className="border-b border-[rgba(0,0,0,.08)] last:border-0">
                     <button onClick={() => setOpen(on ? '' : key)}
                       className="w-full flex items-center justify-between gap-[14px] bg-transparent border-none text-body font-semibold text-[14.5px] px-5 py-[18px] cursor-pointer text-left">
                       {item.q}
@@ -61,9 +61,9 @@ export default function FAQPage() {
           </div>
         ))}
 
-        <div className="text-center bg-surface border border-[rgba(0,0,0,.08)] rounded-2xl py-8 px-6">
+        <div className="text-center bg-surface rounded-2xl py-9 px-6">
           <div className="font-bold text-[17px]">Still have a question?</div>
-          <Link href="/contact" className="inline-block mt-4 no-underline bg-rose-500 text-[#200612] font-extrabold text-[14px] px-6 py-3 rounded-xl hover:brightness-105 transition-all">
+          <Link href="/contact" className="inline-block mt-4 no-underline bg-rose-500 text-[#200612] font-bold uppercase tracking-[.06em] text-[12.5px] px-6 py-3 rounded-full hover:brightness-105 transition-all">
             Contact us
           </Link>
         </div>

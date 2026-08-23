@@ -20,12 +20,11 @@ model Setting {
   storeName        String
   tagline          String
   email            String
-  adminEmail       String  @default("") // destination for the "new quote" admin-alert email; falls back to ADMIN_EMAIL env var when empty
+  adminEmail       String  @default("") // general admin-alert email destination; falls back to ADMIN_EMAIL env var when empty
   phone            String
   address          String
   bank             String
   bankAccounts     Json?   // [{ name: string, accountNumber: string }]
-  builderFields    Json?   // [{ id, label, type: 'text'|'select'|'checkbox', options?: string[], required?: boolean, placeholder?: string }]
   currency         String  @default("MVR")
   pickupEnabled    Boolean @default(true)
   deliveryFee      Int     @default(75)
@@ -35,23 +34,15 @@ model Setting {
   heroImages       Json?   // string[] of homepage hero carousel image URLs; admin-managed
   workshopImage    String  @default("")
   categoryReadyImage        String @default("") // background photo for the "Ready-Made" homepage category card
-  categoryCustomImage       String @default("") // background photo for the "Custom Jersey" homepage category card
+  categoryCustomImage       String @default("") // background photo for the "Party & Occasion" homepage category card (field name predates the rebrand)
   categoryCasualImage       String @default("") // background photo for the "Casual Wear" homepage category card
   categoryAccessoriesImage  String @default("") // background photo for the "Accessories" homepage category card
-  customizationGuidePdfUrl     String @default("") // admin-uploaded logo/placement guide PDF, downloadable from the product page
-  customizationTemplateXlsxUrl String @default("") // admin-uploaded Excel details template, downloadable from the product page
   storefrontCopy   Json?
   sizeChart        Json? // { note, tables: [{ id, name, columns[], rows[][] }] } — admin-editable
   taxId            String  @default("")
   taxRate          Float   @default(0)
   taxLabel         String  @default("GST")
   termsConditions  String  @default("")
-  googleDriveUploadsEnabled Boolean @default(false)
-  googleDriveFolderId       String  @default("")
-  googleDriveFolderName     String  @default("")
-  googleDriveLastTestAt     DateTime?
-  googleDriveRefreshToken   String  @default("") // OAuth user-delegation refresh token; never sent to the client
-  googleDriveConnectedEmail String  @default("") // email of the Google account that authorized uploads
   telegramBotToken       String    @default("") // encrypted at rest (lib/crypto.ts); never sent to the client
   telegramChatId         String    @default("")
   telegramBotUsername    String    @default("") // populated after a successful test, e.g. "MyStoreAlertsBot"
@@ -86,8 +77,8 @@ model RateLimitBucket {
 model NotificationLog {
   id                String    @id @default(cuid())
   channel           String // 'email' | 'sms'
-  event             String // 'order.placed' | 'order.status' | 'quote.requested' | ...
-  orderRef          String? // → Order.id; nullable (quotes have no Order row)
+  event             String // 'order.placed' | 'order.status' | ...
+  orderRef          String? // → Order.id; nullable
   recipient         String // email address or phone number
   provider          String // 'resend' | 'msgowl' | 'noop'
   providerMessageId String? // e.g. MsgOwl's message id, used to poll delivery status
@@ -105,7 +96,7 @@ model NotificationLog {
 
 // Per-event Email/SMS toggle for customer-facing notifications, configured
 // from Admin → Settings → Notification preferences. `event` is one of the
-// Notifier interface's method names (e.g. 'orderPlaced', 'quotePriced') —
+// Notifier interface's method names (e.g. 'orderPlaced', 'orderStatusUpdated') —
 // intentionally a different naming scheme than NotificationLog.event's
 // dotted format ('order.placed'), since the two serve different purposes
 // (pref lookup vs. log filtering) and don't need to match. Both default true
@@ -122,7 +113,6 @@ model Collection {
   id          String     @id
   key         String     @unique // slug, e.g. "ready"
   label       String
-  bespoke     Boolean    @default(false) // true = semi/full customize modals; false = standard listing
   sizeChartId String? // → SizeChart.id; null = falls back to the default chart
   sizeChart   SizeChart? @relation(fields: [sizeChartId], references: [id], onDelete: SetNull)
   categories  Category[]
@@ -175,75 +165,16 @@ model Product {
   colors       String[]
   sizes        String[]      // derived: keys of sizeStock where qty > 0
   sizeStock    Json          @default("{}") // kept for migration period; source of truth is Inventory
-  sleeves      String[]      @default([])   // available sleeve labels
-  necks        String[]      @default([])   // available collar/neck labels
-  materials    String[]      @default([])   // available material names (office wear, free-form)
-  sleeveImages      Json @default("{}") // Record<sleeveLabel, imgCss>
-  colorImages       Json @default("{}") // Record<colorName, imgCss>
-  sleeveAdjustments Json @default("{}") // Record<sleeveLabel, deltaMVR>
-  sizeAdjustments   Json @default("{}") // Record<sizeLabel, deltaMVR>
   descriptionSections Json @default("[]") // ProductSection[] — optional, admin-authored page text
-  customizable   Boolean       @default(false)
   showInWebStore Boolean       @default(true)  // false = POS-only, never shown on storefront
   img            String // gradient placeholder → real URL later
   inventory      Inventory[]
   placements     InventoryPlacement[]
   transfers      StockTransfer[]
   adjustments    StockAdjustment[]
-  customizationAssignments CustomizationProfileAssignment[]
-  quoteItems     QuoteItem[]
 
   @@index([collection])
   @@index([showInWebStore])
-}
-
-model CustomizationProfile {
-  id          String                           @id @default(cuid())
-  name        String
-  description String                           @default("")
-  active      Boolean                          @default(true)
-  sortOrder   Int                              @default(0)
-  createdAt   DateTime                         @default(now())
-  updatedAt   DateTime                         @updatedAt
-  fields      CustomizationField[]
-  assignments CustomizationProfileAssignment[]
-
-  @@index([active])
-  @@index([sortOrder])
-}
-
-model CustomizationField {
-  id          String               @id @default(cuid())
-  profileId   String
-  label       String
-  type        String
-  required    Boolean              @default(false)
-  helpText    String               @default("")
-  placeholder String               @default("")
-  options     String[]             @default([])
-  sortOrder   Int                  @default(0)
-  profile     CustomizationProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  @@index([profileId])
-  @@index([sortOrder])
-}
-
-model CustomizationProfileAssignment {
-  id            String               @id @default(cuid())
-  profileId     String
-  scope         String
-  collectionKey String?
-  categoryId    String?
-  productId     String?
-  createdAt     DateTime             @default(now())
-  profile       CustomizationProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  product       Product?             @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  @@index([profileId])
-  @@index([scope])
-  @@index([collectionKey])
-  @@index([categoryId])
-  @@index([productId])
 }
 
 // ─── Inventory & Locations ────────────────────────────────────────────────────
@@ -334,42 +265,6 @@ model StockAdjustment {
   @@index([createdAt])
 }
 
-// ─── Builder options (quote-only, no prices) ─────────────────────────────────
-
-model BuilderType {
-  id    String @id
-  label String
-  desc  String
-}
-
-model BuilderFabric {
-  id   String @id
-  name String
-  desc String
-  img  String @default("") // greyscale texture URL; tinted by jersey color in 3D viewer
-}
-
-model BuilderSleeve {
-  id    String @id
-  label String
-}
-
-model BuilderNeck {
-  id    String @id
-  label String
-}
-
-model BuilderColor {
-  id   String @id
-  name String
-  hex  String
-}
-
-model BuilderSize {
-  id    String @id
-  label String
-}
-
 // ─── Orders (fixed-price) ────────────────────────────────────────────────────
 
 enum OrderMethod {
@@ -390,7 +285,7 @@ model Order {
   deliveryAreaId String? // → DeliveryArea.id; set when method = Delivery
   total        Int // subtotal + fee − discount
   method       OrderMethod
-  stage        Int         @default(0) // 0=Placed 1=In Production 2=Ready for Pickup 3=Ready for Delivery 4=Out for Delivery 5=Completed 6=Cancelled (restocks Inventory on transition in; irreversible)
+  stage        Int         @default(0) // 0=Placed 1=Payment Confirmed 2=Ready for Pickup 3=Ready for Delivery 4=Out for Delivery 5=Completed 6=Cancelled (restocks Inventory on transition in; irreversible)
   readyForDeliveryAt DateTime?
   paid         Boolean     @default(false)
   paidCash     Int         @default(0) // MVR collected in cash at POS
@@ -509,12 +404,7 @@ model OrderItem {
   img     String
   size    String
   color   String
-  sleeve  String @default("")
-  neck    String @default("")
   qty     Int    @default(1)
-  customizationNote  String @default("")   // free-text customization instructions (POS, customizable products only)
-  customizationLines Json   @default("[]") // Array<{ label: string; cost: number }> — POS-entered cost breakdown
-  customizationCost  Int    @default(0)    // sum of customizationLines[].cost — flat, NOT multiplied by qty
   stockDecremented   Boolean @default(false) // true iff this line actually decremented Inventory at order-creation time
   sizeBreakdown      Json?                    // { [size]: qty } — quote-conversion lines only, spanning multiple sizes behind one collapsed row; null elsewhere (size/qty are authoritative)
   order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -536,51 +426,7 @@ model Receipt {
   @@index([kind])
 }
 
-// ─── Quotes (custom, no price until admin sets it) ───────────────────────────
-
-enum QuoteCustomerDecision {
-  pending
-  confirmed
-  rejected
-}
-
-model Quote {
-  id        String      @id // ref, e.g. "QT-26-10293"
-  customer  String
-  email     String
-  mobile    String?
-  configs   Int         @default(0)
-  units     Int         @default(0)
-  summary   String
-  stage     Int         @default(0) // 0..3
-  price     Int? // admin-set final/negotiated price; null until sent; pre-filled from computedPrice but overridable
-  computedPrice Int     @default(0) // server-maintained sum of lineItems (unitPrice*units + customizationCost); never manually edited
-  message   String?
-  date      String
-  pdfUrl    String?
-  createdAt DateTime    @default(now())
-  lineItems QuoteItem[]
-  artworks  Artwork[]
-  changeRequests QuoteChangeRequest[]
-
-  // Customer confirm/reject link, independent of `stage` — set when admin
-  // sends a priced quote for confirmation; single-use, expires after
-  // 1/2/3 admin-chosen days (see lib/quote-confirmation.ts).
-  customerDecision           QuoteCustomerDecision @default(pending)
-  confirmationToken          String?               @unique
-  confirmationTokenExpiresAt DateTime?
-  sentForConfirmationAt      DateTime?
-  respondedAt                DateTime?
-
-  // Payment slip uploaded by the customer after confirming the quote (before
-  // an Order exists). Single-use, mirrored by /api/quotes/[id]/receipts.
-  paymentSlipUrl        String?
-  paymentSlipUploadedAt DateTime?
-
-  @@index([email])
-}
-
-// ─── Customers (derived/deduped from Order + Quote contact info) ────────────
+// ─── Customers (derived/deduped from Order contact info) ────────────────────
 
 model Customer {
   id        String   @id
@@ -629,95 +475,12 @@ model Review {
   @@index([featured])
 }
 
-enum QuoteChangeRequestStatus {
-  pending
-  accepted
-  rejected
-}
-
-// A manager/pos_user's attempted stage/price change on an Approved (stage 3)
-// quote is queued here instead of applied directly; only admin/quotation_approver
-// can accept or reject it.
-model QuoteChangeRequest {
-  id             String                   @id @default(cuid())
-  quoteId        String
-  requestedBy    String                   // admin email of the requester
-  currentStage   Int                      // snapshot of Quote.stage at request time
-  currentPrice   Int?                     // snapshot of Quote.price at request time
-  requestedStage Int?                     // null = this request doesn't touch stage
-  requestedPrice Int?                     // null = this request doesn't touch price
-  status         QuoteChangeRequestStatus @default(pending)
-  resolvedBy     String?
-  resolvedAt     DateTime?
-  rejectionNote  String?
-  createdAt      DateTime                 @default(now())
-  quote          Quote                    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
-
-  @@index([quoteId])
-  @@index([status])
-}
-
-// Maps to QuoteLineItem.
-model QuoteItem {
-  id         String  @id @default(cuid())
-  quoteId    String
-  kind       String // "jersey" | "casual"
-  name       String
-  specs      String
-  units      Int     @default(0)
-  sizesLabel String
-  sizes      Json
-  swatch     String
-  // jersey-specific
-  type       String?
-  fabric     String?
-  sleeve     String?
-  neck       String?
-  collar     Boolean?
-  accent     String?
-  logoName   String?
-  notes      String?
-  // casual-print-specific
-  placement  String? // "front" | "back" | "both" | "sleeve"
-  artName    String?
-  customizationProfileId   String?
-  customizationProfileName String?
-  customizationAnswers     Json    @default("{}")
-  // pricing — derived from a real catalog product, plus manually-entered extra costs (e.g. design/printing)
-  productId          String?
-  product             Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
-  colorName           String? // one of product.colors — the real Inventory color key; `swatch` above is a display-only hex, not usable for stock lookups
-  unitPrice           Int     @default(0) // product.price + sleeveAdjustments[sleeve], snapshotted server-side
-  customizationLines  Json    @default("[]") // Array<{ label: string; cost: number }> — admin-entered extra costs
-  customizationCost   Int     @default(0) // sum of customizationLines[].cost
-  quote      Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
-
-  @@index([quoteId])
-  @@index([productId])
-}
-
-// Uploaded artwork/logo for a quote (R2 in prod, local in dev).
-model Artwork {
-  id        String   @id @default(cuid())
-  quoteId   String
-  url       String
-  name      String?
-  provider  String   @default("local")
-  fileId    String?
-  mimeType  String?
-  size      Int?
-  createdAt DateTime @default(now())
-  quote     Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
-
-  @@index([quoteId])
-}
-
 // ─── Infrastructure ──────────────────────────────────────────────────────────
 
 // Atomic sequential reference generation (replaces random genRef()).
-// One row per (prefix, year): "MM"+"26", "QT"+"26", ...
+// One row per (prefix, year): "MM"+"26", ...
 model RefSequence {
-  prefix    String // "MM" | "QT"
+  prefix    String // "MM"
   year      String // "26"
   lastValue Int    @default(0)
 

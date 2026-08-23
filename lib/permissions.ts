@@ -12,8 +12,8 @@
 export type PermLevel = 'none' | 'read' | 'edit';
 
 export type ModuleKey =
-  | 'dashboard' | 'products' | 'categories' | 'builder' | 'customization'
-  | 'orders' | 'quotes' | 'quoteApprovals' | 'promos' | 'sizechart' | 'customers' | 'reviews'
+  | 'dashboard' | 'products' | 'categories'
+  | 'orders' | 'promos' | 'sizechart' | 'customers' | 'reviews'
   | 'settingsGeneral' | 'settingsLocations' | 'settingsUsers'
   | 'posSales' | 'posOrders' | 'posDeliveries' | 'posReturns' | 'posInventory' | 'posTransfers';
 
@@ -45,11 +45,7 @@ export const MODULES: ModuleDef[] = [
   { key: 'dashboard', label: 'Dashboard', group: 'Core' },
   { key: 'products', label: 'Products', group: 'Core' },
   { key: 'categories', label: 'Collections', group: 'Core' },
-  { key: 'builder', label: 'Builder Options', group: 'Core' },
-  { key: 'customization', label: 'Customization', group: 'Core' },
   { key: 'orders', label: 'Orders', group: 'Core' },
-  { key: 'quotes', label: 'Quotes', group: 'Core' },
-  { key: 'quoteApprovals', label: 'Quote Approvals', group: 'Core' },
   { key: 'promos', label: 'Promo Codes', group: 'Core' },
   { key: 'sizechart', label: 'Size Chart', group: 'Core' },
   { key: 'customers', label: 'Customers', group: 'Core' },
@@ -70,19 +66,19 @@ export const MODULE_KEYS: ModuleKey[] = MODULES.map(m => m.key);
 /** One-time migration mapping from the legacy roles to their equivalent permission grid. */
 export const LEGACY_ROLE_PERMISSIONS: Record<'manager' | 'pos_user' | 'quotation_approver', Permissions> = {
   manager: {
-    dashboard: 'edit', products: 'edit', categories: 'edit', builder: 'edit', customization: 'edit',
-    orders: 'edit', quotes: 'edit', promos: 'edit', sizechart: 'edit', customers: 'edit',
+    dashboard: 'edit', products: 'edit', categories: 'edit',
+    orders: 'edit', promos: 'edit', sizechart: 'edit', customers: 'edit',
     posSales: 'edit', posOrders: 'edit', posDeliveries: 'edit', posReturns: 'edit', posInventory: 'edit', posTransfers: 'edit',
   },
   pos_user: {
-    dashboard: 'edit', quotes: 'edit', customers: 'edit',
+    dashboard: 'edit', customers: 'edit',
     orders: 'read', posInventory: 'read',
     posSales: 'edit', posOrders: 'edit', posDeliveries: 'edit', posReturns: 'edit', posTransfers: 'edit',
   },
   quotation_approver: {
-    dashboard: 'edit', products: 'edit', categories: 'edit', builder: 'edit', customization: 'edit',
-    orders: 'edit', quotes: 'edit', promos: 'edit', sizechart: 'edit', customers: 'edit',
+    dashboard: 'edit', products: 'edit', categories: 'edit',
+    orders: 'edit', promos: 'edit', sizechart: 'edit', customers: 'edit',
     posSales: 'edit', posOrders: 'edit', posDeliveries: 'edit', posReturns: 'edit', posInventory: 'edit', posTransfers: 'edit',
-    quoteApprovals: 'edit', settingsGeneral: 'edit',
+    settingsGeneral: 'edit',
   },
 };

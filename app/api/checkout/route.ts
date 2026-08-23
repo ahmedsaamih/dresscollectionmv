@@ -10,6 +10,7 @@ import { evaluatePromo, computeCommission } from '@/lib/promo';
 import { upsertCustomerFromContact } from '@/lib/customers';
 import { rateLimitResponse } from '@/lib/rate-limit';
 import { decrementStock, InsufficientStockError } from '@/lib/inventory';
+import { RECEIPT_TTL_MS } from '@/lib/receipts';
 
 /**
  * POST /api/checkout
@@ -55,7 +56,7 @@ export async function POST(request: Request) {
     if (webLoc) {
       for (const item of data.items) {
         const p = byId.get(item.sku);
-        if (!p || (p.customizable && p.collection !== 'casual')) continue;
+        if (!p) continue;
         const inv = await prisma.inventory.findUnique({
           where: { locationId_productId_size_color: { locationId: webLoc.id, productId: p.id, size: item.size, color: item.color } },
         });
@@ -67,30 +68,23 @@ export async function POST(request: Request) {
     }
 
     let subtotal = 0;
-    const lineItems: { sku: string; name: string; meta: string; price: number; img: string; size: string; color: string; sleeve: string; neck: string; qty: number; stockDecremented: boolean }[] = [];
+    const lineItems: { sku: string; name: string; meta: string; price: number; img: string; size: string; color: string; qty: number; stockDecremented: boolean }[] = [];
     for (const item of data.items) {
       const p = byId.get(item.sku);
       if (!p) return fail(`Product not found: ${item.sku}`, 400);
       if (p.status !== 'active') return fail(`${p.name} is not available`, 409);
-      const sleeveAdj = ((p.sleeveAdjustments as Record<string, number>) ?? {})[item.sleeve ?? ''] ?? 0;
-      const sizeAdj   = ((p.sizeAdjustments   as Record<string, number>) ?? {})[item.size   ?? ''] ?? 0;
-      const unitPrice = p.price + sleeveAdj + sizeAdj;
+      const unitPrice = p.price;
       subtotal += unitPrice * item.qty;
-      // Customizable products are made-to-order (no stock item) except in the
-      // 'casual' collection (blank stock garments printed on demand).
-      const stockDecremented = !p.customizable || p.collection === 'casual';
       lineItems.push({
         sku: p.id,
         name: p.name,
         meta: item.meta || p.sub,
-        price: unitPrice, // server price wins (base + adjustments)
+        price: unitPrice, // server price wins
         img: p.img,
         size: item.size,
         color: item.color,
-        sleeve: item.sleeve ?? '',
-        neck: item.neck ?? '',
         qty: item.qty,
-        stockDecremented,
+        stockDecremented: true,
       });
     }
 
@@ -162,6 +156,9 @@ export async function POST(request: Request) {
         });
         await tx.promoCode.update({ where: { id: promoId }, data: { timesUsed: { increment: 1 } } });
       }
+      await tx.receipt.create({
+        data: { orderId: ref, url: data.paymentSlipUrl, kind: 'payment_slip', expiresAt: new Date(Date.now() + RECEIPT_TTL_MS) },
+      });
       return created;
     });
 

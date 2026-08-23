@@ -19,12 +19,12 @@ async function uniqueKey(label: string): Promise<string> {
 export async function POST(request: Request) {
   try {
     const session = await requirePermission('categories', 'edit');
-    const { label, bespoke, sizeChartId } = collectionCreateSchema.parse(await request.json());
+    const { label, sizeChartId } = collectionCreateSchema.parse(await request.json());
     const key = await uniqueKey(label);
 
-    const created = await prisma.collection.create({ data: { id: genId('cl'), key, label, bespoke: bespoke ?? false, sizeChartId: sizeChartId ?? null } });
-    await audit(session.email, 'collection.create', key, { label, bespoke, sizeChartId });
-    return ok({ collection: { id: created.id, key: created.key, label: created.label, bespoke: created.bespoke, sizeChartId: created.sizeChartId } }, 201);
+    const created = await prisma.collection.create({ data: { id: genId('cl'), key, label, sizeChartId: sizeChartId ?? null } });
+    await audit(session.email, 'collection.create', key, { label, sizeChartId });
+    return ok({ collection: { id: created.id, key: created.key, label: created.label, sizeChartId: created.sizeChartId } }, 201);
   } catch (err) {
     return handleError(err);
   }

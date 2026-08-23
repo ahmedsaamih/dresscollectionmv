@@ -40,8 +40,6 @@ const manualOrderSchema = z.object({
     sku: z.string().trim().min(1),
     size: z.string().trim().optional().default(''),
     color: z.string().trim().optional().default(''),
-    sleeve: z.string().trim().optional().default(''),
-    neck: z.string().trim().optional().default(''),
     qty: z.coerce.number().int().positive(),
   })).min(1, 'Add at least one product'),
   discount: z.coerce.number().int().nonnegative().default(0),
@@ -79,13 +77,10 @@ export async function POST(request: Request) {
 
     // Fast-fail UX only — NOT the source of truth. The real guard is decrementStock()
     // inside the transaction below, which re-checks atomically at write time.
-    // Customizable products are made-to-order (no stock item) except in the 'casual'
-    // collection (blank stock garments printed on demand) — same rule as web/POS.
     for (const item of data.items) {
       const p = byId.get(item.sku);
       if (!p) return fail(`Product not found: ${item.sku}`, 400);
       if (p.status !== 'active') return fail(`${p.name} is not available`, 409);
-      if (p.customizable && p.collection !== 'casual') continue;
       const inv = await prisma.inventory.findUnique({
         where: { locationId_productId_size_color: { locationId: data.locationId, productId: p.id, size: item.size, color: item.color } },
       });
@@ -98,9 +93,7 @@ export async function POST(request: Request) {
     let subtotal = 0;
     const lineItems = data.items.map((item) => {
       const p = byId.get(item.sku)!;
-      const sleeveAdj = ((p.sleeveAdjustments as Record<string, number>) ?? {})[item.sleeve ?? ''] ?? 0;
-      const sizeAdj = ((p.sizeAdjustments as Record<string, number>) ?? {})[item.size ?? ''] ?? 0;
-      const unitPrice = p.price + sleeveAdj + sizeAdj;
+      const unitPrice = p.price;
       subtotal += unitPrice * item.qty;
       return {
         sku: p.id,
@@ -110,10 +103,8 @@ export async function POST(request: Request) {
         img: p.img,
         size: item.size,
         color: item.color,
-        sleeve: item.sleeve ?? '',
-        neck: item.neck ?? '',
         qty: item.qty,
-        stockDecremented: !p.customizable || p.collection === 'casual',
+        stockDecremented: true,
       };
     });
 

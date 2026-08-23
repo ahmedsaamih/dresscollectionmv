@@ -21,12 +21,12 @@ export default function ShippingPage() {
   return (
     <div className="min-h-screen bg-page text-body font-archivo">
       <Header />
-      <div className="max-w-[760px] mx-auto px-5 sm:px-8 py-12 pb-[90px]">
+      <div className="max-w-[760px] mx-auto px-5 sm:px-8 py-[52px] pb-[90px]">
         <h1 className="font-archivo-narrow font-bold text-[28px] sm:text-[40px] tracking-[.01em]">{copy.shippingPageTitle}</h1>
         <p className="text-[14.5px] text-sub mt-[9px] mb-[30px]">{copy.shippingPageIntro}</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-7">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-9">
           {cards.map(c => (
-            <div key={c.title} className="bg-surface border border-[rgba(0,0,0,.08)] rounded-2xl p-[22px]">
+            <div key={c.title} className="bg-surface rounded-2xl p-[22px]">
               <div className="w-[42px] h-[42px] rounded-xl bg-[rgba(219,87,149,.1)] text-rose-700 flex items-center justify-center"><c.icon size={20} /></div>
               <div className="font-extrabold text-[16px] mt-[14px]">{c.title}</div>
               <div className="text-[13px] text-[#705260] mt-[7px] leading-[1.6]">{c.body}</div>

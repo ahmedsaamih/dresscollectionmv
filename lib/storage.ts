@@ -14,7 +14,7 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
  * dev every bucket maps to the LocalDriver, which writes under
  * LOCAL_STORAGE_DIR and serves files via /api/files/<bucket>/<name>.
  */
-export type Bucket = 'site' | 'product' | 'artwork' | 'receipt' | 'pdf' | 'fabric';
+export type Bucket = 'site' | 'product' | 'receipt' | 'pdf';
 type DriverKind = 'local' | 'blob' | 'r2';
 
 export interface PutOptions {
@@ -120,7 +120,7 @@ export const STORAGE_ROOT = ROOT;
 
 /** Read a stored file for the dev file-server. Guards against path traversal. */
 export async function readStored(bucket: string, name: string): Promise<Buffer | null> {
-  const buckets: Bucket[] = ['site', 'product', 'artwork', 'receipt', 'pdf', 'fabric'];
+  const buckets: Bucket[] = ['site', 'product', 'receipt', 'pdf'];
   if (!buckets.includes(bucket as Bucket)) return null;
   const target = path.join(ROOT, bucket, path.basename(name));
   if (!target.startsWith(path.join(ROOT, bucket) + path.sep)) return null;

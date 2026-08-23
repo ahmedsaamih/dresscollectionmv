@@ -13,11 +13,11 @@ const resetSchema = z.object({
 
 /**
  * POST /api/admin/system/reset-test-data — super-admin-only, irreversible.
- * Wipes transactional/demo data (products, orders, quotes, customers,
- * reviews, inventory) while preserving structural configuration (collections,
+ * Wipes transactional/demo data (products, orders, customers, reviews,
+ * inventory) while preserving structural configuration (collections,
  * categories, locations, delivery areas, size charts, settings, admin
- * accounts, builder options, promo codes). Intended for a one-time cleanup
- * before real production data is entered. No UI entry point — API-only.
+ * accounts, promo codes). Intended for a one-time cleanup before real
+ * production data is entered. No UI entry point — API-only.
  */
 export async function POST(request: Request) {
   try {
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       return fail(`Confirmation required: send { "confirm": "${CONFIRM_PHRASE}" }`, 400);
     }
 
-    const [review, stockTransfer, stockAdjustment, inventoryPlacement, inventory, order, quote, product, customer, refSequence] =
+    const [review, stockTransfer, stockAdjustment, inventoryPlacement, inventory, order, product, customer, refSequence] =
       await prisma.$transaction([
         prisma.review.deleteMany({}),
         prisma.stockTransfer.deleteMany({}),
@@ -35,10 +35,9 @@ export async function POST(request: Request) {
         prisma.inventoryPlacement.deleteMany({}),
         prisma.inventory.deleteMany({}),
         prisma.order.deleteMany({}),
-        prisma.quote.deleteMany({}),
         prisma.product.deleteMany({}),
         prisma.customer.deleteMany({}),
-        prisma.refSequence.deleteMany({ where: { prefix: { in: ['DC', 'QT'] } } }),
+        prisma.refSequence.deleteMany({ where: { prefix: 'DC' } }),
       ]);
 
     const countsDeleted = {
@@ -48,7 +47,6 @@ export async function POST(request: Request) {
       inventoryPlacement: inventoryPlacement.count,
       inventory: inventory.count,
       order: order.count,
-      quote: quote.count,
       product: product.count,
       customer: customer.count,
       refSequence: refSequence.count,

@@ -45,7 +45,7 @@ export default function ReviewsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-[18px]">
             {reviews.map((r) => (
-              <div key={r.id} className="bg-[#f9f6f7] border border-[rgba(0,0,0,.08)] rounded-2xl p-[26px]">
+              <div key={r.id} className="bg-[#f9f6f7] rounded-2xl p-[26px] transition-shadow hover:shadow-card-hover">
                 <StarRating rating={r.rating ?? 5} size={15} className="text-rose-700" />
                 <p className="text-[14.5px] leading-[1.6] text-[#705260] mt-[14px]">&quot;{r.quote}&quot;</p>
                 <div className="flex items-center gap-[11px] mt-[18px]">

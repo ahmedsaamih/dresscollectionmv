@@ -5,16 +5,16 @@ import React from 'react';
  * After the initial /api/store fetch resolves, StoreContext.loading flips to
  * false and stays false across client navigation, so this only flashes once.
  */
-export function ProductGridSkeleton({ count = 6, cols = 3, imgH = 196 }: { count?: number; cols?: 3 | 4; imgH?: number }) {
+export function ProductGridSkeleton({ count = 6, cols = 3 }: { count?: number; cols?: 3 | 4 }) {
   return (
     <div className={`grid ${cols === 4 ? 'grid-cols-4' : 'grid-cols-3'} gap-[18px]`} aria-hidden="true">
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="bg-[#f5f1f3] border border-[rgba(0,0,0,.08)] rounded-2xl overflow-hidden">
-          <div className="bg-[rgba(0,0,0,.07)] animate-pulse" style={{ height: imgH }} />
-          <div className="p-4">
+        <div key={i}>
+          <div className="aspect-[4/5] rounded-[16px] bg-[rgba(0,0,0,.06)] animate-pulse" />
+          <div className="pt-[13px]">
             <div className="h-[14px] w-3/4 bg-[rgba(0,0,0,.08)] rounded animate-pulse" />
-            <div className="h-[11px] w-1/2 bg-[rgba(0,0,0,.07)] rounded mt-2 animate-pulse" />
-            <div className="h-[16px] w-1/3 bg-[rgba(0,0,0,.08)] rounded mt-[13px] animate-pulse" />
+            <div className="h-[11px] w-1/2 bg-[rgba(0,0,0,.06)] rounded mt-2 animate-pulse" />
+            <div className="h-[15px] w-1/3 bg-[rgba(0,0,0,.08)] rounded mt-[10px] animate-pulse" />
           </div>
         </div>
       ))}

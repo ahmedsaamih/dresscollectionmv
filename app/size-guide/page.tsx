@@ -15,7 +15,7 @@ export default function SizeGuidePage() {
   return (
     <div className="min-h-screen bg-page text-body font-archivo">
       <Header />
-      <div className="max-w-[900px] mx-auto px-5 sm:px-8 py-12 pb-[90px]">
+      <div className="max-w-[900px] mx-auto px-5 sm:px-8 py-[52px] pb-[90px]">
         <h1 className="font-archivo-narrow font-bold text-[30px] sm:text-[42px] tracking-[.01em]">Size guide</h1>
 
         {charts.length === 0 ? (
@@ -34,7 +34,7 @@ export default function SizeGuidePage() {
                   const on = i === tab;
                   return (
                     <button key={c.id} onClick={() => setTab(i)}
-                      className="font-semibold text-[13px] px-4 py-[9px] rounded-[9px] cursor-pointer transition-all"
+                      className="font-semibold text-[13px] px-4 py-[9px] rounded-full cursor-pointer transition-all"
                       style={{ border: on ? 'none' : '1px solid rgba(0,0,0,.1)', background: on ? '#db5795' : 'rgba(0,0,0,.08)', color: on ? '#200612' : '#705260' }}>
                       {c.name}
                     </button>
@@ -43,7 +43,7 @@ export default function SizeGuidePage() {
               </div>
             )}
 
-            <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-2xl overflow-x-auto max-w-full">
+            <div className="bg-surface rounded-2xl overflow-x-auto max-w-full">
               <div className="min-w-[460px] w-max">
                 <div className="grid bg-[rgba(219,87,149,.06)] border-b border-[rgba(219,87,149,.15)]" style={{ gridTemplateColumns: `repeat(${chart.columns.length},1fr)` }}>
                   {chart.columns.map((h, i) => <div key={i} className="px-[18px] py-[14px] text-[12px] font-extrabold tracking-[.06em] uppercase text-rose-700">{h}</div>)}
@@ -60,15 +60,15 @@ export default function SizeGuidePage() {
           </>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-[18px] mt-6">
-          <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[14px] p-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-[18px] mt-9">
+          <div className="bg-surface rounded-[14px] p-5">
             <div className="font-bold text-[15px] mb-[10px]">{copy.sizeGuideMeasureTitle}</div>
             <div className="text-[13px] text-[#705260] leading-[1.7]">{copy.sizeGuideMeasureBody}</div>
           </div>
           <div className="border border-[rgba(219,87,149,.16)] rounded-[14px] p-5" style={{ background: 'linear-gradient(135deg,#fbeaf2,#f7f2f4)' }}>
             <div className="font-bold text-[15px] mb-[10px]">{copy.sizeGuideTeamTitle}</div>
             <div className="text-[13px] text-sub leading-[1.6]">{copy.sizeGuideTeamBody}</div>
-            <Link href="/contact" className="inline-block mt-[14px] text-rose-700 no-underline font-bold text-[13px]">{copy.sizeGuideBuilderCta} →</Link>
+            <Link href="/contact" className="inline-block mt-[14px] text-rose-700 no-underline font-bold text-[13px]">{copy.sizeGuideContactCta} →</Link>
           </div>
         </div>
       </div>

@@ -110,7 +110,7 @@ function ReviewForm() {
       <h1 className="font-archivo-narrow font-bold text-[28px] sm:text-[34px] mb-1.5">Leave a review</h1>
       <p className="text-[13.5px] text-sub mb-7">Order {ref} · Thanks for shopping with us.</p>
 
-      <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-2xl p-[22px] flex flex-col gap-[16px]">
+      <div className="bg-surface rounded-2xl p-[22px] flex flex-col gap-[16px]">
         <div>
           <label className="text-[12px] font-semibold text-sub block mb-[9px]">Your rating</label>
           <StarInput value={rating} onChange={(n) => { setRating(n); setErrors((er) => ({ ...er, rating: false })); }} />
@@ -140,7 +140,7 @@ function ReviewForm() {
         <button
           onClick={submit}
           disabled={submitting}
-          className="w-full mt-1 border-none bg-rose-400 text-[#200612] font-extrabold text-[15px] py-[14px] rounded-xl cursor-pointer hover:brightness-105 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+          className="w-full mt-1 border-none bg-rose-400 text-[#200612] font-bold uppercase tracking-[.06em] text-[13.5px] py-[14px] rounded-xl cursor-pointer hover:brightness-105 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
           style={{ boxShadow: '0 6px 22px rgba(193,57,120,.22)' }}
         >
           {submitting ? 'Submitting…' : 'Submit review'}

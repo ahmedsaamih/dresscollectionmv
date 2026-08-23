@@ -22,7 +22,6 @@ export const dynamic = 'force-dynamic';
  * Creates a POS order. Key differences from web checkout:
  * - Requires edit access to the Sales Terminal module
  * - Accepts `locationId` — stock decremented from that location
- * - Accepts `manualPrice` per item (only honoured for customizable products)
  * - Accepts split payment: paidCash + paidCard + paidTransfer
  * - Accepts an optional `promoCode` (mutually exclusive with the manual `discount`),
  *   re-validated and redeemed the same way as web checkout
@@ -53,13 +52,10 @@ export async function POST(request: Request) {
 
     // Fast-fail UX only — NOT the source of truth. The real guard is decrementStock()
     // inside the transaction below, which re-checks atomically at write time.
-    // Customizable products are made-to-order (no stock item) except in the 'casual'
-    // collection (blank stock garments printed on demand) — same rule as web checkout.
     for (const item of data.items) {
       const p = byId.get(item.sku);
       if (!p) return fail(`Product not found: ${item.sku}`, 400);
       if (p.status !== 'active') return fail(`${p.name} is not available`, 409);
-      if (p.customizable && p.collection !== 'casual') continue;
 
       const inv = await prisma.inventory.findUnique({
         where: { locationId_productId_size_color: { locationId: data.locationId, productId: p.id, size: item.size, color: item.color } },
@@ -71,26 +67,13 @@ export async function POST(request: Request) {
     }
 
     let subtotal = 0;
-    const lineItems: { sku: string; name: string; meta: string; price: number; img: string; size: string; color: string; sleeve: string; neck: string; qty: number; customizationNote: string; customizationLines: { label: string; cost: number }[]; customizationCost: number; stockDecremented: boolean }[] = [];
+    const lineItems: { sku: string; name: string; meta: string; price: number; img: string; size: string; color: string; qty: number; stockDecremented: boolean }[] = [];
 
     for (const item of data.items) {
       const p = byId.get(item.sku)!;
-      let unitPrice: number;
+      const unitPrice = p.price;
 
-      if (p.customizable && item.manualPrice !== undefined) {
-        unitPrice = item.manualPrice;
-      } else {
-        const sleeveAdj = ((p.sleeveAdjustments as Record<string, number>) ?? {})[item.sleeve ?? ''] ?? 0;
-        const sizeAdj   = ((p.sizeAdjustments   as Record<string, number>) ?? {})[item.size   ?? ''] ?? 0;
-        unitPrice = p.price + sleeveAdj + sizeAdj;
-      }
-
-      // Customization notes/cost lines are only honoured for customizable products (POS-only feature).
-      const customizationLines = p.customizable ? item.customizationLines : [];
-      const customizationCost = customizationLines.reduce((s, l) => s + l.cost, 0);
-      const customizationNote = p.customizable ? item.customizationNote : '';
-
-      subtotal += unitPrice * item.qty + customizationCost;
+      subtotal += unitPrice * item.qty;
       lineItems.push({
         sku: p.id,
         name: p.name,
@@ -99,13 +82,8 @@ export async function POST(request: Request) {
         img: p.img,
         size: item.size,
         color: item.color,
-        sleeve: item.sleeve ?? '',
-        neck: item.neck ?? '',
         qty: item.qty,
-        customizationNote,
-        customizationLines,
-        customizationCost,
-        stockDecremented: !p.customizable || p.collection === 'casual',
+        stockDecremented: true,
       });
     }
 

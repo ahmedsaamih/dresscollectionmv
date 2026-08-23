@@ -13,6 +13,8 @@ const config: Config = {
       fontFamily: {
         archivo: ['var(--font-archivo)', 'system-ui', 'sans-serif'],
         'archivo-narrow': ['var(--font-archivo-narrow)', 'system-ui', 'sans-serif'],
+        // Editorial-serif garnish — italic accent moments only (see app/layout.tsx).
+        fraunces: ['var(--font-fraunces)', 'Georgia', 'serif'],
       },
       colors: {
         // Dress Collection palette — blush rose
@@ -48,7 +50,7 @@ const config: Config = {
           600: '#e81a2b',
         },
         // Semantic shorthands
-        page:    '#ffffff',
+        page:    '#fdfbf7', // warm ivory, not stark white — boutique warmth
         surface: '#f9f6f7',
         card:    '#f5f1f3',
         well:    '#f9e8f0',
@@ -69,6 +71,9 @@ const config: Config = {
         'rose-glow': '0 0 0 1px rgba(219,87,149,.5),0 10px 30px rgba(138,29,80,.28)',
         'rose-sm': '0 4px 18px rgba(138,29,80,.30)',
         'rose-lg': '0 6px 26px rgba(138,29,80,.32)',
+        // Borderless editorial card language — no resting shadow, a soft
+        // ambient lift on hover instead of the old hard-border boxes.
+        'card-hover': '0 18px 40px rgba(32,6,18,.10)',
       },
       animation: {
         'toast-in': 'toastIn .3s cubic-bezier(.16,1,.3,1)',

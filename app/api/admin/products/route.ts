@@ -4,13 +4,14 @@ import { deriveLegacyStock, syncColorSizeStock } from '@/lib/inventory';
 import { productCreateSchema } from '@/lib/validation';
 import { requirePermission, audit, genId } from '@/lib/admin-guard';
 import { ok, fail, handleError } from '@/lib/http';
+import { PRODUCT_SIZES } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/admin/products — every product, unfiltered (incl. draft/soldout/POS-only),
  * unlike the public catalog (/api/store). Backs the admin Products tab and the
- * Receive/Adjust/Transfer/POS/manual-order/quote product pickers.
+ * Receive/Adjust/Transfer/POS/manual-order product pickers.
  */
 export async function GET() {
   try {
@@ -51,13 +52,12 @@ export async function POST(request: Request) {
     const usesNamedSizes = Object.values(data.colorSizeStock).some(bySize => Object.keys(bySize).some(size => size !== ''));
     let colorSizeStockToSync = data.colorSizeStock;
     if (usesNamedSizes) {
-      const globalSizes = await prisma.builderSize.findMany();
       const rowColors = data.colors.length > 0 ? data.colors : [''];
       const filled: Record<string, Record<string, number>> = {};
       for (const color of rowColors) {
         filled[color] = { ...data.colorSizeStock[color] };
-        for (const size of globalSizes) {
-          if (filled[color][size.label] === undefined) filled[color][size.label] = 0;
+        for (const size of PRODUCT_SIZES) {
+          if (filled[color][size] === undefined) filled[color][size] = 0;
         }
       }
       colorSizeStockToSync = filled;
@@ -80,15 +80,7 @@ export async function POST(request: Request) {
           colors: data.colors,
           sizes: legacy?.sizes ?? data.sizes,
           sizeStock: legacy?.sizeStock ?? data.sizeStock,
-          sleeves: data.sleeves,
-          necks: data.necks,
-          materials: data.materials,
-          sleeveImages: data.sleeveImages,
-          colorImages: data.colorImages,
-          sleeveAdjustments: data.sleeveAdjustments,
-          sizeAdjustments: data.sizeAdjustments,
           descriptionSections: data.descriptionSections,
-          customizable: data.customizable,
           showInWebStore: data.showInWebStore,
           img: data.img,
         },

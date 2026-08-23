@@ -3,7 +3,6 @@ import { prisma } from '@/lib/prisma';
 import { settingsUpdateSchema } from '@/lib/validation';
 import { requirePermission, audit } from '@/lib/admin-guard';
 import { ok, fail, handleError } from '@/lib/http';
-import { normalizeDriveFolderId } from '@/lib/google-drive';
 import { normalizeStorefrontCopy } from '@/lib/storefront-copy';
 
 export const dynamic = 'force-dynamic';
@@ -11,17 +10,11 @@ export const dynamic = 'force-dynamic';
 function toSettings(s: NonNullable<Awaited<ReturnType<typeof prisma.setting.findUnique>>>) {
   return {
     storeName: s.storeName, tagline: s.tagline, email: s.email, adminEmail: s.adminEmail, phone: s.phone, address: s.address,
-    bank: s.bank, bankAccounts: s.bankAccounts ?? [], builderFields: s.builderFields ?? [], currency: s.currency,
+    bank: s.bank, bankAccounts: s.bankAccounts ?? [], currency: s.currency,
     pickupEnabled: s.pickupEnabled, deliveryFee: s.deliveryFee,
     heroTitle: s.heroTitle, heroSub: s.heroSub, heroImage: s.heroImage, heroImages: (s.heroImages as string[] | null) ?? [], workshopImage: s.workshopImage, categoryReadyImage: s.categoryReadyImage, categoryCustomImage: s.categoryCustomImage, categoryCasualImage: s.categoryCasualImage, categoryAccessoriesImage: s.categoryAccessoriesImage,
-    customizationGuidePdfUrl: s.customizationGuidePdfUrl, customizationTemplateXlsxUrl: s.customizationTemplateXlsxUrl,
     storefrontCopy: normalizeStorefrontCopy(s.storefrontCopy),
     taxId: s.taxId, taxRate: s.taxRate, taxLabel: s.taxLabel, termsConditions: s.termsConditions,
-    googleDriveUploadsEnabled: s.googleDriveUploadsEnabled,
-    googleDriveFolderId: s.googleDriveFolderId,
-    googleDriveFolderName: s.googleDriveFolderName,
-    googleDriveLastTestAt: s.googleDriveLastTestAt?.toISOString() ?? null,
-    googleDriveConnectedEmail: s.googleDriveConnectedEmail,
     // telegramBotToken is never sent to the client — telegramConnected is a
     // derived boolean so the UI can show connection state without the secret.
     telegramConnected: !!s.telegramBotToken,
@@ -62,9 +55,6 @@ export async function PATCH(request: Request) {
   try {
     const session = await requirePermission('settingsGeneral', 'edit');
     const data = settingsUpdateSchema.parse(await request.json());
-    if (data.googleDriveFolderId !== undefined) {
-      data.googleDriveFolderId = normalizeDriveFolderId(data.googleDriveFolderId);
-    }
 
     const current = await prisma.setting.findUnique({ where: { id: 'singleton' } });
     if (!current) return fail('Store is not configured', 500);

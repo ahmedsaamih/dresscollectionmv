@@ -6,7 +6,7 @@ import { ProductGridSkeleton } from '@/components/ProductSkeleton';
 import { Button } from '@/components/Button';
 import { SizeChartTrigger } from '@/components/SizeChart';
 import { Check } from 'lucide-react';
-import { COLOR_MAP } from '@/lib/utils';
+import { COLOR_MAP, PRODUCT_SIZES } from '@/lib/utils';
 import type { Product, SizeChart } from '@/lib/types';
 
 const SORT_OPTIONS = [
@@ -56,19 +56,17 @@ export function CatalogLayout({
   const [sort, setSort] = useState<SortKey>('new');
   const [limit, setLimit] = useState(pageSize);
 
-  const colorHex = (name: string) =>
-    data.builderOptions.colors.find(c => c.name === name)?.hex ?? COLOR_MAP[name] ?? '#888';
+  const colorHex = (name: string) => COLOR_MAP[name] ?? '#888';
 
   const facets = useMemo(() => {
     const categoryList = [...new Set(products.map(p => p.category))];
     const colorList = [...new Set(products.flatMap(p => p.colors))];
-    const sizeOrder = data.builderOptions.sizes.map(s => s.label);
-    const sizeList = [...new Set(products.flatMap(p => p.sizes))].sort((a, b) => sizeOrder.indexOf(a) - sizeOrder.indexOf(b));
+    const sizeList = [...new Set(products.flatMap(p => p.sizes))].sort((a, b) => PRODUCT_SIZES.indexOf(a) - PRODUCT_SIZES.indexOf(b));
     const prices = products.map(p => p.price);
     const priceMin = prices.length ? Math.floor(Math.min(...prices) / 10) * 10 : 0;
     const priceCeil = prices.length ? Math.ceil(Math.max(...prices) / 10) * 10 : 1000;
     return { categoryList, colorList, sizeList, priceMin, priceCeil };
-  }, [products, data.builderOptions.sizes]);
+  }, [products]);
 
   const effMax = priceMax ?? facets.priceCeil;
 
@@ -132,18 +130,18 @@ export function CatalogLayout({
       </div>
 
       {/* Header */}
-      <div className="flex items-end justify-between flex-wrap gap-[14px] mb-[20px]">
+      <div className="flex items-end justify-between flex-wrap gap-[14px] mb-[26px]">
         <div>
-          <h1 data-reveal className="font-archivo-narrow font-bold text-[30px] sm:text-[40px] tracking-[.01em]">{title}</h1>
+          <h1 data-reveal className="font-archivo-narrow font-bold text-[32px] sm:text-[42px] tracking-[.01em]">{title}</h1>
           {subtitle && <p className="text-[14px] text-sub mt-2 max-w-[620px]">{subtitle}</p>}
         </div>
         <div className="flex items-center gap-[14px] flex-wrap">
           <div className="flex items-center gap-[10px]">
-            <span className="text-[12.5px] text-muted">Sort</span>
+            <span className="text-[11px] font-semibold uppercase tracking-[.06em] text-muted">Sort</span>
             <div className="flex gap-[6px]">
               {SORT_OPTIONS.map(s => (
                 <button key={s.k} onClick={() => setSort(s.k)}
-                  className={`border font-semibold text-[12.5px] px-[13px] py-2 rounded-[9px] cursor-pointer transition-all ${sort === s.k ? 'bg-[rgba(219,87,149,.12)] border-[rgba(219,87,149,.4)] text-rose-700' : 'bg-transparent border-[rgba(0,0,0,.1)] text-sub hover:border-[rgba(219,87,149,.3)]'}`}>
+                  className={`border font-semibold text-[11.5px] uppercase tracking-[.03em] px-[14px] py-[7px] rounded-full cursor-pointer transition-all ${sort === s.k ? 'bg-rose-500 border-rose-500 text-[#200612]' : 'bg-transparent border-[rgba(0,0,0,.12)] text-sub hover:border-[rgba(219,87,149,.4)]'}`}>
                   {s.label}
                 </button>
               ))}
@@ -155,11 +153,11 @@ export function CatalogLayout({
 
       {intro && <div className="mb-[20px]">{intro}</div>}
 
-      <div className="grid grid-cols-1 lg:grid-cols-[236px_1fr] gap-7 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[236px_1fr] gap-9 items-start">
         {/* Filters */}
-        <aside className="lg:sticky lg:top-[84px] bg-surface border border-[rgba(0,0,0,.08)] rounded-2xl p-5">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[13px] font-extrabold tracking-[.04em]">Filters</span>
+        <aside className="lg:sticky lg:top-[84px]">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[12px] font-bold uppercase tracking-[.1em]">Filters</span>
             {anyFilter && <button onClick={clear} className="border-none bg-transparent text-rose-700 font-semibold text-[12px] cursor-pointer">Clear all</button>}
           </div>
 
@@ -185,7 +183,7 @@ export function CatalogLayout({
 
           {showColour && (
             <>
-              <div className="h-px bg-[rgba(0,0,0,.07)] my-[18px]" />
+              <div className="h-px bg-[rgba(0,0,0,.07)] my-[20px]" />
               <div>
                 <div className="text-[11px] font-bold tracking-[.14em] uppercase text-muted mb-[11px]">Colour</div>
                 <div className="flex flex-wrap gap-[9px]">
@@ -193,8 +191,8 @@ export function CatalogLayout({
                     const on = colors.includes(c);
                     return (
                       <span key={c} onClick={() => toggle(c, colors, setColors)} title={c}
-                        className="w-7 h-7 rounded-[8px] cursor-pointer transition-all"
-                        style={{ background: colorHex(c), boxShadow: on ? '0 0 0 2px #ffffff,0 0 0 4px #db5795' : '0 0 0 1px rgba(0,0,0,.14)' }} />
+                        className="w-7 h-7 rounded-full cursor-pointer transition-all"
+                        style={{ background: colorHex(c), boxShadow: on ? '0 0 0 2px #fdfbf7,0 0 0 4px #db5795' : '0 0 0 1px rgba(0,0,0,.14)' }} />
                     );
                   })}
                 </div>
@@ -204,7 +202,7 @@ export function CatalogLayout({
 
           {showSize && (
             <>
-              <div className="h-px bg-[rgba(0,0,0,.07)] my-[18px]" />
+              <div className="h-px bg-[rgba(0,0,0,.07)] my-[20px]" />
               <div>
                 <div className="flex items-center justify-between mb-[11px]">
                   <div className="text-[11px] font-bold tracking-[.14em] uppercase text-muted">Size</div>
@@ -215,7 +213,7 @@ export function CatalogLayout({
                     const on = sizes.includes(s);
                     return (
                       <button key={s} onClick={() => toggle(s, sizes, setSizes)}
-                        className="font-bold text-[12px] min-w-[38px] px-[8px] h-[34px] rounded-[8px] cursor-pointer transition-all"
+                        className="font-bold text-[12px] min-w-[38px] px-[8px] h-[34px] rounded-full cursor-pointer transition-all"
                         style={{ border: on ? 'none' : '1px solid rgba(0,0,0,.14)', background: on ? '#db5795' : 'transparent', color: on ? '#200612' : '#705260' }}>{s}</button>
                     );
                   })}
@@ -226,7 +224,7 @@ export function CatalogLayout({
 
           {showPrice && (
             <>
-              <div className="h-px bg-[rgba(0,0,0,.07)] my-[18px]" />
+              <div className="h-px bg-[rgba(0,0,0,.07)] my-[20px]" />
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-[11px] font-bold tracking-[.14em] uppercase text-muted">Max price</span>
@@ -248,7 +246,7 @@ export function CatalogLayout({
             <ProductGridSkeleton count={9} cols={3} />
           ) : filtered.length > 0 ? (
             <>
-              <div className="grid grid-cols-1 min-[380px]:grid-cols-2 lg:grid-cols-3 gap-[18px]">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-[18px] gap-y-[34px]">
                 {(() => {
                   let newIndex = 0;
                   return visible.map(p => {

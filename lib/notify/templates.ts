@@ -1,17 +1,11 @@
-import { formatMVR, ORDER_STAGES, QUOTE_STAGES } from '@/lib/utils';
+import { formatMVR, ORDER_STAGES } from '@/lib/utils';
 import type {
   EmailContent,
   OrderPlacedEvent,
   OrderPaymentConfirmedEvent,
-  QuoteRequestedEvent,
-  AdminQuoteAlertEvent,
   AdminOrderAlertEvent,
-  QuotePricedEvent,
   OrderStatusEvent,
   OrderReviewRequestEvent,
-  QuoteConfirmationRequestedEvent,
-  QuoteDecisionEvent,
-  AdminQuoteStageAlertEvent,
   AdminOrderStageAlertEvent,
   AdminOrderPaymentAlertEvent,
 } from './types';
@@ -76,43 +70,8 @@ export function orderPaymentConfirmed(o: OrderPaymentConfirmedEvent): EmailConte
   return { subject: `${STORE_NAME} order ${o.ref} — payment confirmed`, html, text };
 }
 
-export function quoteRequested(q: QuoteRequestedEvent): EmailContent {
-  const html = shell(`Quote requested, ${esc(q.name)}`,
-    `${refBlock('Quote reference', q.ref)}
-     <p style="margin:16px 0 0">We've received your custom configuration. Our team will review it and
-     email your price — usually within 48 hours. No payment now.</p>${statusLink(q.ref)}`);
-  const text = `Quote requested, ${q.name}\nReference: ${q.ref}\nWe'll email your price within 48 hours. Track: ${APP_URL}/status`;
-  return { subject: `Your ${STORE_NAME} quote ${q.ref}`, html, text };
-}
-
-export function quoteRequestedSms(q: QuoteRequestedEvent): string {
-  return `${STORE_NAME}: quote ${q.ref} requested. We'll text/email your price within 48 hours. Track: ${APP_URL}/status?ref=${encodeURIComponent(q.ref)}`;
-}
-
-export function adminQuoteAlert(q: AdminQuoteAlertEvent): EmailContent {
-  const html = shell('New quote request',
-    `${refBlock('Quote reference', q.ref)}
-     <p style="margin:16px 0 0"><strong>${esc(q.customer)}</strong> requested a quote for <strong>${q.units}</strong> units.</p>
-     <p style="margin:16px 0 0"><a href="${APP_URL}/admin" style="color:${ROSE}">Open the admin panel →</a></p>`);
-  const text = `New quote request\nReference: ${q.ref}\nCustomer: ${q.customer}\nUnits: ${q.units}\nAdmin: ${APP_URL}/admin`;
-  return { subject: `New quote ${q.ref} — ${q.customer}`, html, text };
-}
-
 export function adminOrderAlertText(o: AdminOrderAlertEvent): string {
   return `New order\nReference: ${o.ref}\nCustomer: ${o.customer}\nTotal: ${formatMVR(o.total)}\nItems: ${o.itemCount}\nAdmin: ${APP_URL}/admin`;
-}
-
-export function quotePriced(q: QuotePricedEvent): EmailContent {
-  const html = shell('Your quote is ready',
-    `${refBlock('Quote reference', q.ref)}
-     <p style="margin:16px 0 0">Your custom price is <strong style="color:${ROSE}">${esc(formatMVR(q.price))}</strong>.
-     Reply to this email or contact us to confirm and arrange payment.</p>${statusLink(q.ref)}`);
-  const text = `Your quote ${q.ref} is ready\nPrice: ${formatMVR(q.price)}\nContact us to confirm. Track: ${APP_URL}/status`;
-  return { subject: `Your ${STORE_NAME} quote ${q.ref} — price ready`, html, text };
-}
-
-export function quotePricedSms(q: QuotePricedEvent): string {
-  return `${STORE_NAME}: quote ${q.ref} price is ${formatMVR(q.price)}. Contact us to confirm. Track: ${APP_URL}/status?ref=${encodeURIComponent(q.ref)}`;
 }
 
 export function orderStatusUpdated(o: OrderStatusEvent): EmailContent {
@@ -141,63 +100,6 @@ export function orderReviewRequest(o: OrderReviewRequestEvent): EmailContent {
 
 export function orderReviewRequestSms(o: OrderReviewRequestEvent): string {
   return `${STORE_NAME}: how was order ${o.ref}? Leave a quick review: ${o.reviewUrl} (expires in 3 days)`;
-}
-
-function ttlLabel(days: number): string {
-  return `${days} day${days === 1 ? '' : 's'}`;
-}
-
-export function quoteConfirmationRequested(q: QuoteConfirmationRequestedEvent): EmailContent {
-  const html = shell('Confirm your quote',
-    `${refBlock('Quote reference', q.ref)}
-     <p style="margin:16px 0 0">Your custom price is <strong style="color:${ROSE}">${esc(formatMVR(q.price))}</strong>.
-     Please confirm or decline within ${ttlLabel(q.ttlDays)}.</p>
-     <p style="margin:20px 0 0"><a href="${esc(q.confirmUrl)}" style="display:inline-block;background:${ROSE};color:#200612;font-weight:bold;text-decoration:none;padding:12px 20px;border-radius:10px">Confirm or decline →</a></p>
-     <p style="margin:16px 0 0;font-size:12px;color:#907481">This link expires in ${ttlLabel(q.ttlDays)} or as soon as you respond.</p>`);
-  const text = `Confirm your quote ${q.ref}\nPrice: ${formatMVR(q.price)}\nConfirm or decline: ${q.confirmUrl}\nExpires in ${ttlLabel(q.ttlDays)} or as soon as you respond.`;
-  return { subject: `Action needed: confirm your ${STORE_NAME} quote ${q.ref}`, html, text };
-}
-
-export function quoteConfirmationRequestedSms(q: QuoteConfirmationRequestedEvent): string {
-  return `${STORE_NAME}: your quote ${q.ref} price is ${formatMVR(q.price)}. Confirm or decline: ${q.confirmUrl} (expires ${ttlLabel(q.ttlDays)})`;
-}
-
-export function quoteConfirmed(q: QuoteDecisionEvent): EmailContent {
-  const html = shell(`Quote confirmed, ${esc(q.name)}`,
-    `${refBlock('Quote reference', q.ref)}
-     <p style="margin:16px 0 0">Thanks for confirming — we'll be in touch shortly to arrange payment and production.</p>${statusLink(q.ref)}`);
-  const text = `Quote ${q.ref} confirmed\nWe'll be in touch to arrange payment and production. Track: ${APP_URL}/status`;
-  return { subject: `${STORE_NAME} quote ${q.ref} confirmed`, html, text };
-}
-
-export function quoteConfirmedSms(q: QuoteDecisionEvent): string {
-  return `${STORE_NAME}: quote ${q.ref} confirmed. We'll be in touch to arrange payment. Track: ${APP_URL}/status?ref=${encodeURIComponent(q.ref)}`;
-}
-
-export function quoteRejected(q: QuoteDecisionEvent): EmailContent {
-  const html = shell(`Quote declined, ${esc(q.name)}`,
-    `${refBlock('Quote reference', q.ref)}
-     <p style="margin:16px 0 0">You declined this quote. If you'd like to revisit pricing, just reply to this email or contact us.</p>`);
-  const text = `Quote ${q.ref} declined\nContact us if you'd like to revisit pricing.`;
-  return { subject: `${STORE_NAME} quote ${q.ref} declined`, html, text };
-}
-
-export function quoteRejectedSms(q: QuoteDecisionEvent): string {
-  return `${STORE_NAME}: quote ${q.ref} declined. Contact us if you'd like to revisit pricing.`;
-}
-
-export function adminQuoteConfirmationSentAlertText(q: QuoteConfirmationRequestedEvent): string {
-  return `Quote sent for confirmation\nReference: ${q.ref}\nPrice: ${formatMVR(q.price)}\nExpires in ${ttlLabel(q.ttlDays)}\nAdmin: ${APP_URL}/admin`;
-}
-
-export function adminQuoteDecisionAlertText(q: QuoteDecisionEvent, decision: 'confirmed' | 'rejected'): string {
-  return `Quote ${decision}\nReference: ${q.ref}\nCustomer: ${q.name}\nAdmin: ${APP_URL}/admin`;
-}
-
-export function adminQuoteStageAlertText(e: AdminQuoteStageAlertEvent): string {
-  const from = QUOTE_STAGES[e.fromStage] ?? `Stage ${e.fromStage}`;
-  const to = QUOTE_STAGES[e.toStage] ?? `Stage ${e.toStage}`;
-  return `Quote stage changed\nReference: ${e.ref}\nCustomer: ${e.customer}\n${from} → ${to}\nAdmin: ${APP_URL}/admin`;
 }
 
 export function adminOrderStageAlertText(e: AdminOrderStageAlertEvent): string {
