@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { evaluatePromo, type PromoProductInfo } from '@/lib/promo';
 import { ok, handleError } from '@/lib/http';
 import { rateLimitResponse } from '@/lib/rate-limit';
+import { computeEffectivePrice } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,8 +28,13 @@ export async function POST(request: Request) {
     if (!promo) return ok({ valid: false, error: 'That code was not found.' });
 
     const skus = [...new Set(items.map((i) => i.sku))];
-    const products = await prisma.product.findMany({ where: { id: { in: skus } }, select: { id: true, price: true, collection: true, category: true } });
-    const byId = new Map<string, PromoProductInfo>(products.map((p) => [p.id, p]));
+    const products = await prisma.product.findMany({ where: { id: { in: skus } }, select: { id: true, price: true, discountType: true, discountValue: true, collection: true, category: true } });
+    // Preview must match checkout's math exactly — promo discount runs against each
+    // product's effective (already product-discounted) price, not the raw price.
+    const byId = new Map<string, PromoProductInfo>(products.map((p) => [p.id, {
+      price: computeEffectivePrice(p.price, p.discountType, p.discountValue),
+      collection: p.collection, category: p.category,
+    }]));
 
     const result = evaluatePromo(promo, items, byId);
     if (!result.ok) return ok({ valid: false, error: result.reason });

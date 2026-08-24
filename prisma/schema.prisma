@@ -158,6 +158,8 @@ model Product {
   sub          String
   price        Int
   was          Int? // compare-at
+  discountType  String? // "percent" | "fixed" | null — automatic per-product discount, distinct from PromoCode
+  discountValue Int           @default(0) // percent (0-100) or fixed MVR off, per discountType
   costPrice    Int           @default(0) // super-admin-only; hidden from staff and the public catalog
   stock        Int           @default(0)   // kept for migration period; computed from Inventory
   status       ProductStatus @default(active)
@@ -283,7 +285,8 @@ model Order {
   items        String // human-readable summary (UI reads this)
   subtotal     Int         @default(0) // product subtotal before discount
   discountCode String? // applied promo/referral code (snapshot)
-  discount     Int         @default(0) // discount amount applied (MVR)
+  discount     Int         @default(0) // promo/manual cart-level discount amount applied (MVR)
+  productDiscount Int      @default(0) // Σ(OrderItem.discount × qty) — automatic per-product discounts, distinct from `discount` above
   deliveryFee  Int         @default(0) // delivery fee snapshot charged for this order
   deliveryAreaId String? // → DeliveryArea.id; set when method = Delivery
   total        Int // subtotal + fee − discount
@@ -407,6 +410,8 @@ model OrderItem {
   name    String
   meta    String
   price   Int
+  costPrice Int  @default(0) // snapshot of Product.costPrice at order time
+  discount  Int  @default(0) // snapshot of per-unit discount applied (regular price − effective price)
   img     String
   size    String
   color   String

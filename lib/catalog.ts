@@ -13,7 +13,7 @@ import type {
   Testimonial,
 } from '@/lib/types';
 import { normalizeStorefrontCopy } from '@/lib/storefront-copy';
-import { PRODUCT_SIZES } from '@/lib/utils';
+import { PRODUCT_SIZES, computeEffectivePrice } from '@/lib/utils';
 
 type ProductRow = Awaited<ReturnType<typeof prisma.product.findMany<{ include: { inventory: { include: { location: true } } } }>>>[number];
 
@@ -40,6 +40,9 @@ export function mapProduct(p: ProductRow): Product {
     sub: p.sub,
     price: p.price,
     was: p.was ?? null,
+    discountType: (p.discountType as 'percent' | 'fixed' | null) ?? null,
+    discountValue: p.discountValue,
+    effectivePrice: computeEffectivePrice(p.price, p.discountType, p.discountValue),
     stock,
     status: p.status,
     badge: (p.badge as ProductBadge) ?? null,

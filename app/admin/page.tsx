@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/contexts/StoreContext';
 import { adminApi, ApiError, type ReferrerSummary, type InventoryItem, type XfrRecord, type PosOrderResult } from '@/lib/admin-api';
-import { ORDER_STAGES, STAGE_META, formatMVR, PICKUP_STAGE_IDS, DELIVERY_STAGE_IDS, PRODUCT_SIZES, COLOR_MAP, productColorHex } from '@/lib/utils';
+import { ORDER_STAGES, STAGE_META, formatMVR, PICKUP_STAGE_IDS, DELIVERY_STAGE_IDS, PRODUCT_SIZES, COLOR_MAP, productColorHex, computeEffectivePrice } from '@/lib/utils';
 import { ORDER_NOTIFICATION_EVENTS, NOTIFICATION_EVENT_LABELS } from '@/lib/notify/event-labels';
 import type { Order, SizeChart, PromoCode, Redemption, AdminUser, AdminRole, Product, ProductSection, Customer, NotificationLog, Review, DeliveryArea } from '@/lib/types';
 import { hasPermission, MODULES, type ModuleKey, type Permissions } from '@/lib/permissions';
@@ -251,9 +251,13 @@ export default function AdminPage() {
     { key: 'categoryAccessoriesImage', label: 'Accessories' },
   ];
 
-  // Slip viewer modal.
-  const [slipModal, setSlipModal] = useState<{ url: string; expired: boolean } | null>(null);
+  // Slip/receipt viewer modal — shared by uploaded payment/balance slips and generated receipts.
+  const [slipModal, setSlipModal] = useState<{ url: string; expired: boolean; title?: string } | null>(null);
   const [slipLoadFailed, setSlipLoadFailed] = useState(false);
+  // Feature-detected after mount (not during SSR, where navigator doesn't exist) so the
+  // Share button never renders-then-disappears — it's just absent on unsupported browsers.
+  const [canShareFiles, setCanShareFiles] = useState(false);
+  useEffect(() => { setCanShareFiles(typeof navigator !== 'undefined' && !!navigator.share); }, []);
 
   // Mark-paid amount entry modal (cash/card/transfer breakdown for orders with no
   // per-method amounts recorded yet — e.g. quote conversions, web-checkout orders).
@@ -509,7 +513,7 @@ export default function AdminPage() {
     const available = inventoryStockForVariant(posInvRows, p.id, posAddColor, posAddSize);
     if (available <= 0) { flash('Selected variant is out of stock at this location.'); return; }
     if (posAddQty > available) { flash(`Only ${available} unit${available !== 1 ? 's' : ''} available at this location.`); return; }
-    setPosCart(c => [...c, { sku: p.id, name: p.name, meta: p.sub, img: p.img, size: posAddSize, color: posAddColor, qty: posAddQty, unitPrice: p.price }]);
+    setPosCart(c => [...c, { sku: p.id, name: p.name, meta: p.sub, img: p.img, size: posAddSize, color: posAddColor, qty: posAddQty, unitPrice: p.effectivePrice }]);
     setPosAddItem(null);
   };
 
@@ -530,7 +534,7 @@ export default function AdminPage() {
       size: manualOrderSize,
       color: manualOrderColor,
       qty: manualOrderQty,
-      unitPrice: p.price,
+      unitPrice: p.effectivePrice,
     }]);
     setManualOrderError('');
     setManualOrderQty(1);
@@ -798,6 +802,8 @@ export default function AdminPage() {
         const body: Record<string, unknown> = {
           name: draft.name, collection: draft.collection, category: draft.category, sub: draft.sub ?? '',
           price: draft.price, was: draft.was || null, status, badge: draft.badge ?? '', img: draft.img,
+          discountType: draft.discountType || null,
+          discountValue: parseInt(String(draft.discountValue ?? 0)) || 0,
           preOrder: !!draft.preOrder,
           colors: Array.isArray(draft.colors) ? draft.colors : [],
           colorImages: draft.colorImages ?? {},
@@ -884,7 +890,7 @@ export default function AdminPage() {
   const openModal = (kind: string, item?: Record<string, any>) => {
     const firstCol = data.collections[0]?.key ?? 'ready';
     const defaults: Record<string, Record<string, any>> = {
-      product:    { name:'', collection: firstCol, category: data.categories[0]?.name ?? '', sub:'', price:'', was:'', locationId: data.locations.find(l => l.isWebDefault)?.id ?? '', stock:'0', status:'active', badge:'', preOrder: false, img: GRADIENTS[0], colors: [], sizes: [], sizeStock: {}, colorSizeStock: {}, colorImages: {}, colorHex: {}, descriptionSections: [], showInWebStore: true },
+      product:    { name:'', collection: firstCol, category: data.categories[0]?.name ?? '', sub:'', price:'', was:'', discountType: null, discountValue: '0', locationId: data.locations.find(l => l.isWebDefault)?.id ?? '', stock:'0', status:'active', badge:'', preOrder: false, img: GRADIENTS[0], colors: [], sizes: [], sizeStock: {}, colorSizeStock: {}, colorImages: {}, colorHex: {}, descriptionSections: [], showInWebStore: true },
       collection: { label:'', sizeChartId: null },
       category:   { name:'', collection: firstCol },
     };
@@ -1065,6 +1071,37 @@ export default function AdminPage() {
       setOrders(os => os.filter(o => o.id !== id));
       flash('Order deleted');
     } catch (e) { onError(e, 'Could not delete order.'); }
+  };
+
+  // Fetches the actual bytes rather than a plain <a download> — the latter is silently
+  // ignored by browsers for cross-origin URLs (R2/Blob), which every stored file is.
+  const saveModalFile = async (url: string) => {
+    try {
+      const blob = await (await fetch(url)).blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = url.split('/').pop() || 'file';
+      a.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch (e) { onError(e, 'Could not save the file.'); }
+  };
+
+  const shareModalFile = async (url: string, title: string) => {
+    try {
+      const blob = await (await fetch(url)).blob();
+      const filename = url.split('/').pop() || 'file';
+      const file = new File([blob], filename, { type: blob.type });
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title });
+      } else if (navigator.share) {
+        await navigator.share({ url, title });
+      }
+    } catch (e) {
+      // AbortError fires when the user just dismisses the native share sheet — not a real error.
+      if (e instanceof Error && e.name === 'AbortError') return;
+      onError(e, 'Could not share the file.');
+    }
   };
   const approveReview = async (id: string) => {
     try {
@@ -1592,6 +1629,7 @@ export default function AdminPage() {
   const ledgerTotals = filteredOrders.reduce((acc, o) => {
     acc.gross += o.subtotal ?? o.total + (o.discount ?? 0);
     acc.discount += o.discount ?? 0;
+    acc.productDiscount += o.productDiscount ?? 0;
     acc.total += o.total;
     const collected = amountCollected(o);
     acc.paid += collected;
@@ -1599,8 +1637,13 @@ export default function AdminPage() {
     acc.cash += o.paidCash;
     acc.card += o.paidCard;
     acc.transfer += o.paidTransfer;
+    // Cost data only ever reaches non-superadmin browsers' network tab (not gated at the
+    // API layer, matching this codebase's existing low-stakes internal-tool posture); the
+    // computed profit figure itself is only ever surfaced below the role === 'admin' check.
+    const lineProfit = (o.lineItems ?? []).reduce((sum, li) => sum + (li.price - li.costPrice) * li.qty, 0);
+    acc.profit += lineProfit - (o.discount ?? 0);
     return acc;
-  }, { gross: 0, discount: 0, total: 0, paid: 0, unpaid: 0, cash: 0, card: 0, transfer: 0 });
+  }, { gross: 0, discount: 0, productDiscount: 0, total: 0, paid: 0, unpaid: 0, cash: 0, card: 0, transfer: 0, profit: 0 });
   const s = settingsDraft;
   const storefrontCopy = normalizeStorefrontCopy(s.storefrontCopy);
   const posSubtotal = posCart.reduce((sum, i) => sum + i.unitPrice * i.qty, 0);
@@ -1841,13 +1884,17 @@ export default function AdminPage() {
               </div>
 
               <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[15px] overflow-x-auto [&>div]:min-w-[680px]">
-                <div className="grid px-[18px] py-[13px] bg-[rgba(0,0,0,.045)] border-b border-[rgba(0,0,0,.07)] text-[11px] font-extrabold tracking-[.06em] uppercase text-muted" style={{ gridTemplateColumns: '2.4fr 1.2fr 1fr .8fr 1fr 96px' }}>
-                  <span>Product</span><span>Category</span><span>Price</span><span>Stock</span><span>Status</span><span className="text-right">Actions</span>
+                <div className="grid px-[18px] py-[13px] bg-[rgba(0,0,0,.045)] border-b border-[rgba(0,0,0,.07)] text-[11px] font-extrabold tracking-[.06em] uppercase text-muted" style={{ gridTemplateColumns: currentUser?.role === 'admin' ? '2.1fr 1fr .9fr .7fr .8fr .9fr .9fr 96px' : '2.4fr 1.2fr 1fr .8fr 1fr 96px' }}>
+                  <span>Product</span><span>Category</span><span>Price</span><span>Stock</span><span>Status</span>
+                  {currentUser?.role === 'admin' && (<><span>Cost</span><span>Profit</span></>)}
+                  <span className="text-right">Actions</span>
                 </div>
                 {filteredProducts.map(p => {
                   const sm = statusMeta(p.status);
+                  const cp = currentUser?.role === 'admin' ? (costPriceProducts.find(cpp => cpp.id === p.id)?.costPrice ?? 0) : null;
+                  const profitPerUnit = cp !== null ? p.effectivePrice - cp : null;
                   return (
-                    <div key={p.id} className="grid px-[18px] py-[13px] border-b border-[rgba(0,0,0,.07)] items-center hover:bg-[rgba(0,0,0,.045)] transition-colors" style={{ gridTemplateColumns: '2.4fr 1.2fr 1fr .8fr 1fr 96px' }}>
+                    <div key={p.id} className="grid px-[18px] py-[13px] border-b border-[rgba(0,0,0,.07)] items-center hover:bg-[rgba(0,0,0,.045)] transition-colors" style={{ gridTemplateColumns: currentUser?.role === 'admin' ? '2.1fr 1fr .9fr .7fr .8fr .9fr .9fr 96px' : '2.4fr 1.2fr 1fr .8fr 1fr 96px' }}>
                       <div className="flex items-center gap-3 min-w-0">
                         <span className="w-10 h-10 rounded-[9px] flex-none" style={{ background: p.img }} />
                         <div className="min-w-0">
@@ -1862,6 +1909,12 @@ export default function AdminPage() {
                       <span className="text-[13px] font-bold text-rose-700 tabular">MVR {p.price}</span>
                       <span className="text-[13px] font-bold tabular" style={{ color: p.stock === 0 ? '#b80f1d' : p.stock <= 10 ? '#e81a2b' : '#705260' }}>{p.stock}</span>
                       <span className="text-[10px] font-extrabold uppercase px-[9px] py-1 rounded-[6px] justify-self-start" style={{ color: sm.fg, background: sm.bg }}>{sm.label}</span>
+                      {currentUser?.role === 'admin' && (
+                        <>
+                          <span className="text-[12.5px] tabular text-sub">{formatMVR(cp ?? 0)}</span>
+                          <span className="text-[12.5px] font-bold tabular" style={{ color: (profitPerUnit ?? 0) < 0 ? '#e81a2b' : '#705260' }}>{formatMVR(profitPerUnit ?? 0)}</span>
+                        </>
+                      )}
                       <div className="flex gap-[7px] justify-end">
                         <button onClick={() => openModal('product', p as any)} className="w-[30px] h-[30px] rounded-[8px] border border-[rgba(0,0,0,.12)] bg-transparent text-sub cursor-pointer text-[13px] hover:text-rose-700 hover:border-[rgba(219,87,149,.4)] transition-all"><Pencil size={13} /></button>
                         <button onClick={() => askDelete('product', p)} className="w-[30px] h-[30px] rounded-[8px] border border-[rgba(0,0,0,.12)] bg-transparent text-sub cursor-pointer text-[13px] hover:text-[#e81a2b] hover:border-[rgba(255,61,77,.35)] transition-all"><Trash2 size={13} /></button>
@@ -2138,6 +2191,10 @@ export default function AdminPage() {
                   ['Card', ledgerTotals.card],
                   ['Bank transfer', ledgerTotals.transfer],
                   ['Net sales', ledgerTotals.total],
+                  ...(currentUser?.role === 'admin' ? ([
+                    ['Product discounts', ledgerTotals.productDiscount],
+                    ['Profit', ledgerTotals.profit],
+                  ] as [string, number][]) : []),
                 ];
                 const cards = ledgerCards.map(([label, value]) => (
                   <div key={label} className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[10px] p-3">
@@ -2208,30 +2265,32 @@ export default function AdminPage() {
                       )}
                       <div className="flex items-center gap-1 flex-wrap w-[96px]">
                         {slip && (
-                          <button onClick={() => setSlipModal({ url: slip.url, expired: slip.expired })}
+                          <button onClick={() => setSlipModal({ url: slip.url, expired: slip.expired, title: 'Payment slip' })}
                             title={slip.expired ? 'Payment slip expired (auto-deleted after 90 days)' : 'View payment slip'}
                             className={`${BTN_ICON} border bg-transparent inline-flex items-center justify-center font-bold cursor-pointer transition-all ${slip.expired ? 'border-[rgba(0,0,0,.1)] text-[rgba(0,0,0,.3)]' : 'border-[rgba(0,0,0,.16)] text-sub hover:text-body'}`}>
                             Slip
                           </button>
                         )}
                         {receipt && (
-                          <a href={receipt.url} target="_blank" rel="noopener noreferrer" title="Download receipt PDF"
-                            className={`${BTN_ICON} border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.08)] text-rose-700 inline-flex items-center justify-center font-extrabold no-underline hover:brightness-125 transition-all`}>
+                          <button onClick={() => setSlipModal({ url: receipt.url, expired: false, title: 'Receipt' })}
+                            title="View receipt"
+                            className={`${BTN_ICON} border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.08)] text-rose-700 inline-flex items-center justify-center font-extrabold cursor-pointer hover:brightness-125 transition-all`}>
                             Rec
-                          </a>
+                          </button>
                         )}
                         {bSlip && (
-                          <button onClick={() => setSlipModal({ url: bSlip.url, expired: bSlip.expired })}
+                          <button onClick={() => setSlipModal({ url: bSlip.url, expired: bSlip.expired, title: 'Balance slip' })}
                             title={bSlip.expired ? 'Balance slip expired (auto-deleted after 90 days)' : 'View balance slip'}
                             className={`${BTN_ICON} border bg-transparent inline-flex items-center justify-center font-bold cursor-pointer transition-all ${bSlip.expired ? 'border-[rgba(0,0,0,.1)] text-[rgba(0,0,0,.3)]' : 'border-[rgba(245,200,66,.4)] text-[#8a6205] hover:brightness-110'}`}>
                             BSlip
                           </button>
                         )}
                         {bReceipt && (
-                          <a href={bReceipt.url} target="_blank" rel="noopener noreferrer" title="Download balance receipt PDF"
-                            className={`${BTN_ICON} border border-[rgba(245,200,66,.4)] bg-[rgba(245,200,66,.1)] text-[#8a6205] inline-flex items-center justify-center font-extrabold no-underline hover:brightness-110 transition-all`}>
+                          <button onClick={() => setSlipModal({ url: bReceipt.url, expired: false, title: 'Balance receipt' })}
+                            title="View balance receipt"
+                            className={`${BTN_ICON} border border-[rgba(245,200,66,.4)] bg-[rgba(245,200,66,.1)] text-[#8a6205] inline-flex items-center justify-center font-extrabold cursor-pointer hover:brightness-110 transition-all`}>
                             BRec
-                          </a>
+                          </button>
                         )}
                         {!slip && !receipt && !bSlip && !bReceipt && <span className="text-muted text-[12px]">—</span>}
                       </div>
@@ -2314,28 +2373,28 @@ export default function AdminPage() {
                       {hasDocs && (
                         <div className="flex items-center gap-2 flex-wrap">
                           {slip && (
-                            <button onClick={() => setSlipModal({ url: slip.url, expired: slip.expired })}
+                            <button onClick={() => setSlipModal({ url: slip.url, expired: slip.expired, title: 'Payment slip' })}
                               className={`${BTN_ICON_TOUCH} border bg-transparent inline-flex items-center justify-center font-bold cursor-pointer transition-all ${slip.expired ? 'border-[rgba(0,0,0,.1)] text-[rgba(0,0,0,.3)]' : 'border-[rgba(0,0,0,.16)] text-sub'}`}>
                               Slip
                             </button>
                           )}
                           {receipt && (
-                            <a href={receipt.url} target="_blank" rel="noopener noreferrer"
-                              className={`${BTN_ICON_TOUCH} border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.08)] text-rose-700 inline-flex items-center justify-center font-extrabold no-underline transition-all`}>
+                            <button onClick={() => setSlipModal({ url: receipt.url, expired: false, title: 'Receipt' })}
+                              className={`${BTN_ICON_TOUCH} border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.08)] text-rose-700 inline-flex items-center justify-center font-extrabold cursor-pointer transition-all`}>
                               Rec
-                            </a>
+                            </button>
                           )}
                           {bSlip && (
-                            <button onClick={() => setSlipModal({ url: bSlip.url, expired: bSlip.expired })}
+                            <button onClick={() => setSlipModal({ url: bSlip.url, expired: bSlip.expired, title: 'Balance slip' })}
                               className={`${BTN_ICON_TOUCH} border bg-transparent inline-flex items-center justify-center font-bold cursor-pointer transition-all ${bSlip.expired ? 'border-[rgba(0,0,0,.1)] text-[rgba(0,0,0,.3)]' : 'border-[rgba(245,200,66,.4)] text-[#8a6205]'}`}>
                               BSlip
                             </button>
                           )}
                           {bReceipt && (
-                            <a href={bReceipt.url} target="_blank" rel="noopener noreferrer"
-                              className={`${BTN_ICON_TOUCH} border border-[rgba(245,200,66,.4)] bg-[rgba(245,200,66,.1)] text-[#8a6205] inline-flex items-center justify-center font-extrabold no-underline transition-all`}>
+                            <button onClick={() => setSlipModal({ url: bReceipt.url, expired: false, title: 'Balance receipt' })}
+                              className={`${BTN_ICON_TOUCH} border border-[rgba(245,200,66,.4)] bg-[rgba(245,200,66,.1)] text-[#8a6205] inline-flex items-center justify-center font-extrabold cursor-pointer transition-all`}>
                               BRec
-                            </a>
+                            </button>
                           )}
                         </div>
                       )}
@@ -2580,7 +2639,7 @@ export default function AdminPage() {
                               <span className="w-9 h-9 rounded-[7px] flex-none" style={{ background: p.img }} />
                               <div className="flex-1 min-w-0">
                                 <div className="text-[12.5px] font-semibold truncate">{p.name}</div>
-                                <div className="text-[11px] text-muted truncate">MVR {p.price.toLocaleString()} · {p.category}</div>
+                                <div className="text-[11px] text-muted truncate">MVR {p.effectivePrice.toLocaleString()}{p.effectivePrice !== p.price ? ` (was ${p.price.toLocaleString()})` : ''} · {p.category}</div>
                               </div>
                             </button>
                           ))}
@@ -3914,6 +3973,23 @@ export default function AdminPage() {
                   <div className="col-span-2"><label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Subtitle</label><input value={modal.draft.sub ?? ''} onChange={e => setDraftField('sub', e.target.value)} className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13.5px] outline-none focus:border-rose-500" /></div>
                   <div><label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Price (MVR)</label><input value={modal.draft.price ?? ''} onChange={e => setDraftField('price', e.target.value)} className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13.5px] outline-none focus:border-rose-500 tabular" /></div>
                   <div><label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Compare-at (optional)</label><input value={modal.draft.was ?? ''} onChange={e => setDraftField('was', e.target.value)} className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13.5px] outline-none focus:border-rose-500 tabular" /></div>
+                  <div><label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Discount type</label>
+                    <select value={modal.draft.discountType ?? ''} onChange={e => setDraftField('discountType', e.target.value || null)}
+                      className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13.5px] outline-none cursor-pointer">
+                      <option value="">None</option>
+                      <option value="fixed">Fixed (MVR)</option>
+                      <option value="percent">Percent (%)</option>
+                    </select>
+                  </div>
+                  {modal.draft.discountType && (
+                    <div><label className="text-[11.5px] font-semibold text-sub block mb-[6px]">{modal.draft.discountType === 'percent' ? 'Percent off (1–100)' : 'Amount off (MVR)'}</label>
+                      <input value={modal.draft.discountValue ?? ''} onChange={e => setDraftField('discountValue', e.target.value)}
+                        className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13.5px] outline-none focus:border-rose-500 tabular" />
+                      <div className="text-[10.5px] text-muted mt-[5px]">
+                        Sells at {formatMVR(computeEffectivePrice(parseInt(String(modal.draft.price ?? 0)) || 0, modal.draft.discountType, parseInt(String(modal.draft.discountValue ?? 0)) || 0))}
+                      </div>
+                    </div>
+                  )}
                   {!isEditingProduct && (
                     <div><label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Location <span className="text-muted font-normal">· where initial stock is added</span></label>
                       <select value={modal.draft.locationId ?? ''} onChange={e => setDraftField('locationId', e.target.value)} className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13.5px] outline-none cursor-pointer">
@@ -4617,18 +4693,26 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* ── SLIP VIEWER MODAL ── */}
+      {/* ── SLIP / RECEIPT VIEWER MODAL ── */}
       {slipModal && (
         <div className="fixed inset-0 z-[90] bg-[rgba(4,8,7,.88)] backdrop-blur-md flex items-center justify-center p-4" onClick={() => { setSlipModal(null); setSlipLoadFailed(false); }}>
           <div className="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center gap-3" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between w-full">
-              <span className="text-[12px] font-bold text-[#705260]">Payment slip</span>
+              <span className="text-[12px] font-bold text-[#705260]">{slipModal.title ?? 'Payment slip'}</span>
               <div className="flex items-center gap-2">
-                {!slipModal.expired && (
-                  <a href={slipModal.url} download target="_blank" rel="noopener noreferrer"
-                    className="text-[12px] font-bold text-rose-700 border border-[rgba(219,87,149,.3)] px-3 py-[6px] rounded-[8px] no-underline hover:brightness-125 transition-all">
-                    ↓ Download
-                  </a>
+                {!slipModal.expired && !slipLoadFailed && (
+                  <>
+                    <button onClick={() => saveModalFile(slipModal.url)}
+                      className="text-[12px] font-bold text-rose-700 border border-[rgba(219,87,149,.3)] px-3 py-[6px] rounded-[8px] bg-transparent cursor-pointer hover:brightness-125 transition-all">
+                      ↓ Save
+                    </button>
+                    {canShareFiles && (
+                      <button onClick={() => shareModalFile(slipModal.url, slipModal.title ?? 'Payment slip')}
+                        className="text-[12px] font-bold text-rose-700 border border-[rgba(219,87,149,.3)] px-3 py-[6px] rounded-[8px] bg-transparent cursor-pointer hover:brightness-125 transition-all">
+                        Share
+                      </button>
+                    )}
+                  </>
                 )}
                 <button onClick={() => { setSlipModal(null); setSlipLoadFailed(false); }} className="w-8 h-8 rounded-[9px] border border-[rgba(0,0,0,.14)] bg-[rgba(0,0,0,.07)] text-sub cursor-pointer text-[16px] hover:text-body transition-colors"><X size={16} /></button>
               </div>
@@ -4873,27 +4957,29 @@ export default function AdminPage() {
               <div className="flex items-center gap-3 flex-wrap">
                 {orderDrawer.pdfUrl && <a href={orderDrawer.pdfUrl} target="_blank" rel="noopener noreferrer" className={`font-bold text-rose-700 border border-[rgba(219,87,149,.3)] bg-[rgba(219,87,149,.06)] no-underline hover:brightness-125 transition-all ${BTN_COMPACT}`}>↓ Invoice PDF</a>}
                 {paymentSlip(orderDrawer) && (
-                  <button onClick={() => setSlipModal({ url: paymentSlip(orderDrawer)!.url, expired: paymentSlip(orderDrawer)!.expired })}
+                  <button onClick={() => setSlipModal({ url: paymentSlip(orderDrawer)!.url, expired: paymentSlip(orderDrawer)!.expired, title: 'Payment slip' })}
                     title={paymentSlip(orderDrawer)!.expired ? 'Payment slip expired (auto-deleted after 90 days)' : undefined}
                     className={`font-bold border bg-transparent cursor-pointer transition-colors ${BTN_COMPACT} ${paymentSlip(orderDrawer)!.expired ? 'border-[rgba(0,0,0,.1)] text-[rgba(0,0,0,.3)]' : 'border-[rgba(0,0,0,.14)] text-sub hover:text-body'}`}>
                     Payment slip
                   </button>
                 )}
                 {paymentReceipt(orderDrawer) && (
-                  <a href={paymentReceipt(orderDrawer)!.url} target="_blank" rel="noopener noreferrer" className={`font-bold text-rose-700 border border-[rgba(219,87,149,.3)] bg-[rgba(219,87,149,.06)] no-underline hover:brightness-125 transition-all ${BTN_COMPACT}`}>↓ Receipt PDF</a>
+                  <button onClick={() => setSlipModal({ url: paymentReceipt(orderDrawer)!.url, expired: false, title: 'Receipt' })}
+                    className={`font-bold text-rose-700 border border-[rgba(219,87,149,.3)] bg-[rgba(219,87,149,.06)] cursor-pointer hover:brightness-125 transition-all ${BTN_COMPACT}`}>Receipt</button>
                 )}
                 {orderDrawer.paid && !paymentReceipt(orderDrawer) && (
                   <button onClick={() => generateOrderReceipt(orderDrawer.id)} className={`font-bold text-rose-700 border border-[rgba(219,87,149,.3)] bg-transparent cursor-pointer hover:bg-[rgba(219,87,149,.06)] transition-all ${BTN_COMPACT}`}>Generate receipt</button>
                 )}
                 {balanceSlip(orderDrawer) && (
-                  <button onClick={() => setSlipModal({ url: balanceSlip(orderDrawer)!.url, expired: balanceSlip(orderDrawer)!.expired })}
+                  <button onClick={() => setSlipModal({ url: balanceSlip(orderDrawer)!.url, expired: balanceSlip(orderDrawer)!.expired, title: 'Balance slip' })}
                     title={balanceSlip(orderDrawer)!.expired ? 'Balance slip expired (auto-deleted after 90 days)' : undefined}
                     className={`font-bold border bg-transparent cursor-pointer transition-colors ${BTN_COMPACT} ${balanceSlip(orderDrawer)!.expired ? 'border-[rgba(0,0,0,.1)] text-[rgba(0,0,0,.3)]' : 'border-[rgba(0,0,0,.14)] text-sub hover:text-body'}`}>
                     Balance slip
                   </button>
                 )}
                 {balanceReceipt(orderDrawer) && (
-                  <a href={balanceReceipt(orderDrawer)!.url} target="_blank" rel="noopener noreferrer" className={`font-bold text-rose-700 border border-[rgba(219,87,149,.3)] bg-[rgba(219,87,149,.06)] no-underline hover:brightness-125 transition-all ${BTN_COMPACT}`}>↓ Balance receipt PDF</a>
+                  <button onClick={() => setSlipModal({ url: balanceReceipt(orderDrawer)!.url, expired: false, title: 'Balance receipt' })}
+                    className={`font-bold text-rose-700 border border-[rgba(219,87,149,.3)] bg-[rgba(219,87,149,.06)] cursor-pointer hover:brightness-125 transition-all ${BTN_COMPACT}`}>Balance receipt</button>
                 )}
               </div>
 
@@ -4956,7 +5042,7 @@ export default function AdminPage() {
                     disabled={!manualOrderDraft.locationId}
                     className="col-span-2 bg-surface border border-[rgba(0,0,0,.12)] rounded-[8px] px-3 py-[8px] text-[12.5px] outline-none cursor-pointer disabled:opacity-50">
                     <option value="">Choose product…</option>
-                    {allProducts.filter(p => p.status === 'active').map(p => <option key={p.id} value={p.id}>{p.name} · {formatMVR(p.price)}</option>)}
+                    {allProducts.filter(p => p.status === 'active').map(p => <option key={p.id} value={p.id}>{p.name} · {formatMVR(p.effectivePrice)}{p.effectivePrice !== p.price ? ` (was ${formatMVR(p.price)})` : ''}</option>)}
                   </select>
                   {manualOrderProduct && manualOrderProduct.colors.length > 0 && (
                     <select value={manualOrderColor} onChange={e => {

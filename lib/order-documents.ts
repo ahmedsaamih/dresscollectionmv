@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { displayDate } from '@/lib/http';
-import { paymentReceiptPdf } from '@/lib/pdf';
+import { paymentReceiptImage } from '@/lib/receipt-image';
 import { storage } from '@/lib/storage';
 
 function paymentMode(paidCash: number, paidCard: number, paidTransfer: number): string {
@@ -28,7 +28,7 @@ export async function ensurePaymentReceipt(orderId: string): Promise<string | nu
   // depositRequired is 0 on orders created before this field existed — falling back to
   // `total` preserves the exact receipt amount those orders always showed.
   const amount = order.depositRequired || order.total;
-  const stored = await generateReceiptPdf(order, settings, amount, 'receipt');
+  const stored = await generateReceiptImage(order, settings, amount, 'receipt');
   await prisma.receipt.create({ data: { orderId: order.id, url: stored.url, kind: 'payment_receipt' } });
   return stored.url;
 }
@@ -47,7 +47,7 @@ export async function ensureBalanceReceipt(orderId: string): Promise<string | nu
   ]);
   if (!order || !settings || !order.balancePaid || order.balanceDue <= 0) return null;
 
-  const stored = await generateReceiptPdf(order, settings, order.balanceDue, 'balance-receipt');
+  const stored = await generateReceiptImage(order, settings, order.balanceDue, 'balance-receipt');
   await prisma.receipt.create({ data: { orderId: order.id, url: stored.url, kind: 'balance_receipt' } });
   return stored.url;
 }
@@ -55,8 +55,8 @@ export async function ensureBalanceReceipt(orderId: string): Promise<string | nu
 type OrderRow = NonNullable<Awaited<ReturnType<typeof prisma.order.findUnique>>>;
 type SettingRow = NonNullable<Awaited<ReturnType<typeof prisma.setting.findUnique>>>;
 
-async function generateReceiptPdf(order: OrderRow, settings: SettingRow, amount: number, filenameSuffix: string) {
-  const pdf = await paymentReceiptPdf({
+async function generateReceiptImage(order: OrderRow, settings: SettingRow, amount: number, filenameSuffix: string) {
+  const png = await paymentReceiptImage({
     orderRef: order.id,
     customer: order.customer,
     paymentDate: displayDate(),
@@ -65,6 +65,7 @@ async function generateReceiptPdf(order: OrderRow, settings: SettingRow, amount:
     subtotal: order.subtotal,
     deliveryFee: order.deliveryFee,
     discount: order.discount,
+    productDiscount: order.productDiscount,
     amount,
     invoiceDate: order.date,
     storeName: settings.storeName,
@@ -75,8 +76,8 @@ async function generateReceiptPdf(order: OrderRow, settings: SettingRow, amount:
   });
   return storage.put({
     bucket: 'pdf',
-    filename: `${order.id}-${filenameSuffix}.pdf`,
-    data: pdf,
-    contentType: 'application/pdf',
+    filename: `${order.id}-${filenameSuffix}.png`,
+    data: png,
+    contentType: 'image/png',
   });
 }

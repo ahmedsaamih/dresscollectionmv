@@ -9,6 +9,22 @@ export function formatMVR(n: number): string {
   return 'MVR ' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
+/**
+ * The price a customer actually pays after a product's own automatic discount
+ * (distinct from PromoCode/Order.discount, the cart-level code system). Clamps
+ * defensively rather than rejecting stale/edited data — money math should never
+ * produce a negative price even if discountValue is larger than price.
+ */
+export function computeEffectivePrice(price: number, discountType: string | null | undefined, discountValue: number): number {
+  if (!discountType) return price;
+  if (discountType === 'fixed') return Math.max(0, price - discountValue);
+  if (discountType === 'percent') {
+    const pct = Math.max(0, Math.min(100, discountValue));
+    return Math.max(0, Math.round(price * (1 - pct / 100)));
+  }
+  return price;
+}
+
 export function genRef(prefix: 'DC'): string {
   const yy = new Date().getFullYear().toString().slice(2);
   const n = Math.floor(10000 + Math.random() * 89999);

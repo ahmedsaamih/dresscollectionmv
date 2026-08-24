@@ -86,7 +86,7 @@ export default function ProductPage() {
     setActiveImg(product.colorImages?.[color] || product.img);
   }, [color, product]);
 
-  const displayPrice = product.price;
+  const displayPrice = product.effectivePrice;
 
   // Quantity of this exact sku+color+size already sitting in the customer's
   // own cart — subtracted from the raw DB stock so the picker can't be
@@ -221,11 +221,18 @@ export default function ProductPage() {
                   {product.badge}
                 </span>
               )}
-              {product.preOrder && product.badge !== 'Pre-order' && (
-                <span className="absolute top-4 right-4 text-[10px] font-extrabold tracking-[.07em] uppercase px-[11px] py-[5px] rounded-[7px] bg-[rgba(219,87,149,.92)] text-white">
-                  Pre-order
-                </span>
-              )}
+              <div className="absolute top-4 right-4 flex flex-col gap-[6px] items-end">
+                {product.preOrder && product.badge !== 'Pre-order' && (
+                  <span className="text-[10px] font-extrabold tracking-[.07em] uppercase px-[11px] py-[5px] rounded-[7px] bg-[rgba(219,87,149,.92)] text-white">
+                    Pre-order
+                  </span>
+                )}
+                {product.discountType && (
+                  <span className="text-[10px] font-extrabold tracking-[.07em] uppercase px-[11px] py-[5px] rounded-[7px] bg-[#e81a2b] text-white">
+                    {product.discountType === 'percent' ? `-${product.discountValue}%` : `-MVR ${product.discountValue}`}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -244,7 +251,9 @@ export default function ProductPage() {
             </div>
             <div className="flex items-baseline gap-3 mt-5">
               <span className="font-extrabold text-[34px] text-rose-700 tabular">{formatMVR(displayPrice)}</span>
-              {product.was && <span className="text-[13px] text-muted line-through tabular">{formatMVR(product.was)}</span>}
+              {(product.discountType ? product.price : product.was) && (
+                <span className="text-[13px] text-muted line-through tabular">{formatMVR(product.discountType ? product.price : product.was!)}</span>
+              )}
               <span className="text-[13px] text-muted">{product.preOrder ? depositCopy.depositDueNowLabel : copy.productStockLine}</span>
             </div>
             {product.preOrder && (

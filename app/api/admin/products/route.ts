@@ -73,6 +73,8 @@ export async function POST(request: Request) {
           sub: data.sub,
           price: data.price,
           was: data.was ?? null,
+          discountType: data.discountType ?? null,
+          discountValue: data.discountValue ?? 0,
           costPrice,
           stock: legacy?.stock ?? data.stock,
           status: data.status,

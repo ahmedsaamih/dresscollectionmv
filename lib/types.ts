@@ -154,8 +154,11 @@ export interface Product {
   collection: string;   // → StoreCollection.key
   category: string;     // → StoreCategory.name
   sub: string;
-  price: number;        // integer MVR
+  price: number;        // integer MVR — the raw regular price, always what admin edits
   was: number | null;   // compare-at or null
+  discountType: 'percent' | 'fixed' | null; // automatic per-product discount, distinct from PromoCode
+  discountValue: number; // percent (0-100) or fixed MVR off, per discountType
+  effectivePrice: number; // price after discountType/discountValue — the real charged/displayed price
   stock: number;
   status: ProductStatus;
   badge: ProductBadge;
@@ -188,6 +191,8 @@ export interface OrderLineItem {
   name: string;
   meta: string;
   price: number;
+  costPrice: number; // snapshot of Product.costPrice at order time
+  discount: number; // snapshot of per-unit product discount applied (regular price − effective price)
   img: string;
   size: string;
   color: string;
@@ -203,7 +208,8 @@ export interface Order {
   notes?: string | null;
   items: string;
   subtotal?: number;
-  discount?: number;
+  discount?: number; // promo/manual cart-level discount
+  productDiscount: number; // Σ(OrderItem.discount × qty) — automatic per-product discounts
   deliveryFee?: number;
   deliveryAreaId?: string | null;
   deliveryAreaName?: string | null;

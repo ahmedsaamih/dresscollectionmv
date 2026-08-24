@@ -9,6 +9,7 @@ import { storage } from '@/lib/storage';
 import { ensurePaymentReceipt } from '@/lib/order-documents';
 import { decrementStock, InsufficientStockError } from '@/lib/inventory';
 import { optionalMobile } from '@/lib/validation';
+import { computeEffectivePrice } from '@/lib/utils';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
@@ -96,7 +97,7 @@ export async function POST(request: Request) {
     let preOrderSubtotal = 0; // portion of subtotal from pre-order lines — only 50% of this is due now
     const lineItems = data.items.map((item) => {
       const p = byId.get(item.sku)!;
-      const unitPrice = p.price;
+      const unitPrice = computeEffectivePrice(p.price, p.discountType, p.discountValue);
       const lineTotal = unitPrice * item.qty;
       subtotal += lineTotal;
       if (p.preOrder) preOrderSubtotal += lineTotal;
@@ -105,6 +106,8 @@ export async function POST(request: Request) {
         name: p.name,
         meta: p.sub,
         price: unitPrice,
+        costPrice: p.costPrice,
+        discount: p.price - unitPrice,
         img: p.img,
         size: item.size,
         color: item.color,
@@ -112,6 +115,7 @@ export async function POST(request: Request) {
         stockDecremented: !p.preOrder,
       };
     });
+    const productDiscount = lineItems.reduce((sum, i) => sum + i.discount * i.qty, 0);
 
     const deliveryFee = data.method === 'Delivery' ? deliveryArea!.rate : 0;
     const discount = Math.min(data.discount, subtotal + deliveryFee);
@@ -146,6 +150,7 @@ export async function POST(request: Request) {
           deliveryFee,
           deliveryAreaId: deliveryArea?.id ?? null,
           discount,
+          productDiscount,
           discountNote: data.discountNote || null,
           total,
           method: data.method,

@@ -6,11 +6,12 @@ import { notifier } from '@/lib/notify';
 import { canSendSms } from '@/lib/notify/sms-guard';
 import { storage } from '@/lib/storage';
 import { orderConfirmationPdf } from '@/lib/pdf';
-import { evaluatePromo, computeCommission } from '@/lib/promo';
+import { evaluatePromo, computeCommission, type PromoProductInfo } from '@/lib/promo';
 import { upsertCustomerFromContact } from '@/lib/customers';
 import { rateLimitResponse } from '@/lib/rate-limit';
 import { decrementStock, InsufficientStockError } from '@/lib/inventory';
 import { RECEIPT_TTL_MS } from '@/lib/receipts';
+import { computeEffectivePrice } from '@/lib/utils';
 
 /**
  * POST /api/checkout
@@ -71,12 +72,12 @@ export async function POST(request: Request) {
 
     let subtotal = 0;
     let preOrderSubtotal = 0; // portion of subtotal from pre-order lines — only 50% of this is due now
-    const lineItems: { sku: string; name: string; meta: string; price: number; img: string; size: string; color: string; qty: number; stockDecremented: boolean }[] = [];
+    const lineItems: { sku: string; name: string; meta: string; price: number; costPrice: number; discount: number; img: string; size: string; color: string; qty: number; stockDecremented: boolean }[] = [];
     for (const item of data.items) {
       const p = byId.get(item.sku);
       if (!p) return fail(`Product not found: ${item.sku}`, 400);
       if (p.status !== 'active') return fail(`${p.name} is not available`, 409);
-      const unitPrice = p.price;
+      const unitPrice = computeEffectivePrice(p.price, p.discountType, p.discountValue);
       const lineTotal = unitPrice * item.qty;
       subtotal += lineTotal;
       if (p.preOrder) preOrderSubtotal += lineTotal;
@@ -84,7 +85,9 @@ export async function POST(request: Request) {
         sku: p.id,
         name: p.name,
         meta: item.meta || p.sub,
-        price: unitPrice, // server price wins
+        price: unitPrice, // server price (after any product discount) wins
+        costPrice: p.costPrice,
+        discount: p.price - unitPrice, // per-unit product discount actually applied
         img: p.img,
         size: item.size,
         color: item.color,
@@ -92,6 +95,7 @@ export async function POST(request: Request) {
         stockDecremented: !p.preOrder,
       });
     }
+    const productDiscount = lineItems.reduce((sum, i) => sum + i.discount * i.qty, 0);
 
     const deliveryFee = data.method === 'delivery' ? deliveryArea!.rate : 0;
 
@@ -107,7 +111,13 @@ export async function POST(request: Request) {
     if (data.promoCode && data.promoCode.trim()) {
       const promo = await prisma.promoCode.findUnique({ where: { code: data.promoCode.trim().toUpperCase() } });
       if (!promo) return fail('That promo code was not found.', 400);
-      const result = evaluatePromo(promo, data.items.map((i) => ({ sku: i.sku, qty: i.qty })), byId);
+      // Promo math must run against each product's *effective* (already product-discounted)
+      // price — otherwise a promo code would discount on top of an already-reduced line.
+      const promoProductsById = new Map<string, PromoProductInfo>(products.map((p) => [p.id, {
+        price: computeEffectivePrice(p.price, p.discountType, p.discountValue),
+        collection: p.collection, category: p.category,
+      }]));
+      const result = evaluatePromo(promo, data.items.map((i) => ({ sku: i.sku, qty: i.qty })), promoProductsById);
       if (!result.ok) return fail(result.reason || 'This promo code is not valid.', 400);
       discount = result.discount;
       eligible = result.eligible;
@@ -145,6 +155,7 @@ export async function POST(request: Request) {
           deliveryAreaId: deliveryArea?.id ?? null,
           discountCode: appliedCode,
           discount,
+          productDiscount,
           total,
           method: data.method === 'delivery' ? 'Delivery' : 'Pickup',
           stage: 0,

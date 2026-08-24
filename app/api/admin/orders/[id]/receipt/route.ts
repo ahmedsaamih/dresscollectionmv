@@ -14,7 +14,13 @@ export async function POST(_request: Request, props: { params: Promise<{ id: str
     if (!order) return fail('Order not found', 404);
     if (!order.paid) return fail('Order is not paid yet', 400);
 
-    const url = await ensurePaymentReceipt(order.id);
+    let url: string | null;
+    try {
+      url = await ensurePaymentReceipt(order.id);
+    } catch (e) {
+      console.error('receipt image generation failed', e);
+      return fail('Could not generate receipt', 500);
+    }
     if (!url) return fail('Could not generate receipt', 500);
     await audit(session.email, 'order.receipt.generate', order.id);
     return ok({ url });
