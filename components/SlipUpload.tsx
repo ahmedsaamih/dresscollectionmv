@@ -62,7 +62,7 @@ export function SlipUpload({ uploadUrl, onUploaded, required = false }: SlipUplo
       {onUploaded && (
         <>
           <input ref={inputRef} type="file" accept="image/*,application/pdf" className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); }} />
+            onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ''; }} />
           <button type="button" onClick={() => inputRef.current?.click()} disabled={uploading}
             className="border-none bg-transparent text-rose-700 font-bold text-[12px] cursor-pointer disabled:opacity-50">
             {uploading ? 'Uploading…' : 'Replace'}
@@ -77,7 +77,7 @@ export function SlipUpload({ uploadUrl, onUploaded, required = false }: SlipUplo
       <div className="text-[12.5px] font-bold text-[#705260] mb-[8px]">{copy.slipUploadTitle} {!required && <span className="text-muted font-normal">(optional)</span>}</div>
       <div className="text-[12px] text-sub leading-[1.55] mb-[12px]">{copy.slipUploadHelp}</div>
       <input ref={inputRef} type="file" accept="image/*,application/pdf" className="hidden"
-        onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); }} />
+        onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ''; }} />
       <button type="button" onClick={() => inputRef.current?.click()} disabled={uploading}
         className="inline-flex items-center gap-1 border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.06)] text-rose-700 font-bold text-[13px] px-[18px] py-[10px] rounded-[10px] cursor-pointer disabled:opacity-50">
         {uploading ? 'Uploading…' : <><Upload size={13} /> Choose file</>}

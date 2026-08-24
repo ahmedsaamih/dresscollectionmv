@@ -3394,7 +3394,7 @@ export default function AdminPage() {
                           style={{ backgroundImage: s.heroImage ? `url(${s.heroImage})` : undefined, backgroundSize: 'cover', backgroundPosition: 'center' }} />
                         <div>
                           <input ref={heroImgInputRef} type="file" accept="image/*" className="hidden"
-                            onChange={e => { const f = e.target.files?.[0]; if (f) uploadHeroImage(f); }} />
+                            onChange={e => { const f = e.target.files?.[0]; if (f) uploadHeroImage(f); e.target.value = ''; }} />
                           <button type="button" onClick={() => heroImgInputRef.current?.click()} disabled={heroImgUploading}
                             className="block border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.06)] text-rose-700 font-bold text-[12px] px-[14px] py-[8px] rounded-[9px] cursor-pointer disabled:opacity-50 mb-[6px]">
                             {heroImgUploading ? 'Uploading…' : '↑ Upload hero image'}
@@ -3416,7 +3416,7 @@ export default function AdminPage() {
                           style={{ backgroundImage: s.workshopImage ? `url(${s.workshopImage})` : undefined, backgroundSize: 'cover', backgroundPosition: 'center' }} />
                         <div>
                           <input ref={workshopImgInputRef} type="file" accept="image/*" className="hidden"
-                            onChange={e => { const f = e.target.files?.[0]; if (f) uploadWorkshopImage(f); }} />
+                            onChange={e => { const f = e.target.files?.[0]; if (f) uploadWorkshopImage(f); e.target.value = ''; }} />
                           <button type="button" onClick={() => workshopImgInputRef.current?.click()} disabled={workshopImgUploading}
                             className="block border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.06)] text-rose-700 font-bold text-[12px] px-[14px] py-[8px] rounded-[9px] cursor-pointer disabled:opacity-50 mb-[6px]">
                             {workshopImgUploading ? 'Uploading…' : '↑ Upload studio image'}
@@ -3719,7 +3719,7 @@ export default function AdminPage() {
                     <div className="flex items-start gap-3 mb-[10px]">
                       <div className="w-[64px] h-[64px] rounded-[10px] flex-none" style={{ background: modal.draft.img || '#f5f1f3', backgroundSize: 'cover', backgroundPosition: 'center' }} />
                       <div>
-                        <input ref={imgInputRef} type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadProductImage(f); }} />
+                        <input ref={imgInputRef} type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadProductImage(f); e.target.value = ''; }} />
                         <button type="button" onClick={() => imgInputRef.current?.click()} disabled={imgUploading}
                           className="block border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.06)] text-rose-700 font-bold text-[12px] px-[14px] py-[8px] rounded-[9px] cursor-pointer disabled:opacity-50 mb-[6px]">
                           {imgUploading ? 'Uploading…' : '↑ Upload photo'}
