@@ -2136,21 +2136,27 @@ export default function AdminPage() {
                 ))}
               </div>
               <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[15px] overflow-x-auto [&>div]:min-w-[820px]">
-                <div className="grid px-[18px] py-[13px] bg-[rgba(0,0,0,.045)] border-b border-[rgba(0,0,0,.07)] text-[11px] font-extrabold tracking-[.06em] uppercase text-muted" style={{ gridTemplateColumns: '148px 1.3fr 1.5fr .85fr 1fr 1.5fr 56px 36px' }}>
+                <div className="grid px-[18px] py-[13px] bg-[rgba(0,0,0,.045)] border-b border-[rgba(0,0,0,.07)] text-[11px] font-extrabold tracking-[.06em] uppercase text-muted" style={{ gridTemplateColumns: '148px 1.3fr 1.5fr .85fr 1fr 1.5fr 100px 36px' }}>
                   <span>Ref</span><span>Customer</span><span>Items</span><span>Total</span><span>Payment</span><span>Status</span><span>Docs</span><span></span>
                 </div>
                 {filteredOrders.map(o => {
                   const m = STAGE_META[Math.min(o.stage, STAGE_META.length - 1)];
                   const slip = paymentSlip(o);
                   const receipt = paymentReceipt(o);
+                  const bSlip = balanceSlip(o);
+                  const bReceipt = balanceReceipt(o);
                   const canDelete = hasPermission(currentUser, 'orders', 'edit');
                   const origin = orderOriginMeta(o);
+                  // Stays true for the order's whole life — depositRequired/balanceDue are
+                  // snapshots taken at creation, never recomputed once balancePaid flips.
+                  const isPreOrder = o.depositRequired > 0 && o.balanceDue > 0;
                   return (
-                    <div key={o.id} className="grid px-[18px] py-[13px] border-b border-[rgba(0,0,0,.07)] items-center hover:bg-[rgba(0,0,0,.045)] transition-colors" style={{ gridTemplateColumns: '148px 1.3fr 1.5fr .85fr 1fr 1.5fr 56px 36px' }}>
+                    <div key={o.id} className="grid px-[18px] py-[13px] border-b border-[rgba(0,0,0,.07)] items-center hover:bg-[rgba(0,0,0,.045)] transition-colors" style={{ gridTemplateColumns: '148px 1.3fr 1.5fr .85fr 1fr 1.5fr 100px 36px' }}>
                       <div className="min-w-0">
                         <button onClick={() => setOrderDrawer(o)} className="text-[12px] font-bold text-rose-700 tabular hover:underline border-none bg-transparent cursor-pointer p-0 text-left">{o.id}</button>
                         <div className="flex items-center gap-1 mt-[2px]">
                           <span className="text-[8.5px] font-extrabold uppercase rounded-[4px] px-[5px] py-[1px] border" style={{ color: origin.tone, background: origin.bg, borderColor: origin.border }}>{origin.label}</span>
+                          {isPreOrder && <span className="text-[8.5px] font-extrabold uppercase text-rose-700 bg-[rgba(219,87,149,.1)] border border-[rgba(219,87,149,.3)] rounded-[4px] px-[5px] py-[1px]">Pre-order</span>}
                           {o.quoteRef && <span className="text-[8.5px] font-extrabold text-[#8a6205] bg-[rgba(245,200,66,.1)] border border-[rgba(245,200,66,.25)] rounded-[4px] px-[5px] py-[1px]">from {o.quoteRef}</span>}
                           {o.pdfUrl && <a href={o.pdfUrl} target="_blank" rel="noopener noreferrer" title="Download invoice PDF" className="text-[8.5px] font-extrabold text-rose-700 border border-[rgba(219,87,149,.3)] rounded-[4px] px-[5px] py-[1px] no-underline hover:brightness-125">PDF</a>}
                         </div>
@@ -2158,10 +2164,15 @@ export default function AdminPage() {
                       <div className="min-w-0"><div className="text-[13px] font-semibold truncate">{o.customer}</div><div className="text-[11px] text-muted">{o.date} · {[o.method, o.locationName].filter(Boolean).join(' · ')}</div></div>
                       <span className="text-[12px] text-sub truncate">{o.items}</span>
                       <span className="text-[13px] font-bold tabular">MVR {o.total.toLocaleString()}</span>
-                      <button onClick={() => togglePaid(o.id)} className="justify-self-start font-bold text-[11px] px-[11px] py-[5px] rounded-[7px] cursor-pointer border transition-colors"
-                        style={{ background: o.paid ? '#db5795' : 'rgba(255,61,77,.12)', color: o.paid ? '#200612' : '#e81a2b', border: o.paid ? 'none' : '1px solid rgba(255,61,77,.35)' }}>
-                        {o.paid ? <><Check size={11} className="inline mr-1" /> Paid</> : 'Unpaid'}
-                      </button>
+                      <div className="flex flex-col items-start gap-1">
+                        <button onClick={() => togglePaid(o.id)} className="justify-self-start font-bold text-[11px] px-[11px] py-[5px] rounded-[7px] cursor-pointer border transition-colors"
+                          style={{ background: o.paid ? '#db5795' : 'rgba(255,61,77,.12)', color: o.paid ? '#200612' : '#e81a2b', border: o.paid ? 'none' : '1px solid rgba(255,61,77,.35)' }}>
+                          {o.paid ? <><Check size={11} className="inline mr-1" /> {isPreOrder ? (o.balancePaid ? 'Paid in full' : 'Deposit paid') : 'Paid'}</> : 'Unpaid'}
+                        </button>
+                        {o.paid && isPreOrder && !o.balancePaid && (
+                          <button onClick={() => setOrderDrawer(o)} className="border-none bg-transparent p-0 text-[10px] font-bold text-[#8a6205] cursor-pointer hover:underline">Balance due</button>
+                        )}
+                      </div>
                       {o.origin === 'pos_sale' ? (
                         <span className="justify-self-start text-[10.5px] font-extrabold uppercase px-2 py-[5px] rounded-[7px] border border-[rgba(219,87,149,.25)] text-rose-600 bg-[rgba(219,87,149,.07)]">Completed POS sale</span>
                       ) : (
@@ -2171,21 +2182,34 @@ export default function AdminPage() {
                           {stageOptionsFor(o).map(st => <option key={st.value} value={st.value}>{st.label}</option>)}
                         </select>
                       )}
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 flex-wrap w-[92px]">
                         {slip && (
                           <button onClick={() => setSlipModal({ url: slip.url, expired: slip.expired })}
                             title={slip.expired ? 'Payment slip expired (auto-deleted after 90 days)' : 'View payment slip'}
-                            className={`w-[28px] h-[28px] rounded-[7px] border bg-transparent inline-flex items-center justify-center text-[12px] cursor-pointer transition-all ${slip.expired ? 'border-[rgba(0,0,0,.1)] text-[rgba(0,0,0,.3)]' : 'border-[rgba(0,0,0,.16)] text-sub hover:text-body'}`}>
+                            className={`w-[24px] h-[24px] rounded-[6px] border bg-transparent inline-flex items-center justify-center text-[10px] font-bold cursor-pointer transition-all ${slip.expired ? 'border-[rgba(0,0,0,.1)] text-[rgba(0,0,0,.3)]' : 'border-[rgba(0,0,0,.16)] text-sub hover:text-body'}`}>
                             Slip
                           </button>
                         )}
                         {receipt && (
                           <a href={receipt.url} target="_blank" rel="noopener noreferrer" title="Download receipt PDF"
-                            className="w-[28px] h-[28px] rounded-[7px] border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.08)] text-rose-700 inline-flex items-center justify-center text-[10px] font-extrabold no-underline hover:brightness-125 transition-all">
+                            className="w-[24px] h-[24px] rounded-[6px] border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.08)] text-rose-700 inline-flex items-center justify-center text-[9px] font-extrabold no-underline hover:brightness-125 transition-all">
                             Rec
                           </a>
                         )}
-                        {!slip && !receipt && <span className="text-muted text-[12px]">—</span>}
+                        {bSlip && (
+                          <button onClick={() => setSlipModal({ url: bSlip.url, expired: bSlip.expired })}
+                            title={bSlip.expired ? 'Balance slip expired (auto-deleted after 90 days)' : 'View balance slip'}
+                            className={`w-[24px] h-[24px] rounded-[6px] border bg-transparent inline-flex items-center justify-center text-[8px] font-bold cursor-pointer transition-all ${bSlip.expired ? 'border-[rgba(0,0,0,.1)] text-[rgba(0,0,0,.3)]' : 'border-[rgba(245,200,66,.4)] text-[#8a6205] hover:brightness-110'}`}>
+                            BSlip
+                          </button>
+                        )}
+                        {bReceipt && (
+                          <a href={bReceipt.url} target="_blank" rel="noopener noreferrer" title="Download balance receipt PDF"
+                            className="w-[24px] h-[24px] rounded-[6px] border border-[rgba(245,200,66,.4)] bg-[rgba(245,200,66,.1)] text-[#8a6205] inline-flex items-center justify-center text-[8px] font-extrabold no-underline hover:brightness-110 transition-all">
+                            BRec
+                          </a>
+                        )}
+                        {!slip && !receipt && !bSlip && !bReceipt && <span className="text-muted text-[12px]">—</span>}
                       </div>
                       {canDelete ? (
                         <button onClick={() => deleteOrder(o.id, o.id)} title="Delete order"
