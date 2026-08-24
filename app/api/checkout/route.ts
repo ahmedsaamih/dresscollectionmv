@@ -52,11 +52,13 @@ export async function POST(request: Request) {
     const webLoc = await prisma.location.findFirst({ where: { isWebDefault: true } });
 
     // Fast-fail UX only — NOT the source of truth. The real guard is decrementStock()
-    // inside the transaction below, which re-checks atomically at write time.
+    // inside the transaction below, which re-checks atomically at write time. Pre-order
+    // items have no real stock yet, so they skip this check entirely — trusted from the
+    // server-fetched product row, never from client-submitted data.
     if (webLoc) {
       for (const item of data.items) {
         const p = byId.get(item.sku);
-        if (!p) continue;
+        if (!p || p.preOrder) continue;
         const inv = await prisma.inventory.findUnique({
           where: { locationId_productId_size_color: { locationId: webLoc.id, productId: p.id, size: item.size, color: item.color } },
         });
@@ -68,13 +70,16 @@ export async function POST(request: Request) {
     }
 
     let subtotal = 0;
+    let preOrderSubtotal = 0; // portion of subtotal from pre-order lines — only 50% of this is due now
     const lineItems: { sku: string; name: string; meta: string; price: number; img: string; size: string; color: string; qty: number; stockDecremented: boolean }[] = [];
     for (const item of data.items) {
       const p = byId.get(item.sku);
       if (!p) return fail(`Product not found: ${item.sku}`, 400);
       if (p.status !== 'active') return fail(`${p.name} is not available`, 409);
       const unitPrice = p.price;
-      subtotal += unitPrice * item.qty;
+      const lineTotal = unitPrice * item.qty;
+      subtotal += lineTotal;
+      if (p.preOrder) preOrderSubtotal += lineTotal;
       lineItems.push({
         sku: p.id,
         name: p.name,
@@ -84,7 +89,7 @@ export async function POST(request: Request) {
         size: item.size,
         color: item.color,
         qty: item.qty,
-        stockDecremented: true,
+        stockDecremented: !p.preOrder,
       });
     }
 
@@ -115,6 +120,16 @@ export async function POST(request: Request) {
     const total = subtotal + deliveryFee - discount;
     const summary = lineItems.map((i) => `${i.name} ×${i.qty}`).join(', ');
 
+    // Amount required at checkout: full price for regular items, 50% for pre-order items
+    // (rounded per the blended sum, not per line), plus delivery, minus discount — clamped
+    // so a heavily-discounted order never asks for less than MVR 0 up front. balanceDue is
+    // a pure subtraction from `total`, so depositRequired + balanceDue === total always,
+    // regardless of rounding. For a cart with no pre-order items this equals `total` exactly,
+    // i.e. today's all-or-nothing behavior falls out of the same formula with no branching.
+    const regularSubtotal = subtotal - preOrderSubtotal;
+    const depositRequired = Math.max(0, Math.round(regularSubtotal + preOrderSubtotal * 0.5) + deliveryFee - discount);
+    const balanceDue = total - depositRequired;
+
     // Atomic: ref + order + line items + stock decrement + promo redemption.
     const order = await prisma.$transaction(async (tx) => {
       const ref = await nextRef('DC', tx);
@@ -134,6 +149,8 @@ export async function POST(request: Request) {
           method: data.method === 'delivery' ? 'Delivery' : 'Pickup',
           stage: 0,
           paid: false,
+          depositRequired,
+          balanceDue,
           source: 'web',
           origin: 'web_checkout',
           locationId: webLoc?.id ?? null,
@@ -201,6 +218,8 @@ export async function POST(request: Request) {
       discount,
       discountCode: appliedCode,
       total,
+      depositRequired,
+      balanceDue,
       method: order.method,
       bank: settings.bank,
       pdfUrl,

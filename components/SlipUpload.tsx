@@ -11,6 +11,11 @@ interface SlipUploadProps {
   onUploaded?: (url: string) => void;
   /** Pre-order mode: drops the "(optional)" label, since checkout requires a slip up front. */
   required?: boolean;
+  /** uploadUrl mode only: receipt kind to record — defaults to 'payment_slip' (the deposit/full-payment slip). */
+  kind?: 'payment_slip' | 'balance_slip';
+  /** uploadUrl mode only, required when kind is 'balance_slip': the contact (email/mobile) the customer looked
+   *  up their order with — the balance-upload endpoint verifies it against the order on file. */
+  contact?: string;
 }
 
 /**
@@ -19,7 +24,7 @@ interface SlipUploadProps {
  * order already exists) or `onUploaded` (pre-order use, from the checkout
  * form itself, before an order/ref exists).
  */
-export function SlipUpload({ uploadUrl, onUploaded, required = false }: SlipUploadProps) {
+export function SlipUpload({ uploadUrl, onUploaded, required = false, kind = 'payment_slip', contact }: SlipUploadProps) {
   const { data } = useStore();
   const copy = data.settings.storefrontCopy.paymentCheckout;
   const [uploading, setUploading] = useState(false);
@@ -43,7 +48,7 @@ export function SlipUpload({ uploadUrl, onUploaded, required = false }: SlipUplo
       } else if (uploadUrl) {
         const save = await fetch(uploadUrl, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url }),
+          body: JSON.stringify({ url, kind, contact }),
         });
         if (!save.ok) throw new Error('Could not attach receipt.');
       }
@@ -62,7 +67,7 @@ export function SlipUpload({ uploadUrl, onUploaded, required = false }: SlipUplo
       {onUploaded && (
         <>
           <input ref={inputRef} type="file" accept="image/*,application/pdf" className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); }} />
+            onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ''; }} />
           <button type="button" onClick={() => inputRef.current?.click()} disabled={uploading}
             className="border-none bg-transparent text-rose-700 font-bold text-[12px] cursor-pointer disabled:opacity-50">
             {uploading ? 'Uploading…' : 'Replace'}
@@ -77,7 +82,7 @@ export function SlipUpload({ uploadUrl, onUploaded, required = false }: SlipUplo
       <div className="text-[12.5px] font-bold text-[#705260] mb-[8px]">{copy.slipUploadTitle} {!required && <span className="text-muted font-normal">(optional)</span>}</div>
       <div className="text-[12px] text-sub leading-[1.55] mb-[12px]">{copy.slipUploadHelp}</div>
       <input ref={inputRef} type="file" accept="image/*,application/pdf" className="hidden"
-        onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); }} />
+        onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ''; }} />
       <button type="button" onClick={() => inputRef.current?.click()} disabled={uploading}
         className="inline-flex items-center gap-1 border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.06)] text-rose-700 font-bold text-[13px] px-[18px] py-[10px] rounded-[10px] cursor-pointer disabled:opacity-50">
         {uploading ? 'Uploading…' : <><Upload size={13} /> Choose file</>}

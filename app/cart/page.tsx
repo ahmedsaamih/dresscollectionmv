@@ -23,6 +23,7 @@ export default function CartPage() {
   const fixed = cart.fixed;
   const hasFixed = fixed.length > 0;
   const subtotal = fixed.reduce((a,i) => a + i.price * i.qty, 0);
+  const hasPreOrder = fixed.some(i => data.products.find(p => p.id === i.sku)?.preOrder);
 
   const [showUpsell, setShowUpsell] = useState(false);
 
@@ -143,6 +144,11 @@ export default function CartPage() {
                 <div className="flex justify-between text-[13px] text-sub mb-[9px]">
                   <span>Delivery</span><span className="text-rose-600">Calculated at checkout</span>
                 </div>
+                {hasPreOrder && (
+                  <div className="text-[11.5px] text-rose-700 bg-[rgba(219,87,149,.06)] border border-[rgba(219,87,149,.2)] rounded-[10px] px-[12px] py-[9px] mb-[9px] leading-[1.5]">
+                    {copy.preOrderCartNote}
+                  </div>
+                )}
                 <div className="h-px bg-[rgba(0,0,0,.08)] my-[13px]"/>
                 <div className="flex justify-between items-baseline">
                   <span className="font-bold text-[14px]">Total</span>

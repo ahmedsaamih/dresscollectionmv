@@ -28,6 +28,17 @@ export interface OrderPaymentConfirmedEvent {
   /** Result of the caller's canSendSms() check — kept out of this layer so
    * lib/notify never needs a Request object. */
   smsAllowed: boolean;
+  /** > 0 for a pre-order — this confirms the deposit only, a balance remains. */
+  balanceDue?: number;
+}
+
+/** Fired when a pre-order's remaining balance (after the deposit) is confirmed received. */
+export interface OrderBalanceConfirmedEvent {
+  ref: string;
+  email: string;
+  name: string;
+  mobile: string | null;
+  smsAllowed: boolean;
 }
 
 export interface AdminOrderStageAlertEvent { ref: string; customer: string; fromStage: number; toStage: number }
@@ -36,6 +47,7 @@ export interface AdminOrderPaymentAlertEvent { ref: string; customer: string; to
 export interface Notifier {
   orderPlaced(o: OrderPlacedEvent): Promise<void>;
   orderPaymentConfirmed(o: OrderPaymentConfirmedEvent): Promise<void>;
+  orderBalanceConfirmed(o: OrderBalanceConfirmedEvent): Promise<void>;
   adminOrderAlert(o: AdminOrderAlertEvent): Promise<void>;
   orderStatusUpdated(o: OrderStatusEvent): Promise<void>;
   reviewRequested(o: OrderReviewRequestEvent): Promise<void>;

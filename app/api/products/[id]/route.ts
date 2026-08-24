@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { mapProduct } from '@/lib/catalog';
+import { mapProduct, synthesizePreOrderAvailability } from '@/lib/catalog';
 import { ok, fail, handleError } from '@/lib/http';
 
 export const dynamic = 'force-dynamic';
@@ -16,7 +16,7 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
       include: { inventory: { include: { location: true } } },
     });
     if (!product || product.status === 'draft') return fail('Product not found', 404);
-    return ok({ product: mapProduct(product) });
+    return ok({ product: synthesizePreOrderAvailability(mapProduct(product)) });
   } catch (err) {
     return handleError(err);
   }

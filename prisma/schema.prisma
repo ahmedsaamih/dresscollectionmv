@@ -170,6 +170,7 @@ model Product {
   img            String // gradient placeholder → real URL later
   colorImages    Json          @default("{}") // Record<colorName, imgCss> — optional, falls back to img
   colorHex       Json          @default("{}") // Record<colorName, "#rrggbb"> — optional, falls back to COLOR_MAP then grey
+  preOrder       Boolean       @default(false) // true = orderable with zero real stock, at a 50% deposit
   inventory      Inventory[]
   placements     InventoryPlacement[]
   transfers      StockTransfer[]
@@ -289,10 +290,13 @@ model Order {
   method       OrderMethod
   stage        Int         @default(0) // 0=Placed 1=Payment Confirmed 2=Ready for Pickup 3=Ready for Delivery 4=Out for Delivery 5=Completed 6=Cancelled (restocks Inventory on transition in; irreversible)
   readyForDeliveryAt DateTime?
-  paid         Boolean     @default(false)
-  paidCash     Int         @default(0) // MVR collected in cash at POS
-  paidCard     Int         @default(0) // MVR collected via card terminal
-  paidTransfer Int         @default(0) // MVR received by bank transfer (admin marks)
+  paid         Boolean     @default(false) // for a pre-order (depositRequired>0), means "deposit confirmed"
+  paidCash     Int         @default(0) // MVR collected in cash at POS — cumulative across deposit + balance
+  paidCard     Int         @default(0) // MVR collected via card terminal — cumulative across deposit + balance
+  paidTransfer Int         @default(0) // MVR received by bank transfer (admin marks) — cumulative across deposit + balance
+  depositRequired Int      @default(0) // amount required at checkout; equals `total` for a non-pre-order order
+  balanceDue   Int         @default(0) // total − depositRequired; 0 unless the order contains pre-order items
+  balancePaid  Boolean     @default(false) // remaining balance confirmed (deposit + balance = fully settled)
   source       String      @default("web") // "web" | "pos"
   origin       String      @default("web_checkout") // "web_checkout" | "pos_sale" | "manual_order" | "quote_conversion"
   locationId   String?
@@ -419,9 +423,9 @@ model Receipt {
   id        String    @id @default(cuid())
   orderId   String
   url       String
-  kind      String    @default("payment_slip") // "payment_slip" | "payment_receipt"
+  kind      String    @default("payment_slip") // "payment_slip" | "payment_receipt" | "balance_slip" | "balance_receipt"
   createdAt DateTime  @default(now())
-  expiresAt DateTime? // set for payment_slip (R2 lifecycle rule deletes the object at this time); null for payment_receipt, kept indefinitely
+  expiresAt DateTime? // set for payment_slip/balance_slip (R2 lifecycle rule deletes the object at this time); null for payment_receipt/balance_receipt, kept indefinitely
   order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId])

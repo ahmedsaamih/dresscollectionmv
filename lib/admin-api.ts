@@ -107,7 +107,7 @@ export const adminApi = {
   // orders
   listOrders: () => req<{ orders: Order[] }>('/api/admin/orders', 'GET'),
   createManualOrder: (body: Record<string, unknown>) => req<{ order: Order }>('/api/admin/orders', 'POST', body),
-  updateOrder: (id: string, body: { stage?: number; paid?: boolean; paidCash?: number; paidCard?: number; paidTransfer?: number }) => req<{ order: Order }>(`/api/admin/orders/${id}`, 'PATCH', body),
+  updateOrder: (id: string, body: { stage?: number; paid?: boolean; paidCash?: number; paidCard?: number; paidTransfer?: number; balancePaid?: boolean }) => req<{ order: Order }>(`/api/admin/orders/${id}`, 'PATCH', body),
   generateOrderReceipt: (id: string) => req<{ url: string }>(`/api/admin/orders/${id}/receipt`, 'POST'),
   deleteOrder: (id: string) => req(`/api/admin/orders/${id}`, 'DELETE'),
 

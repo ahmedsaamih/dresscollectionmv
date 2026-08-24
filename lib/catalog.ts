@@ -13,6 +13,7 @@ import type {
   Testimonial,
 } from '@/lib/types';
 import { normalizeStorefrontCopy } from '@/lib/storefront-copy';
+import { PRODUCT_SIZES } from '@/lib/utils';
 
 type ProductRow = Awaited<ReturnType<typeof prisma.product.findMany<{ include: { inventory: { include: { location: true } } } }>>>[number];
 
@@ -55,6 +56,38 @@ export function mapProduct(p: ProductRow): Product {
     img: p.img,
     colorImages: (p.colorImages as Record<string, string>) ?? {},
     colorHex: (p.colorHex as Record<string, string>) ?? {},
+    preOrder: p.preOrder,
+  };
+}
+
+/** Flat pseudo-quantity used to represent "available" for a pre-order product
+ *  that has no real Inventory yet — large enough to never read as low-stock. */
+const PRE_ORDER_PSEUDO_QTY = 99;
+
+/**
+ * Public-read-only display synthesis: a pre-order product has no real Inventory
+ * (nothing to sell yet), so `mapProduct()`'s ground-truth stock/sizes would be
+ * empty and the product would vanish from the storefront and show no sizes.
+ * This makes it orderable in every configured colour, across the full standard
+ * size scale, for display/checkout-eligibility purposes only — known v1
+ * limitation: pre-order always offers every size, no per-size exclusion yet.
+ * Never call this for admin inventory-management surfaces (Products tab,
+ * Receive/Adjust/Transfer, POS) — those must keep showing real (zero) stock.
+ */
+export function synthesizePreOrderAvailability(p: Product): Product {
+  if (!p.preOrder) return p;
+  const colors = p.colors.length > 0 ? p.colors : [''];
+  const colorSizeStock: Record<string, Record<string, number>> = {};
+  for (const color of colors) {
+    colorSizeStock[color] = Object.fromEntries(PRODUCT_SIZES.map((s) => [s, PRE_ORDER_PSEUDO_QTY]));
+  }
+  const sizeStock = Object.fromEntries(PRODUCT_SIZES.map((s) => [s, PRE_ORDER_PSEUDO_QTY * colors.length]));
+  return {
+    ...p,
+    stock: PRE_ORDER_PSEUDO_QTY * colors.length * PRODUCT_SIZES.length,
+    sizes: [...PRODUCT_SIZES],
+    sizeStock,
+    colorSizeStock,
   };
 }
 
@@ -100,8 +133,11 @@ export async function getCatalog(): Promise<CatalogData> {
   ]);
 
   // Only include products that have stock in at least one web-visible location
+  // (pre-order products are exempt — synthesizePreOrderAvailability gives them
+  // a positive pseudo-stock so they pass this filter with zero real Inventory).
   const products = rawProducts
     .map(mapProduct)
+    .map(synthesizePreOrderAvailability)
     .filter(p => p.stock > 0);
 
   // Recompute category counts from live products

@@ -1,5 +1,10 @@
 import type { Prisma } from '@prisma/client';
-import type { Order } from '@/lib/types';
+import type { Order, OrderReceipt } from '@/lib/types';
+
+const RECEIPT_KINDS: readonly OrderReceipt['kind'][] = ['payment_slip', 'payment_receipt', 'balance_slip', 'balance_receipt'];
+function normalizeReceiptKind(kind: string | undefined): OrderReceipt['kind'] {
+  return RECEIPT_KINDS.includes(kind as OrderReceipt['kind']) ? (kind as OrderReceipt['kind']) : 'payment_slip';
+}
 import { isReceiptExpired } from '@/lib/receipts';
 
 export const orderInclude = {
@@ -36,6 +41,9 @@ export function serializeOrder(o: OrderWithDetails): Order {
     paidCash: o.paidCash,
     paidCard: o.paidCard,
     paidTransfer: o.paidTransfer,
+    depositRequired: o.depositRequired,
+    balanceDue: o.balanceDue,
+    balancePaid: o.balancePaid,
     source: (o.source as Order['source']) ?? 'web',
     origin,
     locationId: o.locationId ?? null,
@@ -56,7 +64,7 @@ export function serializeOrder(o: OrderWithDetails): Order {
     receipts: o.receipts.map((r) => ({
       id: r.id,
       url: r.url,
-      kind: (r as { kind?: string }).kind === 'payment_receipt' ? 'payment_receipt' : 'payment_slip',
+      kind: normalizeReceiptKind((r as { kind?: string }).kind),
       createdAt: r.createdAt.toISOString(),
       expiresAt: r.expiresAt?.toISOString() ?? null,
       expired: isReceiptExpired(r),

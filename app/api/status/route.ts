@@ -4,6 +4,7 @@ import { ok, fail, handleError } from '@/lib/http';
 import { formatMVR } from '@/lib/utils';
 import { rateLimitResponse } from '@/lib/rate-limit';
 import { ATTACH_WINDOW_MS } from '@/lib/receipts';
+import { contactMatches } from '@/lib/order-contact';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,12 +40,6 @@ export async function GET(request: Request) {
   }
 }
 
-function contactMatches(input: string, email: string, mobile: string | null): boolean {
-  if (email.toLowerCase() === input.toLowerCase()) return true;
-  const digits = (s: string) => s.replace(/\D/g, '');
-  return !!mobile && digits(mobile) !== '' && digits(mobile) === digits(input);
-}
-
 type OrderRow = Prisma.OrderGetPayload<{ include: { receipts: true } }>;
 
 function orderStatus(o: OrderRow) {
@@ -75,14 +70,22 @@ function orderStatus(o: OrderRow) {
     paid: o.paid,
     deliveryFee: o.deliveryFee,
     canUploadSlip: !o.paid && !o.receipts.some((r) => r.kind === 'payment_slip') && (Date.now() - o.createdAt.getTime() <= ATTACH_WINDOW_MS),
+    depositRequired: o.depositRequired,
+    balanceDue: o.balanceDue,
+    balancePaid: o.balancePaid,
+    canUploadBalanceSlip: o.balanceDue > 0 && o.paid && !o.balancePaid && !o.receipts.some((r) => r.kind === 'balance_slip'),
     stage,
     steps,
     note: delivery
       ? o.paid
-        ? "We'll SMS you tracking details once it ships."
+        ? o.balanceDue > 0 && !o.balancePaid
+          ? `We'll SMS you tracking details once it ships. A balance of ${formatMVR(o.balanceDue)} is due before dispatch.`
+          : "We'll SMS you tracking details once it ships."
         : "We'll prepare your order while payment is confirmed."
       : o.paid
-        ? "We'll SMS you the moment it's ready to collect."
+        ? o.balanceDue > 0 && !o.balancePaid
+          ? `We'll SMS you the moment it's ready to collect. A balance of ${formatMVR(o.balanceDue)} is due before pickup.`
+          : "We'll SMS you the moment it's ready to collect."
         : "We'll SMS you after payment is confirmed.",
   };
 }

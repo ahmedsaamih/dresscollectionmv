@@ -3,6 +3,7 @@ import type {
   EmailContent,
   OrderPlacedEvent,
   OrderPaymentConfirmedEvent,
+  OrderBalanceConfirmedEvent,
   AdminOrderAlertEvent,
   OrderStatusEvent,
   OrderReviewRequestEvent,
@@ -59,15 +60,33 @@ export function orderPlacedSms(o: OrderPlacedEvent): string {
 }
 
 export function orderPaymentConfirmedSms(o: OrderPaymentConfirmedEvent): string {
-  return `${STORE_NAME}: payment confirmed for order ${o.ref}. Track: ${APP_URL}/status?ref=${encodeURIComponent(o.ref)}`;
+  const label = o.balanceDue && o.balanceDue > 0 ? 'deposit confirmed' : 'payment confirmed';
+  return `${STORE_NAME}: ${label} for order ${o.ref}. Track: ${APP_URL}/status?ref=${encodeURIComponent(o.ref)}`;
 }
 
 export function orderPaymentConfirmed(o: OrderPaymentConfirmedEvent): EmailContent {
-  const html = shell(`Payment confirmed, ${esc(o.name)}`,
+  const isDeposit = !!o.balanceDue && o.balanceDue > 0;
+  const heading = isDeposit ? `Deposit confirmed, ${esc(o.name)}` : `Payment confirmed, ${esc(o.name)}`;
+  const body = isDeposit
+    ? `We've confirmed your deposit. Your order is now moving into production/fulfilment — the remaining balance of <strong>${esc(formatMVR(o.balanceDue!))}</strong> is due once it's ready.`
+    : `We've confirmed your payment. Your order is now moving into production/fulfilment.`;
+  const html = shell(heading, `${refBlock('Order reference', o.ref)}<p style="margin:16px 0 0">${body}</p>${statusLink(o.ref)}`);
+  const text = isDeposit
+    ? `Order ${o.ref} deposit confirmed\nBalance due: ${formatMVR(o.balanceDue!)}\nTrack: ${APP_URL}/status`
+    : `Order ${o.ref} payment confirmed\nTrack: ${APP_URL}/status`;
+  return { subject: isDeposit ? `${STORE_NAME} order ${o.ref} — deposit confirmed` : `${STORE_NAME} order ${o.ref} — payment confirmed`, html, text };
+}
+
+export function orderBalanceConfirmedSms(o: OrderBalanceConfirmedEvent): string {
+  return `${STORE_NAME}: balance payment confirmed for order ${o.ref}. Track: ${APP_URL}/status?ref=${encodeURIComponent(o.ref)}`;
+}
+
+export function orderBalanceConfirmed(o: OrderBalanceConfirmedEvent): EmailContent {
+  const html = shell(`Balance payment confirmed, ${esc(o.name)}`,
     `${refBlock('Order reference', o.ref)}
-     <p style="margin:16px 0 0">We've confirmed your payment. Your order is now moving into production/fulfilment.</p>${statusLink(o.ref)}`);
-  const text = `Order ${o.ref} payment confirmed\nTrack: ${APP_URL}/status`;
-  return { subject: `${STORE_NAME} order ${o.ref} — payment confirmed`, html, text };
+     <p style="margin:16px 0 0">We've confirmed your remaining balance payment. Your order is now paid in full.</p>${statusLink(o.ref)}`);
+  const text = `Order ${o.ref} balance payment confirmed\nTrack: ${APP_URL}/status`;
+  return { subject: `${STORE_NAME} order ${o.ref} — balance payment confirmed`, html, text };
 }
 
 export function adminOrderAlertText(o: AdminOrderAlertEvent): string {

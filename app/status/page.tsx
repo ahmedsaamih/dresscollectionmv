@@ -108,13 +108,21 @@ export default function StatusPage() {
                 <div className="text-[13px] text-sub mt-[7px]">{r.summary}</div>
                 <div className="flex items-center gap-2 mt-[7px] flex-wrap">
                   <span className="text-[10px] font-extrabold uppercase tracking-[.06em] px-[9px] py-[3px] rounded-full bg-[rgba(0,0,0,.08)] text-sub">{r.method}</span>
-                  <span className="text-[10px] font-extrabold uppercase tracking-[.06em] px-[9px] py-[3px] rounded-full" style={{ background:r.paid?'rgba(219,87,149,.12)':'rgba(255,61,77,.12)', color:r.paid?'#600a32':'#e81a2b' }}>{r.paid?'Paid':'Awaiting payment'}</span>
+                  {(() => {
+                    const hasBalance = (r.depositRequired ?? 0) > 0 && (r.balanceDue ?? 0) > 0;
+                    const label = r.balancePaid ? 'Paid in full' : (hasBalance && r.paid) ? 'Deposit paid' : r.paid ? 'Paid' : 'Awaiting payment';
+                    const paidLike = r.balancePaid || r.paid;
+                    return <span className="text-[10px] font-extrabold uppercase tracking-[.06em] px-[9px] py-[3px] rounded-full" style={{ background:paidLike?'rgba(219,87,149,.12)':'rgba(255,61,77,.12)', color:paidLike?'#600a32':'#e81a2b' }}>{label}</span>;
+                  })()}
                   {(r.deliveryFee ?? 0) > 0 && <span className="text-[10px] font-extrabold uppercase tracking-[.06em] px-[9px] py-[3px] rounded-full bg-[rgba(245,200,66,.1)] text-[#8a6205]">Delivery {formatMVR(r.deliveryFee)}</span>}
                 </div>
               </div>
               <div className="text-right">
                 <div className="text-[11px] text-muted tracking-[.1em] uppercase">{r.metaLabel}</div>
                 <div className="text-[17px] font-extrabold mt-1" style={{ color }}>{r.metaValue}</div>
+                {(r.depositRequired ?? 0) > 0 && (r.balanceDue ?? 0) > 0 && !r.balancePaid && (
+                  <div className="text-[11px] text-rose-700 font-semibold mt-[3px]">Balance due: {formatMVR(r.balanceDue)}</div>
+                )}
               </div>
             </div>
             <div className="p-6">
@@ -146,6 +154,9 @@ export default function StatusPage() {
               </div>
               {r.canUploadSlip && (
                 <SlipUpload uploadUrl={`/api/orders/${displayedRef}/receipts`} />
+              )}
+              {r.canUploadBalanceSlip && (
+                <SlipUpload uploadUrl={`/api/orders/${displayedRef}/receipts`} kind="balance_slip" contact={contact} />
               )}
             </div>
           </div>
