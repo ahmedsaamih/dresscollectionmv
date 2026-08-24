@@ -76,11 +76,13 @@ export async function POST(request: Request) {
     const byId = new Map(products.map((p) => [p.id, p]));
 
     // Fast-fail UX only — NOT the source of truth. The real guard is decrementStock()
-    // inside the transaction below, which re-checks atomically at write time.
+    // inside the transaction below, which re-checks atomically at write time. Pre-order
+    // items have no real stock yet, so they skip the inventory check entirely.
     for (const item of data.items) {
       const p = byId.get(item.sku);
       if (!p) return fail(`Product not found: ${item.sku}`, 400);
       if (p.status !== 'active') return fail(`${p.name} is not available`, 409);
+      if (p.preOrder) continue;
       const inv = await prisma.inventory.findUnique({
         where: { locationId_productId_size_color: { locationId: data.locationId, productId: p.id, size: item.size, color: item.color } },
       });
@@ -91,10 +93,13 @@ export async function POST(request: Request) {
     }
 
     let subtotal = 0;
+    let preOrderSubtotal = 0; // portion of subtotal from pre-order lines — only 50% of this is due now
     const lineItems = data.items.map((item) => {
       const p = byId.get(item.sku)!;
       const unitPrice = p.price;
-      subtotal += unitPrice * item.qty;
+      const lineTotal = unitPrice * item.qty;
+      subtotal += lineTotal;
+      if (p.preOrder) preOrderSubtotal += lineTotal;
       return {
         sku: p.id,
         name: p.name,
@@ -104,16 +109,26 @@ export async function POST(request: Request) {
         size: item.size,
         color: item.color,
         qty: item.qty,
-        stockDecremented: true,
+        stockDecremented: !p.preOrder,
       };
     });
 
     const deliveryFee = data.method === 'Delivery' ? deliveryArea!.rate : 0;
     const discount = Math.min(data.discount, subtotal + deliveryFee);
     const total = subtotal + deliveryFee - discount;
+
+    // Same formula as web checkout: full price for regular items, 50% for pre-order
+    // items, plus delivery, minus discount — collapses to `total`/`0` when there are
+    // no pre-order lines, i.e. today's all-or-nothing behavior falls out unchanged.
+    const regularSubtotal = subtotal - preOrderSubtotal;
+    const depositRequired = Math.max(0, Math.round(regularSubtotal + preOrderSubtotal * 0.5) + deliveryFee - discount);
+    const balanceDue = total - depositRequired;
+
     const paidTotal = data.paidCash + data.paidCard + data.paidTransfer;
     if (paidTotal > total) return fail(`Payment total (${paidTotal}) cannot exceed order total (${total})`, 400);
-    const paid = paidTotal >= total;
+    // For a pre-order sale, collecting the deposit is enough to mark it paid — the
+    // balance is confirmed later via the same admin/self-service flow web checkout uses.
+    const paid = paidTotal >= (depositRequired || total);
     const summary = lineItems.map((i) => `${i.name} ×${i.qty}`).join(', ');
 
     const order = await prisma.$transaction(async (tx) => {
@@ -136,6 +151,8 @@ export async function POST(request: Request) {
           method: data.method,
           stage: 0,
           paid,
+          depositRequired,
+          balanceDue,
           paidCash: data.paidCash,
           paidCard: data.paidCard,
           paidTransfer: data.paidTransfer,

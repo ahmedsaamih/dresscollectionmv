@@ -507,9 +507,11 @@ export default function AdminPage() {
     const p = allProducts.find(x => x.id === manualOrderProductId);
     if (!p) { setManualOrderError('Choose a product.'); return; }
     if (!manualOrderDraft.locationId) { setManualOrderError('Choose a stock location.'); return; }
-    const available = inventoryStockForVariant(manualOrderInvRows, p.id, manualOrderColor, manualOrderSize);
-    if (available <= 0) { setManualOrderError('Selected variant is out of stock at this location.'); return; }
-    if (manualOrderQty > available) { setManualOrderError(`Only ${available} unit${available !== 1 ? 's' : ''} available at this location.`); return; }
+    if (!p.preOrder) {
+      const available = inventoryStockForVariant(manualOrderInvRows, p.id, manualOrderColor, manualOrderSize);
+      if (available <= 0) { setManualOrderError('Selected variant is out of stock at this location.'); return; }
+      if (manualOrderQty > available) { setManualOrderError(`Only ${available} unit${available !== 1 ? 's' : ''} available at this location.`); return; }
+    }
     setManualOrderLines(lines => [...lines, {
       sku: p.id,
       name: p.name,
@@ -738,7 +740,10 @@ export default function AdminPage() {
     if (!p) return;
     const color = firstAvailableColor(manualOrderInvRows, p);
     setManualOrderColor(color);
-    setManualOrderSize(firstAvailableSize(manualOrderInvRows, p, color));
+    // A genuine pre-order product has zero real Inventory, so its `sizes` list (derived
+    // from real stock) is always empty — offer the full standard range instead, same
+    // v1 limitation the storefront already accepts for pre-order products.
+    setManualOrderSize(p.preOrder ? PRODUCT_SIZES[0] : firstAvailableSize(manualOrderInvRows, p, color));
     setManualOrderQty(1);
   }, [manualOrderProductId, manualOrderInvRows, allProducts]);
 
@@ -1614,6 +1619,14 @@ export default function AdminPage() {
   const manualOrderDeliveryFee = manualOrderDraft.method === 'Delivery' ? (data.deliveryAreas.find(a => a.id === manualOrderDraft.deliveryAreaId)?.rate ?? 0) : 0;
   const manualOrderDiscount = Math.min(parseInt(manualOrderDraft.discount) || 0, manualOrderSubtotal + manualOrderDeliveryFee);
   const manualOrderTotal = Math.max(0, manualOrderSubtotal + manualOrderDeliveryFee - manualOrderDiscount);
+  // Display-only — mirrors the server-side formula in app/api/admin/orders/route.ts exactly.
+  const manualOrderPreOrderSubtotal = manualOrderLines.reduce((sum, i) => sum + (allProducts.find(p => p.id === i.sku)?.preOrder ? i.unitPrice * i.qty : 0), 0);
+  const manualOrderHasPreOrder = manualOrderPreOrderSubtotal > 0;
+  const manualOrderRegularSubtotal = manualOrderSubtotal - manualOrderPreOrderSubtotal;
+  const manualOrderDepositRequired = manualOrderHasPreOrder
+    ? Math.max(0, Math.round(manualOrderRegularSubtotal + manualOrderPreOrderSubtotal * 0.5) + manualOrderDeliveryFee - manualOrderDiscount)
+    : manualOrderTotal;
+  const manualOrderBalanceDue = manualOrderTotal - manualOrderDepositRequired;
   const manualOrderPaidTotal = (parseInt(manualOrderDraft.paidCash) || 0) + (parseInt(manualOrderDraft.paidCard) || 0) + (parseInt(manualOrderDraft.paidTransfer) || 0);
   const manualOrderAvailable = manualOrderProduct ? inventoryStockForVariant(manualOrderInvRows, manualOrderProduct.id, manualOrderColor, manualOrderSize) : 0;
   const pendingDeliveries = orders
@@ -4800,12 +4813,21 @@ export default function AdminPage() {
                     {allProducts.filter(p => p.status === 'active').map(p => <option key={p.id} value={p.id}>{p.name} · {formatMVR(p.price)}</option>)}
                   </select>
                   {manualOrderProduct && manualOrderProduct.colors.length > 0 && (
-                    <select value={manualOrderColor} onChange={e => { setManualOrderColor(e.target.value); setManualOrderSize(firstAvailableSize(manualOrderInvRows, manualOrderProduct, e.target.value)); }}
+                    <select value={manualOrderColor} onChange={e => {
+                      setManualOrderColor(e.target.value);
+                      setManualOrderSize(manualOrderProduct.preOrder ? PRODUCT_SIZES[0] : firstAvailableSize(manualOrderInvRows, manualOrderProduct, e.target.value));
+                    }}
                       className="bg-surface border border-[rgba(0,0,0,.12)] rounded-[8px] px-3 py-[8px] text-[12.5px] outline-none cursor-pointer">
                       {manualOrderProduct.colors.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   )}
-                  {manualOrderProduct && manualOrderProduct.sizes.length > 0 && (
+                  {manualOrderProduct && manualOrderProduct.preOrder && (
+                    <select value={manualOrderSize} onChange={e => setManualOrderSize(e.target.value)}
+                      className="bg-surface border border-[rgba(0,0,0,.12)] rounded-[8px] px-3 py-[8px] text-[12.5px] outline-none cursor-pointer">
+                      {PRODUCT_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  )}
+                  {manualOrderProduct && !manualOrderProduct.preOrder && manualOrderProduct.sizes.length > 0 && (
                     <select value={manualOrderSize} onChange={e => setManualOrderSize(e.target.value)}
                       className="bg-surface border border-[rgba(0,0,0,.12)] rounded-[8px] px-3 py-[8px] text-[12.5px] outline-none cursor-pointer">
                       {manualOrderProduct.sizes.map(s => {
@@ -4817,9 +4839,9 @@ export default function AdminPage() {
                   <div className="flex items-center gap-2">
                     <input type="number" min="1" value={manualOrderQty} onChange={e => setManualOrderQty(Math.max(1, parseInt(e.target.value) || 1))}
                       className="w-20 bg-surface border border-[rgba(0,0,0,.12)] rounded-[8px] px-3 py-[8px] text-[12.5px] tabular outline-none focus:border-rose-500" />
-                    <span className="text-[11px] text-muted">Available: {manualOrderProduct ? manualOrderAvailable : 0}</span>
+                    <span className="text-[11px] text-muted">{manualOrderProduct?.preOrder ? 'Pre-order · no stock required' : `Available: ${manualOrderProduct ? manualOrderAvailable : 0}`}</span>
                   </div>
-                  <button type="button" onClick={addManualOrderLine} disabled={!manualOrderProduct || manualOrderAvailable <= 0 || manualOrderQty > manualOrderAvailable}
+                  <button type="button" onClick={addManualOrderLine} disabled={!manualOrderProduct || (!manualOrderProduct.preOrder && (manualOrderAvailable <= 0 || manualOrderQty > manualOrderAvailable))}
                     className="border-none bg-rose-500 text-[#200612] font-extrabold text-[12px] px-3 py-[8px] rounded-[8px] cursor-pointer disabled:opacity-50">Add product</button>
                 </div>
               </div>
@@ -4876,11 +4898,13 @@ export default function AdminPage() {
                 <div className="flex justify-between mb-1"><span className="text-sub">Items subtotal</span><span className="tabular">{formatMVR(manualOrderSubtotal)}</span></div>
                 {manualOrderDeliveryFee > 0 && <div className="flex justify-between mb-1"><span className="text-sub">Delivery</span><span className="tabular">{formatMVR(manualOrderDeliveryFee)}</span></div>}
                 {manualOrderDiscount > 0 && <div className="flex justify-between mb-1"><span className="text-[#e81a2b]">Discount</span><span className="tabular text-[#e81a2b]">-{formatMVR(manualOrderDiscount)}</span></div>}
-                <div className="flex justify-between font-bold"><span>Total</span><span className="tabular text-rose-600">{formatMVR(manualOrderTotal)}</span></div>
+                {manualOrderHasPreOrder && <div className="flex justify-between mb-1"><span className="text-sub">Order total</span><span className="tabular">{formatMVR(manualOrderTotal)}</span></div>}
+                <div className="flex justify-between font-bold"><span>{manualOrderHasPreOrder ? 'Due now (50% deposit)' : 'Total'}</span><span className="tabular text-rose-600">{formatMVR(manualOrderDepositRequired)}</span></div>
+                {manualOrderHasPreOrder && <div className="flex justify-between text-[11px] text-muted mt-1"><span>Balance due on arrival</span><span className="tabular">{formatMVR(manualOrderBalanceDue)}</span></div>}
               </div>
               <div className="col-span-2 text-[12px] font-bold text-[#705260] mb-1">
-                Payment received — total due {formatMVR(manualOrderTotal)}
-                {manualOrderPaidTotal > 0 && <span className={manualOrderPaidTotal > manualOrderTotal ? 'text-[#e81a2b]' : manualOrderPaidTotal === manualOrderTotal ? 'text-rose-600' : 'text-[#8a6205]'}> · entered {formatMVR(manualOrderPaidTotal)}</span>}
+                Payment received — {manualOrderHasPreOrder ? 'deposit due' : 'total due'} {formatMVR(manualOrderDepositRequired)}
+                {manualOrderPaidTotal > 0 && <span className={manualOrderPaidTotal > manualOrderTotal ? 'text-[#e81a2b]' : manualOrderPaidTotal >= manualOrderDepositRequired ? 'text-rose-600' : 'text-[#8a6205]'}> · entered {formatMVR(manualOrderPaidTotal)}</span>}
               </div>
               {([['paidCash','Cash'],['paidCard','Card'],['paidTransfer','Bank Transfer']] as [keyof typeof manualOrderDraft, string][]).map(([k, lbl]) => (
                 <div key={k}>
