@@ -183,6 +183,14 @@ function paymentReceipt(o: Order) {
   return o.receipts?.find(r => r.kind === 'payment_receipt') ?? null;
 }
 
+function balanceSlip(o: Order) {
+  return o.receipts?.find(r => r.kind === 'balance_slip') ?? null;
+}
+
+function balanceReceipt(o: Order) {
+  return o.receipts?.find(r => r.kind === 'balance_receipt') ?? null;
+}
+
 // ─── main component ──────────────────────────────────────────────────────────
 export default function AdminPage() {
   const router = useRouter();
@@ -243,6 +251,10 @@ export default function AdminPage() {
   const [markPaidDraft, setMarkPaidDraft] = useState({ paidCash: '', paidCard: '', paidTransfer: '' });
   const [markPaidError, setMarkPaidError] = useState('');
   const [markPaidSaving, setMarkPaidSaving] = useState(false);
+  const [markBalancePaidModal, setMarkBalancePaidModal] = useState<{ orderId: string; total: number; balanceDue: number } | null>(null);
+  const [markBalancePaidDraft, setMarkBalancePaidDraft] = useState({ paidCash: '', paidCard: '', paidTransfer: '' });
+  const [markBalancePaidError, setMarkBalancePaidError] = useState('');
+  const [markBalancePaidSaving, setMarkBalancePaidSaving] = useState(false);
 
   // Orders come straight from the DB (admin-only, not in /api/store).
   const [orders, setOrders] = useState<Order[]>([]);
@@ -741,7 +753,7 @@ export default function AdminPage() {
 
   // Escape closes whichever overlay is open.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setModal(null); setConfirm(null); setPromoModal(null); setUserModal(null); setSlipModal(null); setMarkPaidModal(null); setPosAddItem(null); setInvReceive(null); setAdjModal(null); setLocModal(null); setDeliveryAreaModal(null); setMobileNavOpen(false); } };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setModal(null); setConfirm(null); setPromoModal(null); setUserModal(null); setSlipModal(null); setMarkPaidModal(null); setMarkBalancePaidModal(null); setPosAddItem(null); setInvReceive(null); setAdjModal(null); setLocModal(null); setDeliveryAreaModal(null); setMobileNavOpen(false); } };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
@@ -765,10 +777,13 @@ export default function AdminPage() {
         const sizeStock = sizeStockFromColorSize(colorSizeStock);
         const computedSizes = Object.entries(sizeStock).filter(([, q]) => q > 0).map(([s]) => s);
         const computedStock = sumColorSizeStock(colorSizeStock);
-        const status = computedStock === 0 && draft.status === 'active' ? 'soldout' : draft.status;
+        // A pre-order product always has zero real stock by design — the usual
+        // auto-soldout coercion would otherwise flip it to 'soldout' on every save.
+        const status = computedStock === 0 && draft.status === 'active' && !draft.preOrder ? 'soldout' : draft.status;
         const body: Record<string, unknown> = {
           name: draft.name, collection: draft.collection, category: draft.category, sub: draft.sub ?? '',
           price: draft.price, was: draft.was || null, status, badge: draft.badge ?? '', img: draft.img,
+          preOrder: !!draft.preOrder,
           colors: Array.isArray(draft.colors) ? draft.colors : [],
           colorImages: draft.colorImages ?? {},
           colorHex: draft.colorHex ?? {},
@@ -854,7 +869,7 @@ export default function AdminPage() {
   const openModal = (kind: string, item?: Record<string, any>) => {
     const firstCol = data.collections[0]?.key ?? 'ready';
     const defaults: Record<string, Record<string, any>> = {
-      product:    { name:'', collection: firstCol, category: data.categories[0]?.name ?? '', sub:'', price:'', was:'', locationId: data.locations.find(l => l.isWebDefault)?.id ?? '', stock:'0', status:'active', badge:'', img: GRADIENTS[0], colors: [], sizes: [], sizeStock: {}, colorSizeStock: {}, colorImages: {}, colorHex: {}, descriptionSections: [], showInWebStore: true },
+      product:    { name:'', collection: firstCol, category: data.categories[0]?.name ?? '', sub:'', price:'', was:'', locationId: data.locations.find(l => l.isWebDefault)?.id ?? '', stock:'0', status:'active', badge:'', preOrder: false, img: GRADIENTS[0], colors: [], sizes: [], sizeStock: {}, colorSizeStock: {}, colorImages: {}, colorHex: {}, descriptionSections: [], showInWebStore: true },
       collection: { label:'', sizeChartId: null },
       category:   { name:'', collection: firstCol },
     };
@@ -954,11 +969,14 @@ export default function AdminPage() {
     // conversions, web-checkout orders) end up with a real reconciled breakdown
     // instead of "No payment recorded" and a receipt PDF stuck on 0.
     const hasSlip = !!paymentSlip(cur);
+    // Deposit-only for a pre-order (depositRequired falls back to the full total
+    // for a regular order, or any order predating this field).
+    const dueNow = cur.depositRequired || cur.total;
     setMarkPaidError('');
     setMarkPaidDraft({
       paidCash: cur.paidCash ? String(cur.paidCash) : '',
       paidCard: cur.paidCard ? String(cur.paidCard) : '',
-      paidTransfer: cur.paidTransfer ? String(cur.paidTransfer) : (hasSlip ? String(cur.total) : ''),
+      paidTransfer: cur.paidTransfer ? String(cur.paidTransfer) : (hasSlip ? String(dueNow) : ''),
     });
     setMarkPaidModal({ orderId: id, total: cur.total });
   };
@@ -980,6 +998,40 @@ export default function AdminPage() {
       flash('Order marked as paid');
     } catch (e) { onError(e); }
     finally { setMarkPaidSaving(false); }
+  };
+  const openMarkBalancePaid = (id: string) => {
+    const cur = orders.find(o => o.id === id);
+    if (!cur) return;
+    const hasBalanceSlip = !!balanceSlip(cur);
+    // Cumulative across the whole order — prefill with what's already recorded
+    // plus the balance itself, once a balance slip confirms it's on its way.
+    const prefilledTransfer = (cur.paidTransfer || 0) + (hasBalanceSlip ? cur.balanceDue : 0);
+    setMarkBalancePaidError('');
+    setMarkBalancePaidDraft({
+      paidCash: cur.paidCash ? String(cur.paidCash) : '',
+      paidCard: cur.paidCard ? String(cur.paidCard) : '',
+      paidTransfer: prefilledTransfer ? String(prefilledTransfer) : '',
+    });
+    setMarkBalancePaidModal({ orderId: id, total: cur.total, balanceDue: cur.balanceDue });
+  };
+  const confirmMarkBalancePaid = async () => {
+    if (!markBalancePaidModal) return;
+    const paidCash = parseInt(markBalancePaidDraft.paidCash) || 0;
+    const paidCard = parseInt(markBalancePaidDraft.paidCard) || 0;
+    const paidTransfer = parseInt(markBalancePaidDraft.paidTransfer) || 0;
+    if (paidCash + paidCard + paidTransfer > markBalancePaidModal.total) {
+      setMarkBalancePaidError(`Payment received cannot exceed MVR ${markBalancePaidModal.total.toLocaleString()}.`);
+      return;
+    }
+    setMarkBalancePaidSaving(true); setMarkBalancePaidError('');
+    try {
+      const { order } = await adminApi.updateOrder(markBalancePaidModal.orderId, { balancePaid: true, paidCash, paidCard, paidTransfer });
+      setOrders(os => os.map(o => o.id === order.id ? { ...order, receipts: order.receipts ?? o.receipts } : o));
+      setOrderDrawer(o => o && o.id === order.id ? { ...order, receipts: order.receipts ?? o.receipts } : o);
+      setMarkBalancePaidModal(null);
+      flash('Balance payment recorded');
+    } catch (e) { onError(e); }
+    finally { setMarkBalancePaidSaving(false); }
   };
   const generateOrderReceipt = async (id: string) => {
     try {
@@ -1502,7 +1554,11 @@ export default function AdminPage() {
   });
   const openOrders = orders.filter(o => o.stage < 3).length;
   const pendingReviews = reviews.filter(r => r.status === 'pending').length;
-  const paidRevenue = orders.filter(o => o.paid).reduce((a, o) => a + o.total, 0);
+  // Actually collected, not the full order total — a pre-order that's only had its
+  // deposit confirmed contributes just the deposit until its balance is also paid.
+  // `depositRequired || o.total` falls back correctly for orders predating this field.
+  const amountCollected = (o: Order) => (o.paid ? (o.depositRequired || o.total) : 0) + (o.balancePaid ? o.balanceDue : 0);
+  const paidRevenue = orders.reduce((a, o) => a + amountCollected(o), 0);
   const orderFilterOptions: { key: OrderFilter; label: string; count: number }[] = [
     { key: 'all', label: 'All', count: orders.length },
     { key: 'web_checkout', label: 'Online', count: orders.filter(o => o.origin === 'web_checkout').length },
@@ -1522,8 +1578,9 @@ export default function AdminPage() {
     acc.gross += o.subtotal ?? o.total + (o.discount ?? 0);
     acc.discount += o.discount ?? 0;
     acc.total += o.total;
-    acc.paid += o.paid ? o.total : 0;
-    acc.unpaid += o.paid ? 0 : o.total;
+    const collected = amountCollected(o);
+    acc.paid += collected;
+    acc.unpaid += o.total - collected;
     acc.cash += o.paidCash;
     acc.card += o.paidCard;
     acc.transfer += o.paidTransfer;
@@ -1546,10 +1603,12 @@ export default function AdminPage() {
   }
   const posProducts = allProducts.filter(p => {
     if (p.status !== 'active') return false;
+    if (p.preOrder) return false; // pre-order items aren't sellable in person — no deposit UX at the counter
     if (posColFilter !== 'all' && p.collection !== posColFilter) return false;
     if (posSearch && !p.name.toLowerCase().includes(posSearch.toLowerCase()) && !p.category.toLowerCase().includes(posSearch.toLowerCase())) return false;
     return true;
   });
+  const posPreOrderExcludedCount = allProducts.filter(p => p.status === 'active' && p.preOrder).length;
   const manualOrderProduct = allProducts.find(p => p.id === manualOrderProductId) ?? null;
   const manualOrderSubtotal = manualOrderLines.reduce((sum, i) => sum + i.unitPrice * i.qty, 0);
   const manualOrderDeliveryFee = manualOrderDraft.method === 'Delivery' ? (data.deliveryAreas.find(a => a.id === manualOrderDraft.deliveryAreaId)?.rate ?? 0) : 0;
@@ -2367,6 +2426,11 @@ export default function AdminPage() {
                             </button>
                           ))}
                           {posProducts.length === 0 && <div className="text-center text-muted text-[12px] py-10">No products found.</div>}
+                          {posPreOrderExcludedCount > 0 && (
+                            <div className="text-center text-muted text-[11px] py-2 px-3">
+                              {posPreOrderExcludedCount} pre-order product{posPreOrderExcludedCount !== 1 ? 's' : ''} hidden — not sold in person.
+                            </div>
+                          )}
                         </>
                       )}
                     </div>
@@ -3714,6 +3778,15 @@ export default function AdminPage() {
                   <div><label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Status</label><select value={modal.draft.status ?? 'active'} onChange={e => setDraftField('status', e.target.value)} className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13.5px] outline-none cursor-pointer">{['active','soldout','draft'].map(v => <option key={v} value={v}>{v}</option>)}</select></div>
                   <div><label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Badge</label><select value={modal.draft.badge ?? ''} onChange={e => setDraftField('badge', e.target.value)} className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13.5px] outline-none cursor-pointer">{['','New','Sale','Pre-order'].map(v => <option key={v} value={v}>{v || 'None'}</option>)}</select></div>
                   <div className="col-span-2">
+                    <label className="flex items-center gap-[9px] cursor-pointer select-none">
+                      <input type="checkbox" checked={!!modal.draft.preOrder} onChange={e => setDraftField('preOrder', e.target.checked)} className="w-[16px] h-[16px] accent-rose-600 cursor-pointer" />
+                      <span className="text-[13px] font-semibold text-body">Pre-order — orderable with zero real stock, at a 50% deposit</span>
+                    </label>
+                    {modal.draft.preOrder && (
+                      <div className="text-[11px] text-muted mt-[6px] ml-[25px]">Customers can order this in every size regardless of the stock grid below. Real stock still tracks actual inventory for admin/POS.</div>
+                    )}
+                  </div>
+                  <div className="col-span-2">
                     <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Product image</label>
                     {/* Preview + upload */}
                     <div className="flex items-start gap-3 mb-[10px]">
@@ -3807,10 +3880,12 @@ export default function AdminPage() {
                       read-only here — change those via Inventory → Receive/Adjust/Transfer. */}
                   <div className="col-span-2">
                     <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">
-                      Stock per colour & size{' '}
-                      {isEditingProduct
-                        ? <span className="text-muted font-normal">· only new colours/sizes are editable here — manage existing stock via Inventory → Receive/Adjust/Transfer</span>
-                        : <span className="text-muted font-normal">· set qty for each combination; 0 removes it</span>}
+                      {modal.draft.preOrder ? 'Real stock per colour & size' : 'Stock per colour & size'}{' '}
+                      {modal.draft.preOrder
+                        ? <span className="text-muted font-normal">· doesn't gate storefront availability while Pre-order is on — customers can order any size regardless</span>
+                        : isEditingProduct
+                          ? <span className="text-muted font-normal">· only new colours/sizes are editable here — manage existing stock via Inventory → Receive/Adjust/Transfer</span>
+                          : <span className="text-muted font-normal">· set qty for each combination; 0 removes it</span>}
                     </label>
                     {(() => {
                       const csStock = (modal.draft.colorSizeStock ?? {}) as Record<string, Record<string, number>>;
@@ -4439,6 +4514,31 @@ export default function AdminPage() {
         </div>
       )}
 
+      {markBalancePaidModal && (
+        <div className="fixed inset-0 z-[90] bg-[rgba(4,8,7,.8)] backdrop-blur-md flex items-center justify-center p-4" onClick={() => setMarkBalancePaidModal(null)}>
+          <div className="w-[420px] max-w-full bg-surface border border-[rgba(219,87,149,.22)] rounded-[20px] p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between mb-5">
+              <div><div className="font-bold text-[18px]">Record balance payment</div><div className="text-[12px] text-muted mt-1">Balance due: MVR {markBalancePaidModal.balanceDue.toLocaleString()}. Enter the full amount received across the whole order (deposit + balance).</div></div>
+              <button onClick={() => setMarkBalancePaidModal(null)} className="border-none bg-transparent text-muted text-[22px] cursor-pointer"><X size={22} /></button>
+            </div>
+            <div className="grid grid-cols-1 gap-3">
+              {([['paidCash','Cash'],['paidCard','Card'],['paidTransfer','Bank Transfer']] as [keyof typeof markBalancePaidDraft, string][]).map(([k, lbl]) => (
+                <div key={k}>
+                  <label className="text-[11.5px] font-semibold text-sub block mb-[5px]">{lbl} (MVR)</label>
+                  <input type="number" min="0" value={markBalancePaidDraft[k]} onChange={e => setMarkBalancePaidDraft(d => ({ ...d, [k]: e.target.value }))}
+                    className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-3 py-[9px] text-[13.5px] tabular outline-none focus:border-rose-500" />
+                </div>
+              ))}
+            </div>
+            {markBalancePaidError && <div className="text-[12px] text-[#e81a2b] mt-3">{markBalancePaidError}</div>}
+            <div className="flex gap-3 mt-5">
+              <button onClick={confirmMarkBalancePaid} disabled={markBalancePaidSaving} className="flex-1 border-none bg-rose-500 text-[#200612] font-extrabold text-[14px] py-[12px] rounded-xl cursor-pointer disabled:opacity-50">{markBalancePaidSaving ? 'Saving…' : 'Confirm balance paid'}</button>
+              <button onClick={() => setMarkBalancePaidModal(null)} className="border border-[rgba(0,0,0,.16)] bg-transparent text-body font-bold text-[14px] px-[20px] py-[12px] rounded-xl cursor-pointer">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── USER MODAL ── */}
       {userModal && (
         <div className="fixed inset-0 z-[80] bg-[rgba(4,8,7,.78)] backdrop-blur-md flex items-center justify-center p-6" onClick={() => setUserModal(null)}>
@@ -4594,6 +4694,13 @@ export default function AdminPage() {
                     </>
                   )}
                   <div className="flex justify-between font-bold mb-3"><span>Total</span><span className="tabular text-rose-600">MVR {orderDrawer.total.toLocaleString()}</span></div>
+                  {orderDrawer.depositRequired > 0 && orderDrawer.balanceDue > 0 && (
+                    <>
+                      <div className="h-px bg-[rgba(0,0,0,.08)] mb-3" />
+                      <div className="flex justify-between text-[12.5px] mb-2"><span className="text-sub">Deposit (50%)</span><span className="tabular">{orderDrawer.paid ? <><Check size={11} className="inline mr-1 text-rose-600" />Confirmed</> : 'Awaiting'} · MVR {orderDrawer.depositRequired.toLocaleString()}</span></div>
+                      <div className="flex justify-between text-[12.5px] mb-3"><span className="text-sub">Balance</span><span className="tabular">{orderDrawer.balancePaid ? <><Check size={11} className="inline mr-1 text-rose-600" />Confirmed</> : 'Due'} · MVR {orderDrawer.balanceDue.toLocaleString()}</span></div>
+                    </>
+                  )}
                   <div className="h-px bg-[rgba(0,0,0,.08)] mb-3" />
                   {orderDrawer.paidCash > 0 && <div className="flex justify-between text-[12px] text-sub mb-1"><span>Cash</span><span className="tabular">MVR {orderDrawer.paidCash.toLocaleString()}</span></div>}
                   {orderDrawer.paidCard > 0 && <div className="flex justify-between text-[12px] text-sub mb-1"><span>Card</span><span className="tabular">MVR {orderDrawer.paidCard.toLocaleString()}</span></div>}
@@ -4619,6 +4726,16 @@ export default function AdminPage() {
                 {orderDrawer.paid && !paymentReceipt(orderDrawer) && (
                   <button onClick={() => generateOrderReceipt(orderDrawer.id)} className="text-[12px] font-bold text-rose-700 border border-[rgba(219,87,149,.3)] bg-transparent px-4 py-[8px] rounded-[9px] cursor-pointer hover:bg-[rgba(219,87,149,.06)] transition-all">Generate receipt</button>
                 )}
+                {balanceSlip(orderDrawer) && (
+                  <button onClick={() => setSlipModal({ url: balanceSlip(orderDrawer)!.url, expired: balanceSlip(orderDrawer)!.expired })}
+                    title={balanceSlip(orderDrawer)!.expired ? 'Balance slip expired (auto-deleted after 90 days)' : undefined}
+                    className={`text-[12px] font-bold border px-4 py-[8px] rounded-[9px] bg-transparent cursor-pointer transition-colors ${balanceSlip(orderDrawer)!.expired ? 'border-[rgba(0,0,0,.1)] text-[rgba(0,0,0,.3)]' : 'border-[rgba(0,0,0,.14)] text-sub hover:text-body'}`}>
+                    Balance slip
+                  </button>
+                )}
+                {balanceReceipt(orderDrawer) && (
+                  <a href={balanceReceipt(orderDrawer)!.url} target="_blank" rel="noopener noreferrer" className="text-[12px] font-bold text-rose-700 border border-[rgba(219,87,149,.3)] bg-[rgba(219,87,149,.06)] px-4 py-[8px] rounded-[9px] no-underline hover:brightness-125 transition-all">↓ Balance receipt PDF</a>
+                )}
               </div>
 
               {/* Actions */}
@@ -4628,6 +4745,12 @@ export default function AdminPage() {
                   style={{ background: orderDrawer.paid ? '#db5795' : 'rgba(255,61,77,.12)', color: orderDrawer.paid ? '#200612' : '#ff6370', border: orderDrawer.paid ? 'none' : '1px solid rgba(255,61,77,.35)' }}>
                   {orderDrawer.paid ? <><Check size={12} className="inline mr-1" /> Mark Unpaid</> : 'Mark Paid'}
                 </button>
+                {orderDrawer.paid && orderDrawer.balanceDue > 0 && !orderDrawer.balancePaid && (
+                  <button onClick={() => openMarkBalancePaid(orderDrawer.id)}
+                    className="font-bold text-[12px] px-4 py-[9px] rounded-[8px] cursor-pointer border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.08)] text-rose-700 transition-colors">
+                    Record balance payment
+                  </button>
+                )}
                 {orderDrawer.origin === 'pos_sale' ? (
                   <span className="text-[11px] font-extrabold uppercase px-3 py-[9px] rounded-[8px] border border-[rgba(219,87,149,.25)] text-rose-600 bg-[rgba(219,87,149,.07)]">Completed POS sale</span>
                 ) : (

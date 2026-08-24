@@ -61,6 +61,8 @@ export interface StorefrontCopy {
     paymentInstructionsTitle: string; paymentInstructionsBody: string;
     slipUploadTitle: string; slipUploadHelp: string; slipReceived: string;
     orderPlacedTitle: string; orderPlacedBody: string; receiptFileHint: string;
+    depositDueNowLabel: string; depositBalanceLabel: string; depositExplainerBody: string;
+    depositConfirmationTitle: string; depositConfirmationBody: string;
   };
   shippingPickup: {
     shippingPageTitle: string; shippingPageIntro: string;
@@ -81,6 +83,7 @@ export interface StorefrontCopy {
   cartQuoteStatus: {
     cartTitle: string; cartEmptyHeadline: string; cartFixedHeadline: string;
     cartEmptyTitle: string; cartEmptyBody: string; shopReadyCta: string; buildKitCta: string; checkoutCta: string; noCardCartNote: string;
+    preOrderCartNote: string;
     upsellTitle: string; upsellBody: string; upsellSkip: string;
     statusEyebrow: string; statusTitle: string; statusIntro: string; statusNoMatchTitle: string; statusNoMatchBody: string;
   };
@@ -165,6 +168,7 @@ export interface Product {
   colorImages: Record<string, string>; // { "Teal": "url(...) center/cover no-repeat" } — optional, falls back to img
   colorHex: Record<string, string>; // { "Teal": "#1c5f5a" } — optional, falls back to COLOR_MAP then grey
   descriptionSections?: ProductSection[]; // optional — falls back to template copy on the product page when empty/absent
+  preOrder: boolean; // true = orderable with zero real stock, at a 50% deposit (public reads synthesize availability)
 }
 
 export type OrderStage = 0 | 1 | 2 | 3 | 4 | 5 | 6;
@@ -172,7 +176,7 @@ export type OrderStage = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 export interface OrderReceipt {
   id: string;
   url: string;
-  kind: 'payment_slip' | 'payment_receipt';
+  kind: 'payment_slip' | 'payment_receipt' | 'balance_slip' | 'balance_receipt';
   createdAt: string;
   expiresAt: string | null;
   expired: boolean;
@@ -209,10 +213,13 @@ export interface Order {
   stage: OrderStage;
   readyForDeliveryAt?: string | null;
   date: string;
-  paid: boolean;
+  paid: boolean; // for a pre-order (depositRequired>0), means "deposit confirmed"
   paidCash: number;
   paidCard: number;
   paidTransfer: number;
+  depositRequired: number; // amount required at checkout; equals `total` for a non-pre-order order
+  balanceDue: number; // total − depositRequired; 0 unless the order contained pre-order items
+  balancePaid: boolean;
   source: 'web' | 'pos';
   origin: 'web_checkout' | 'pos_sale' | 'manual_order' | 'quote_conversion';
   locationId?: string | null;

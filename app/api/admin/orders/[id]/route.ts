@@ -8,7 +8,7 @@ import { requestReview } from '@/lib/reviews';
 import { ok, fail, handleError } from '@/lib/http';
 import { orderInclude, serializeOrder } from '@/lib/order-serializer';
 import { PICKUP_STAGE_IDS, DELIVERY_STAGE_IDS } from '@/lib/utils';
-import { ensurePaymentReceipt } from '@/lib/order-documents';
+import { ensurePaymentReceipt, ensureBalanceReceipt } from '@/lib/order-documents';
 import { incrementStock } from '@/lib/inventory';
 
 export const dynamic = 'force-dynamic';
@@ -77,6 +77,12 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     if (data.paidCash !== undefined) update.paidCash = data.paidCash;
     if (data.paidCard !== undefined) update.paidCard = data.paidCard;
     if (data.paidTransfer !== undefined) update.paidTransfer = data.paidTransfer;
+    if (data.balancePaid !== undefined) {
+      if (data.balancePaid && before.balanceDue <= 0) {
+        return fail('This order has no balance due.', 400);
+      }
+      update.balancePaid = data.balancePaid;
+    }
 
     const updated = await prisma.$transaction(async (tx) => {
       // Cancelling (stage -> 6) restocks whatever this order actually decremented, atomically with the stage change.
@@ -123,7 +129,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       const smsEligible = updated.origin === 'web_checkout' || (updated.origin === 'pos_sale' && updated.method === 'Delivery');
       if (smsEligible) {
         const smsAllowed = await canSendSms(request, updated.mobile);
-        await notifier.orderPaymentConfirmed({ ref: updated.id, email: updated.email, name: updated.customer, mobile: updated.mobile, smsAllowed });
+        await notifier.orderPaymentConfirmed({ ref: updated.id, email: updated.email, name: updated.customer, mobile: updated.mobile, smsAllowed, balanceDue: updated.balanceDue });
       }
       await notifier.adminOrderPaymentAlert({ ref: updated.id, customer: updated.customer, total: updated.total });
 
@@ -136,6 +142,19 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
         const reviewSmsAllowed = await canSendSms(request, updated.mobile);
         await requestReview({ id: updated.id, email: updated.email, customer: updated.customer, mobile: updated.mobile }, { smsAllowed: reviewSmsAllowed });
       }
+    }
+
+    // Generate balance receipt PDF + notify when a pre-order's remaining balance is confirmed (best-effort).
+    const justBalancePaid = data.balancePaid === true && !before.balancePaid;
+    if (justBalancePaid) {
+      try {
+        await ensureBalanceReceipt(updated.id);
+      } catch (e) {
+        console.error('balance receipt PDF generation failed', e);
+      }
+      const balanceSmsAllowed = await canSendSms(request, updated.mobile);
+      await notifier.orderBalanceConfirmed({ ref: updated.id, email: updated.email, name: updated.customer, mobile: updated.mobile, smsAllowed: balanceSmsAllowed });
+      await notifier.adminOrderPaymentAlert({ ref: updated.id, customer: updated.customer, total: updated.balanceDue });
     }
 
     const refreshed = await prisma.order.findUnique({ where: { id: updated.id }, include: orderInclude });

@@ -41,6 +41,11 @@ export function ProductCard({ product: p, variant = 'default' }: {
               {p.badge}
             </span>
           )}
+          {p.preOrder && p.badge !== 'Pre-order' && (
+            <span className="absolute top-2 right-2 text-[8.5px] font-extrabold tracking-[.05em] uppercase px-[7px] py-[3px] rounded-[5px] bg-[rgba(219,87,149,.92)] text-white">
+              Pre-order
+            </span>
+          )}
         </ProductImage>
         <div className="pt-[10px]">
           <div className="text-[12.5px] font-semibold text-[#705260] whitespace-nowrap overflow-hidden text-ellipsis group-hover:text-rose-700 transition-colors">{p.name}</div>
@@ -57,6 +62,11 @@ export function ProductCard({ product: p, variant = 'default' }: {
           {p.badge && (
             <span className={`absolute top-3 left-3 z-10 text-[10px] font-extrabold tracking-[.07em] uppercase px-[10px] py-[5px] rounded-[6px] ${BADGE_CLASS[p.badge]}`}>
               {p.badge}
+            </span>
+          )}
+          {p.preOrder && p.badge !== 'Pre-order' && (
+            <span className="absolute top-3 right-3 z-10 text-[10px] font-extrabold tracking-[.07em] uppercase px-[10px] py-[5px] rounded-[6px] bg-[rgba(219,87,149,.92)] text-white">
+              Pre-order
             </span>
           )}
           {soldOut && (

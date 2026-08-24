@@ -50,6 +50,13 @@ export async function POST(request: Request) {
     const products = await prisma.product.findMany({ where: { id: { in: skus } } });
     const byId = new Map(products.map((p) => [p.id, p]));
 
+    // Pre-order products aren't sellable at the counter — the admin UI already excludes
+    // them from the POS product picker, this is defense-in-depth against a crafted request.
+    for (const item of data.items) {
+      const p = byId.get(item.sku);
+      if (p?.preOrder) return fail(`${p.name} is a pre-order item and cannot be sold via POS`, 400);
+    }
+
     // Fast-fail UX only — NOT the source of truth. The real guard is decrementStock()
     // inside the transaction below, which re-checks atomically at write time.
     for (const item of data.items) {

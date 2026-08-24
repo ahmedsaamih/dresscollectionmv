@@ -10,7 +10,7 @@ import { useStore } from '@/contexts/StoreContext';
 import { SlipUpload } from '@/components/SlipUpload';
 import { Check, X } from 'lucide-react';
 
-interface Conf { name:string; email:string; total:string; method:string; ref:string; discount:number; code:string|null }
+interface Conf { name:string; email:string; total:string; method:string; ref:string; discount:number; code:string|null; depositRequired:number; balanceDue:number }
 
 export default function CheckoutPage() {
   const { cart, refresh } = useCart();
@@ -41,6 +41,19 @@ export default function CheckoutPage() {
   const sub = cart.fixed.reduce((a,i)=>a+i.price*i.qty,0);
   const discount = promo ? promo.discount : 0;
   const total = Math.max(0, sub + fee - discount);
+
+  // Mirrors the server-side deposit formula in app/api/checkout/route.ts exactly —
+  // for display only, the server remains authoritative on the actual amounts persisted.
+  const preOrderSubtotal = cart.fixed.reduce((a,i) => {
+    const p = data.products.find(pp => pp.id === i.sku);
+    return a + (p?.preOrder ? i.price * i.qty : 0);
+  }, 0);
+  const hasPreOrder = preOrderSubtotal > 0;
+  const regularSubtotal = sub - preOrderSubtotal;
+  const depositRequired = hasPreOrder
+    ? Math.max(0, Math.round(regularSubtotal) + Math.round(preOrderSubtotal * 0.5) + fee - discount)
+    : total;
+  const balanceDue = total - depositRequired;
 
   const applyPromo = async () => {
     const code = promoInput.trim();
@@ -87,7 +100,7 @@ export default function CheckoutPage() {
       if (!res.ok) { setApiError(json.error || 'Could not place order. Please try again.'); setSubmitting(false); return; }
       cart.fixed.slice().forEach(i => MMCart.remove(i.id));
       refresh();
-      setConf({ name, email, total: formatMVR(json.total), method: 'Delivery', ref: json.ref, discount: json.discount || 0, code: json.discountCode || null });
+      setConf({ name, email, total: formatMVR(json.total), method: 'Delivery', ref: json.ref, discount: json.discount || 0, code: json.discountCode || null, depositRequired: json.depositRequired ?? json.total, balanceDue: json.balanceDue ?? 0 });
       setPlaced(true);
       window.scrollTo({ top:0, behavior:'smooth' });
     } catch {
@@ -101,12 +114,19 @@ export default function CheckoutPage() {
       <Header/>
       <div className="max-w-[620px] mx-auto px-5 sm:px-8 py-[70px] text-center">
         <div className="w-[74px] h-[74px] rounded-[20px] bg-rose-500 text-[#200612] inline-flex items-center justify-center animate-pop"><Check size={38} strokeWidth={3} /></div>
-        <h1 className="font-archivo-narrow font-bold text-[28px] sm:text-[38px] mt-6">{copy.orderPlacedTitle}</h1>
-        <p className="text-[15px] text-sub mt-3 leading-[1.6]">Thanks, {conf.name}. {copy.orderPlacedBody} <span className="text-[#705260]">{conf.email}</span>.</p>
+        <h1 className="font-archivo-narrow font-bold text-[28px] sm:text-[38px] mt-6">{conf.balanceDue > 0 ? copy.depositConfirmationTitle : copy.orderPlacedTitle}</h1>
+        <p className="text-[15px] text-sub mt-3 leading-[1.6]">Thanks, {conf.name}. {conf.balanceDue > 0 ? copy.depositConfirmationBody : copy.orderPlacedBody} <span className="text-[#705260]">{conf.email}</span>.</p>
         <div className="bg-surface border border-[rgba(219,87,149,.25)] rounded-2xl p-6 mt-7">
           <div className="text-[11px] tracking-[.18em] uppercase text-muted">Order reference</div>
           <div className="font-archivo-narrow font-bold text-[34px] text-rose-700 tracking-[.04em] mt-2 tabular">{conf.ref}</div>
-          <div className="text-[12.5px] text-sub mt-[10px]">Total due: <span className="text-body font-bold">{conf.total}</span> · {conf.method}</div>
+          {conf.balanceDue > 0 ? (
+            <>
+              <div className="text-[12.5px] text-sub mt-[10px]">{copy.depositDueNowLabel}: <span className="text-body font-bold">{formatMVR(conf.depositRequired)}</span> · {conf.method}</div>
+              <div className="text-[12px] text-muted mt-[4px]">{copy.depositBalanceLabel}: {formatMVR(conf.balanceDue)}</div>
+            </>
+          ) : (
+            <div className="text-[12.5px] text-sub mt-[10px]">Total due: <span className="text-body font-bold">{conf.total}</span> · {conf.method}</div>
+          )}
           {conf.discount > 0 && <div className="text-[12px] text-rose-700 mt-[6px]">Promo {conf.code} saved you {formatMVR(conf.discount)}</div>}
         </div>
         <div className="text-left bg-[rgba(219,87,149,.04)] border border-[rgba(219,87,149,.16)] rounded-[14px] p-[18px_20px] mt-[18px]">
@@ -281,8 +301,18 @@ export default function CheckoutPage() {
             <div className="flex justify-between text-[13px] text-sub mb-2"><span>Subtotal</span><span className="text-body font-semibold">{formatMVR(sub)}</span></div>
             {discount > 0 && <div className="flex justify-between text-[13px] mb-2"><span className="text-rose-700">Discount{promo?` · ${promo.code}`:''}</span><span className="text-rose-700 font-semibold">−{formatMVR(discount)}</span></div>}
             <div className="flex justify-between text-[13px] text-sub mb-2"><span>Delivery</span><span>{formatMVR(fee)}</span></div>
+            {hasPreOrder && <div className="flex justify-between text-[13px] text-sub mb-2"><span>Order total</span><span>{formatMVR(total)}</span></div>}
             <div className="h-px bg-[rgba(0,0,0,.08)] my-[13px]"/>
-            <div className="flex justify-between items-baseline"><span className="font-bold">Total</span><span className="font-extrabold text-[20px] text-rose-700 tabular">{formatMVR(total)}</span></div>
+            <div className="flex justify-between items-baseline">
+              <span className="font-bold">{hasPreOrder ? copy.depositDueNowLabel : 'Total'}</span>
+              <span className="font-extrabold text-[20px] text-rose-700 tabular">{formatMVR(hasPreOrder ? depositRequired : total)}</span>
+            </div>
+            {hasPreOrder && (
+              <>
+                <div className="flex justify-between text-[12px] text-muted mt-1.5"><span>{copy.depositBalanceLabel}</span><span>{formatMVR(balanceDue)}</span></div>
+                <div className="text-[11.5px] text-rose-700 bg-[rgba(219,87,149,.06)] border border-[rgba(219,87,149,.2)] rounded-[10px] px-[12px] py-[9px] mt-[12px] leading-[1.5]">{copy.depositExplainerBody}</div>
+              </>
+            )}
             <button onClick={place} disabled={submitting} className="w-full mt-4 border-none bg-rose-500 text-[#200612] font-extrabold text-[15px] py-[14px] rounded-xl cursor-pointer shadow-rose-lg hover:brightness-105 transition-all disabled:opacity-60 disabled:cursor-not-allowed">{submitting ? 'Placing…' : 'Place order'}</button>
             {apiError && <div className="text-center text-[12px] text-[#e81a2b] mt-2">{apiError}</div>}
             <div className="text-center text-[11px] text-muted mt-[9px]">You'll get a reference number to pay against.</div>

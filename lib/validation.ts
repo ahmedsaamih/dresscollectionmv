@@ -78,9 +78,11 @@ export const checkoutSchema = z
     notes: z.string().trim().max(1000).nullish(),
     items: z.array(fixedItem).min(1, 'Cart is empty').max(50),
     promoCode: z.string().trim().max(40).nullish(),
-    // Stock is committed (decremented) immediately at checkout — a fixed-price
-    // ready-to-wear order, not a deposit against future production — so proof
-    // of payment is required up front rather than deferred to a follow-up upload.
+    // Stock is committed (decremented) immediately at checkout for regular items — so proof
+    // of payment is required up front rather than deferred to a follow-up upload. Pre-order
+    // items skip the stock commitment and only require 50% of their price up front (see
+    // depositRequired/balanceDue computed server-side in the checkout route); either way a
+    // slip covering the amount actually due now is required at checkout.
     paymentSlipUrl: storageUrl(),
   })
   .refine((d) => d.method !== 'delivery' || !!d.address?.trim(), {
@@ -125,6 +127,7 @@ const productFields = {
   img: z.string(),
   colorImages: z.record(z.string(), z.string()),
   colorHex: z.record(z.string(), z.string()),
+  preOrder: z.boolean(),
 };
 
 export const productCreateSchema = z.object({
@@ -148,6 +151,7 @@ export const productCreateSchema = z.object({
   img: productFields.img.optional().default(''),
   colorImages: productFields.colorImages.optional().default({}),
   colorHex: productFields.colorHex.optional().default({}),
+  preOrder: productFields.preOrder.optional().default(false),
 });
 
 // Partial — only provided keys are updated (preserves colors/sizes the admin UI doesn't edit).
@@ -189,9 +193,10 @@ export const orderUpdateSchema = z
     paidCash: z.coerce.number().int().nonnegative(),
     paidCard: z.coerce.number().int().nonnegative(),
     paidTransfer: z.coerce.number().int().nonnegative(),
+    balancePaid: z.boolean(),
   })
   .partial()
-  .refine((d) => d.stage !== undefined || d.paid !== undefined || d.paidCash !== undefined || d.paidCard !== undefined || d.paidTransfer !== undefined, 'Nothing to update');
+  .refine((d) => d.stage !== undefined || d.paid !== undefined || d.paidCash !== undefined || d.paidCard !== undefined || d.paidTransfer !== undefined || d.balancePaid !== undefined, 'Nothing to update');
 
 // Shared by the review rejection endpoint.
 export const rejectNoteSchema = z.object({

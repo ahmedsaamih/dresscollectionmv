@@ -55,6 +55,7 @@ export default function ProductPage() {
   const { data, loading } = useStore();
   const { cart } = useCart();
   const copy = data.settings.storefrontCopy.productCatalog;
+  const depositCopy = data.settings.storefrontCopy.paymentCheckout;
   useReveal();
   const realProduct = data.products.find(p => p.id === params.id);
   const product = realProduct ?? data.products[0];
@@ -220,6 +221,11 @@ export default function ProductPage() {
                   {product.badge}
                 </span>
               )}
+              {product.preOrder && product.badge !== 'Pre-order' && (
+                <span className="absolute top-4 right-4 text-[10px] font-extrabold tracking-[.07em] uppercase px-[11px] py-[5px] rounded-[7px] bg-[rgba(219,87,149,.92)] text-white">
+                  Pre-order
+                </span>
+              )}
             </div>
           </div>
 
@@ -239,8 +245,13 @@ export default function ProductPage() {
             <div className="flex items-baseline gap-3 mt-5">
               <span className="font-extrabold text-[34px] text-rose-700 tabular">{formatMVR(displayPrice)}</span>
               {product.was && <span className="text-[13px] text-muted line-through tabular">{formatMVR(product.was)}</span>}
-              <span className="text-[13px] text-muted">{copy.productStockLine}</span>
+              <span className="text-[13px] text-muted">{product.preOrder ? depositCopy.depositDueNowLabel : copy.productStockLine}</span>
             </div>
+            {product.preOrder && (
+              <div className="text-[12.5px] text-rose-700 bg-[rgba(219,87,149,.06)] border border-[rgba(219,87,149,.2)] rounded-[10px] px-[14px] py-[10px] mt-3 leading-[1.5] max-w-[440px]">
+                {depositCopy.depositExplainerBody}
+              </div>
+            )}
 
             {/* Colour */}
             <div className="mt-[28px]">

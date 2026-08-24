@@ -11,6 +11,11 @@ interface SlipUploadProps {
   onUploaded?: (url: string) => void;
   /** Pre-order mode: drops the "(optional)" label, since checkout requires a slip up front. */
   required?: boolean;
+  /** uploadUrl mode only: receipt kind to record — defaults to 'payment_slip' (the deposit/full-payment slip). */
+  kind?: 'payment_slip' | 'balance_slip';
+  /** uploadUrl mode only, required when kind is 'balance_slip': the contact (email/mobile) the customer looked
+   *  up their order with — the balance-upload endpoint verifies it against the order on file. */
+  contact?: string;
 }
 
 /**
@@ -19,7 +24,7 @@ interface SlipUploadProps {
  * order already exists) or `onUploaded` (pre-order use, from the checkout
  * form itself, before an order/ref exists).
  */
-export function SlipUpload({ uploadUrl, onUploaded, required = false }: SlipUploadProps) {
+export function SlipUpload({ uploadUrl, onUploaded, required = false, kind = 'payment_slip', contact }: SlipUploadProps) {
   const { data } = useStore();
   const copy = data.settings.storefrontCopy.paymentCheckout;
   const [uploading, setUploading] = useState(false);
@@ -43,7 +48,7 @@ export function SlipUpload({ uploadUrl, onUploaded, required = false }: SlipUplo
       } else if (uploadUrl) {
         const save = await fetch(uploadUrl, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url }),
+          body: JSON.stringify({ url, kind, contact }),
         });
         if (!save.ok) throw new Error('Could not attach receipt.');
       }

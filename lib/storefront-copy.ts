@@ -60,6 +60,11 @@ export const STOREFRONT_COPY_DEFAULTS: StorefrontCopy = {
     orderPlacedTitle: 'Order placed',
     orderPlacedBody: "We've received your order and emailed a confirmation.",
     receiptFileHint: 'PNG, JPG or PDF · max 8 MB',
+    depositDueNowLabel: 'Due now (50% deposit)',
+    depositBalanceLabel: 'Balance due on arrival',
+    depositExplainerBody: "Your cart includes a pre-order item. You'll pay a 50% deposit now — the remaining balance is due once it arrives.",
+    depositConfirmationTitle: 'Deposit received',
+    depositConfirmationBody: "We've received your 50% deposit and emailed a confirmation. We'll be in touch when the balance is due.",
   },
   shippingPickup: {
     shippingPageTitle: 'Shipping & delivery',
@@ -118,6 +123,7 @@ export const STOREFRONT_COPY_DEFAULTS: StorefrontCopy = {
     buildKitCta: 'Shop casual dresses',
     checkoutCta: 'Proceed to checkout',
     noCardCartNote: 'Bank transfer only · no card',
+    preOrderCartNote: 'Includes a pre-order item — 50% deposit due now, balance on arrival.',
     upsellTitle: 'Complete your look',
     upsellBody: 'Choose accessory options before you check out.',
     upsellSkip: 'Skip, go to checkout',
@@ -147,6 +153,8 @@ export const STOREFRONT_COPY_LIMITS: { [S in CopySection]: Record<CopyKey<S>, nu
     paymentInstructionsTitle: 40, paymentInstructionsBody: 220,
     slipUploadTitle: 40, slipUploadHelp: 140, slipReceived: 140,
     orderPlacedTitle: 40, orderPlacedBody: 140, receiptFileHint: 60,
+    depositDueNowLabel: 40, depositBalanceLabel: 40, depositExplainerBody: 220,
+    depositConfirmationTitle: 40, depositConfirmationBody: 180,
   },
   shippingPickup: {
     shippingPageTitle: 48, shippingPageIntro: 120,
@@ -167,6 +175,7 @@ export const STOREFRONT_COPY_LIMITS: { [S in CopySection]: Record<CopyKey<S>, nu
   cartQuoteStatus: {
     cartTitle: 36, cartEmptyHeadline: 64, cartFixedHeadline: 90,
     cartEmptyTitle: 48, cartEmptyBody: 140, shopReadyCta: 32, buildKitCta: 36, checkoutCta: 36, noCardCartNote: 80,
+    preOrderCartNote: 140,
     upsellTitle: 48, upsellBody: 120, upsellSkip: 36,
     statusEyebrow: 36, statusTitle: 56, statusIntro: 160, statusNoMatchTitle: 56, statusNoMatchBody: 160,
   },

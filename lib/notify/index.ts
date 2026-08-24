@@ -6,6 +6,7 @@ import type {
   AdminAlertProvider,
   OrderPlacedEvent,
   OrderPaymentConfirmedEvent,
+  OrderBalanceConfirmedEvent,
   AdminOrderAlertEvent,
   OrderStatusEvent,
   OrderReviewRequestEvent,
@@ -226,6 +227,21 @@ class CompositeNotifier implements Notifier {
       const sms = await this.resolveSmsProvider();
       if (sms.available && o.mobile && o.smsAllowed) {
         await this.sendSms(sms, o.mobile, templates.orderPaymentConfirmedSms(o), { event: 'order.payment_confirmed', orderRef: o.ref });
+      }
+    }
+  }
+
+  /** Fired once a pre-order's remaining balance (after the deposit) is confirmed received. */
+  async orderBalanceConfirmed(o: OrderBalanceConfirmedEvent) {
+    const pref = await this.resolveChannelPref('orderBalanceConfirmed');
+    if (pref.email) {
+      const email = await this.resolveEmailProvider();
+      await this.sendEmail(email, o.email, templates.orderBalanceConfirmed(o), { event: 'order.balance_confirmed', orderRef: o.ref });
+    }
+    if (pref.sms) {
+      const sms = await this.resolveSmsProvider();
+      if (sms.available && o.mobile && o.smsAllowed) {
+        await this.sendSms(sms, o.mobile, templates.orderBalanceConfirmedSms(o), { event: 'order.balance_confirmed', orderRef: o.ref });
       }
     }
   }
