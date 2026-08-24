@@ -10,7 +10,7 @@ const PW = 595;
 const PH = 842;
 
 function fmt(n: number): string {
-  return 'MVR ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return 'MVR ' + n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
 export interface PaymentReceiptImageData {
@@ -19,11 +19,15 @@ export interface PaymentReceiptImageData {
   paymentDate: string;
   paymentMode: string;
   referenceNumber: string;
-  subtotal: number;
+  subtotal: number; // net product subtotal — already reflects any per-product discount
   deliveryFee: number;
-  discount: number; // existing promo/manual cart-level discount
-  productDiscount: number; // per-product automatic discount (new)
-  amount: number;
+  discount: number; // promo/manual cart-level discount
+  productDiscount: number; // per-product automatic discount aggregate
+  total: number; // the order's full total, for reconciliation
+  depositRequired: number; // equals `total` for a non-pre-order order
+  balanceDue: number; // 0 unless the order contains pre-order items
+  isBalancePayment: boolean; // true when this receipt documents the balance installment, not the deposit
+  amount: number; // the amount THIS receipt documents (depositRequired, balanceDue, or total)
   invoiceDate: string;
   storeName: string;
   storeAddress: string;
@@ -45,7 +49,13 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
 export async function paymentReceiptImage(d: PaymentReceiptImageData): Promise<Buffer> {
   const contactLine = [d.storePhone, d.storeEmail].filter(Boolean).join('  ·  ');
   const cols = ['Invoice Number', 'Invoice Date', 'Invoice Amount', 'Payment Amount'];
-  const vals = [d.orderRef, d.invoiceDate, fmt(d.amount), fmt(d.amount)];
+  const vals = [d.orderRef, d.invoiceDate, fmt(d.total), fmt(d.amount)];
+  const isSplitOrder = d.balanceDue > 0; // this order actually has a deposit/balance split
+  const amountLabel = d.isBalancePayment ? 'Balance Received' : isSplitOrder ? 'Deposit Received' : 'Amount Received';
+  // "Product Subtotal" shown gross (pre-discount) so "Product savings" below it is a real
+  // subtraction back down to the net d.subtotal — d.subtotal already has productDiscount
+  // baked out, so subtracting it again would double-count and undercount the real total.
+  const grossSubtotal = d.subtotal + d.productDiscount;
 
   const img = new ImageResponse(
     (
@@ -80,7 +90,7 @@ export async function paymentReceiptImage(d: PaymentReceiptImageData): Promise<B
             ))}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', width: 220, height: 80, background: GREEN, padding: '12px 14px', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 9, color: WHITE }}>Amount Received</span>
+            <span style={{ fontSize: 9, color: WHITE }}>{amountLabel}</span>
             <span style={{ fontSize: 20, fontWeight: 700, color: WHITE, alignSelf: 'center' }}>{fmt(d.amount)}</span>
           </div>
         </div>
@@ -93,12 +103,20 @@ export async function paymentReceiptImage(d: PaymentReceiptImageData): Promise<B
 
         <div style={{ display: 'flex', height: 1, background: LGRAY, marginTop: 20, marginBottom: 18 }} />
 
-        {/* Breakdown */}
+        {/* Breakdown — reconciles top to bottom to Order Total */}
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <Row label="Product Subtotal" value={fmt(d.subtotal)} />
+          <Row label="Product Subtotal" value={fmt(grossSubtotal)} />
+          {d.productDiscount > 0 && <Row label="Product savings" value={`(−) ${fmt(d.productDiscount)}`} />}
           {d.deliveryFee > 0 && <Row label="Delivery" value={fmt(d.deliveryFee)} />}
           {d.discount > 0 && <Row label="Discount" value={`(−) ${fmt(d.discount)}`} />}
-          {d.productDiscount > 0 && <Row label="Product savings" value={`(−) ${fmt(d.productDiscount)}`} />}
+          <div style={{ display: 'flex', height: 1, background: LGRAY, marginTop: 4, marginBottom: 8 }} />
+          <Row label="Order Total" value={fmt(d.total)} bold />
+          {isSplitOrder && (
+            <div style={{ display: 'flex', flexDirection: 'column', marginTop: 10 }}>
+              <Row label={`Deposit (50%)${d.isBalancePayment ? '' : ' — this receipt'}`} value={fmt(d.depositRequired)} bold={!d.isBalancePayment} />
+              <Row label={`Balance${d.isBalancePayment ? ' — this receipt' : ' — due'}`} value={fmt(d.balanceDue)} bold={d.isBalancePayment} />
+            </div>
+          )}
         </div>
 
         {/* Payment for table */}
