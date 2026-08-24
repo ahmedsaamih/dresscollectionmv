@@ -57,6 +57,16 @@ const GRADIENTS = [
   'linear-gradient(135deg,#ff3d4d,#200c15)', 'linear-gradient(150deg,#36021a,#080808)',
 ];
 
+// ─── Orders-tab button/pill size scales ────────────────────────────────────
+// Structural only (padding/radius/font-size/dimensions) — color, border and
+// font-weight stay per-site via the existing conditional style/className
+// pattern; don't add weight/color utilities here.
+const BTN_FULL = 'text-[12px] px-4 py-[9px] rounded-[8px]';                // full buttons + <select> — drawer Actions scale
+const BTN_COMPACT = 'text-[12px] px-4 py-[8px] rounded-[9px]';             // text pills/links/chips — drawer Links scale
+const BTN_ICON = 'w-[28px] h-[28px] rounded-[7px] text-[10px]';           // icon-only square buttons, desktop density
+const BTN_ICON_TOUCH = 'w-[42px] h-[42px] rounded-[10px] text-[12px]';    // icon-only square buttons, mobile (≥40px target)
+const BTN_FULL_TOUCH = 'w-full text-[13px] px-4 py-[12px] rounded-[10px]'; // full-width mobile action buttons/selects (~44px tall)
+
 function inventoryStockForVariant(rows: InventoryItem[], productId: string, color: string, size: string): number {
   return rows.find(r => r.productId === productId && r.color === (color || '') && r.size === (size || ''))?.qty ?? 0;
 }
@@ -2104,7 +2114,7 @@ export default function AdminPage() {
                 </div>
                 {hasPermission(currentUser, 'orders', 'edit') && (
                   <button onClick={() => setManualOrderModal(true)}
-                    className="border-none bg-rose-500 text-[#200612] font-extrabold text-[13px] px-[18px] py-[9px] rounded-[10px] cursor-pointer shadow-rose-sm">
+                    className={`border-none bg-rose-500 text-[#200612] font-extrabold cursor-pointer shadow-rose-sm ${BTN_FULL}`}>
                     + Manual Order
                   </button>
                 )}
@@ -2112,14 +2122,14 @@ export default function AdminPage() {
               <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-1">
                 {orderFilterOptions.map(opt => (
                   <button key={opt.key} onClick={() => setOrderFilter(opt.key)}
-                    className="flex-none border font-extrabold text-[11.5px] px-3 py-[7px] rounded-[8px] cursor-pointer transition-colors"
+                    className={`flex-none border font-extrabold cursor-pointer transition-colors ${BTN_COMPACT}`}
                     style={{ background: orderFilter === opt.key ? 'rgba(219,87,149,.12)' : 'rgba(0,0,0,.05)', borderColor: orderFilter === opt.key ? 'rgba(219,87,149,.45)' : 'rgba(0,0,0,.1)', color: orderFilter === opt.key ? '#600a32' : '#705260' }}>
                     {opt.label} <span className="tabular opacity-75">{opt.count}</span>
                   </button>
                 ))}
               </div>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-                {[
+              {(() => {
+                const ledgerCards: [string, number][] = [
                   ['Gross sales', ledgerTotals.gross],
                   ['Discounts', ledgerTotals.discount],
                   ['Paid collected', ledgerTotals.paid],
@@ -2128,14 +2138,25 @@ export default function AdminPage() {
                   ['Card', ledgerTotals.card],
                   ['Bank transfer', ledgerTotals.transfer],
                   ['Net sales', ledgerTotals.total],
-                ].map(([label, value]) => (
+                ];
+                const cards = ledgerCards.map(([label, value]) => (
                   <div key={label} className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[10px] p-3">
                     <div className="text-[10.5px] font-extrabold uppercase tracking-[.06em] text-muted">{label}</div>
-                    <div className="text-[15px] font-bold tabular text-body mt-1">MVR {(value as number).toLocaleString()}</div>
+                    <div className="text-[15px] font-bold tabular text-body mt-1">MVR {value.toLocaleString()}</div>
                   </div>
-                ))}
-              </div>
-              <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[15px] overflow-x-auto [&>div]:min-w-[820px]">
+                ));
+                return (
+                  <>
+                    <div className="hidden lg:grid lg:grid-cols-4 gap-3 mb-4">{cards}</div>
+                    <details className="lg:hidden mb-4 bg-surface border border-[rgba(0,0,0,.08)] rounded-[10px]">
+                      <summary className="text-[12px] font-extrabold uppercase tracking-[.06em] text-muted px-3 py-[10px] cursor-pointer select-none">Sales totals</summary>
+                      <div className="grid grid-cols-2 gap-3 p-3 pt-0">{cards}</div>
+                    </details>
+                  </>
+                );
+              })()}
+              {/* Desktop: full grid table */}
+              <div className="hidden lg:block bg-surface border border-[rgba(0,0,0,.08)] rounded-[15px] overflow-x-auto [&>div]:min-w-[820px]">
                 <div className="grid px-[18px] py-[13px] bg-[rgba(0,0,0,.045)] border-b border-[rgba(0,0,0,.07)] text-[11px] font-extrabold tracking-[.06em] uppercase text-muted" style={{ gridTemplateColumns: '148px 1.3fr 1.5fr .85fr 1fr 1.5fr 100px 36px' }}>
                   <span>Ref</span><span>Customer</span><span>Items</span><span>Total</span><span>Payment</span><span>Status</span><span>Docs</span><span></span>
                 </div>
@@ -2164,48 +2185,51 @@ export default function AdminPage() {
                       <div className="min-w-0"><div className="text-[13px] font-semibold truncate">{o.customer}</div><div className="text-[11px] text-muted">{o.date} · {[o.method, o.locationName].filter(Boolean).join(' · ')}</div></div>
                       <span className="text-[12px] text-sub truncate">{o.items}</span>
                       <span className="text-[13px] font-bold tabular">MVR {o.total.toLocaleString()}</span>
-                      <div className="flex flex-col items-start gap-1">
-                        <button onClick={() => togglePaid(o.id)} className="justify-self-start font-bold text-[11px] px-[11px] py-[5px] rounded-[7px] cursor-pointer border transition-colors"
+                      <div className="flex flex-col items-start gap-2">
+                        <button onClick={() => togglePaid(o.id)} className={`justify-self-start font-bold cursor-pointer border transition-colors ${BTN_FULL}`}
                           style={{ background: o.paid ? '#db5795' : 'rgba(255,61,77,.12)', color: o.paid ? '#200612' : '#e81a2b', border: o.paid ? 'none' : '1px solid rgba(255,61,77,.35)' }}>
                           {o.paid ? <><Check size={11} className="inline mr-1" /> {isPreOrder ? (o.balancePaid ? 'Paid in full' : 'Deposit paid') : 'Paid'}</> : 'Unpaid'}
                         </button>
                         {o.paid && isPreOrder && !o.balancePaid && (
-                          <button onClick={() => setOrderDrawer(o)} className="border-none bg-transparent p-0 text-[10px] font-bold text-[#8a6205] cursor-pointer hover:underline">Balance due</button>
+                          <button onClick={() => openMarkBalancePaid(o.id)}
+                            className={`font-bold cursor-pointer border transition-colors ${BTN_FULL} border-[rgba(245,200,66,.4)] bg-[rgba(245,200,66,.08)] text-[#8a6205] hover:brightness-105`}>
+                            Collect balance
+                          </button>
                         )}
                       </div>
                       {o.origin === 'pos_sale' ? (
                         <span className="justify-self-start text-[10.5px] font-extrabold uppercase px-2 py-[5px] rounded-[7px] border border-[rgba(219,87,149,.25)] text-rose-600 bg-[rgba(219,87,149,.07)]">Completed POS sale</span>
                       ) : (
                         <select value={o.stage} onChange={e => setOrderStage(o.id, +e.target.value)}
-                          className="bg-well border rounded-[8px] px-[9px] py-[7px] font-archivo font-bold text-[12px] outline-none cursor-pointer"
+                          className={`bg-well border font-archivo font-bold outline-none cursor-pointer ${BTN_FULL}`}
                           style={{ borderColor: m.fg, color: m.fg }}>
                           {stageOptionsFor(o).map(st => <option key={st.value} value={st.value}>{st.label}</option>)}
                         </select>
                       )}
-                      <div className="flex items-center gap-1 flex-wrap w-[92px]">
+                      <div className="flex items-center gap-1 flex-wrap w-[96px]">
                         {slip && (
                           <button onClick={() => setSlipModal({ url: slip.url, expired: slip.expired })}
                             title={slip.expired ? 'Payment slip expired (auto-deleted after 90 days)' : 'View payment slip'}
-                            className={`w-[24px] h-[24px] rounded-[6px] border bg-transparent inline-flex items-center justify-center text-[10px] font-bold cursor-pointer transition-all ${slip.expired ? 'border-[rgba(0,0,0,.1)] text-[rgba(0,0,0,.3)]' : 'border-[rgba(0,0,0,.16)] text-sub hover:text-body'}`}>
+                            className={`${BTN_ICON} border bg-transparent inline-flex items-center justify-center font-bold cursor-pointer transition-all ${slip.expired ? 'border-[rgba(0,0,0,.1)] text-[rgba(0,0,0,.3)]' : 'border-[rgba(0,0,0,.16)] text-sub hover:text-body'}`}>
                             Slip
                           </button>
                         )}
                         {receipt && (
                           <a href={receipt.url} target="_blank" rel="noopener noreferrer" title="Download receipt PDF"
-                            className="w-[24px] h-[24px] rounded-[6px] border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.08)] text-rose-700 inline-flex items-center justify-center text-[9px] font-extrabold no-underline hover:brightness-125 transition-all">
+                            className={`${BTN_ICON} border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.08)] text-rose-700 inline-flex items-center justify-center font-extrabold no-underline hover:brightness-125 transition-all`}>
                             Rec
                           </a>
                         )}
                         {bSlip && (
                           <button onClick={() => setSlipModal({ url: bSlip.url, expired: bSlip.expired })}
                             title={bSlip.expired ? 'Balance slip expired (auto-deleted after 90 days)' : 'View balance slip'}
-                            className={`w-[24px] h-[24px] rounded-[6px] border bg-transparent inline-flex items-center justify-center text-[8px] font-bold cursor-pointer transition-all ${bSlip.expired ? 'border-[rgba(0,0,0,.1)] text-[rgba(0,0,0,.3)]' : 'border-[rgba(245,200,66,.4)] text-[#8a6205] hover:brightness-110'}`}>
+                            className={`${BTN_ICON} border bg-transparent inline-flex items-center justify-center font-bold cursor-pointer transition-all ${bSlip.expired ? 'border-[rgba(0,0,0,.1)] text-[rgba(0,0,0,.3)]' : 'border-[rgba(245,200,66,.4)] text-[#8a6205] hover:brightness-110'}`}>
                             BSlip
                           </button>
                         )}
                         {bReceipt && (
                           <a href={bReceipt.url} target="_blank" rel="noopener noreferrer" title="Download balance receipt PDF"
-                            className="w-[24px] h-[24px] rounded-[6px] border border-[rgba(245,200,66,.4)] bg-[rgba(245,200,66,.1)] text-[#8a6205] inline-flex items-center justify-center text-[8px] font-extrabold no-underline hover:brightness-110 transition-all">
+                            className={`${BTN_ICON} border border-[rgba(245,200,66,.4)] bg-[rgba(245,200,66,.1)] text-[#8a6205] inline-flex items-center justify-center font-extrabold no-underline hover:brightness-110 transition-all`}>
                             BRec
                           </a>
                         )}
@@ -2213,10 +2237,108 @@ export default function AdminPage() {
                       </div>
                       {canDelete ? (
                         <button onClick={() => deleteOrder(o.id, o.id)} title="Delete order"
-                          className="w-[28px] h-[28px] rounded-[7px] border border-[rgba(0,0,0,.1)] bg-transparent text-muted cursor-pointer hover:text-[#e81a2b] hover:border-[rgba(255,61,77,.35)] transition-all flex items-center justify-center">
+                          className={`${BTN_ICON} border border-[rgba(0,0,0,.1)] bg-transparent text-muted cursor-pointer hover:text-[#e81a2b] hover:border-[rgba(255,61,77,.35)] transition-all flex items-center justify-center`}>
                           <Trash2 size={12} />
                         </button>
                       ) : <span />}
+                    </div>
+                  );
+                })}
+                {filteredOrders.length === 0 && <div className="py-12 text-center text-[13px] text-muted">No orders match this filter.</div>}
+              </div>
+
+              {/* Mobile: touch-sized card list — the Orders tab is used mostly on a
+                  phone, so this is the primary layout, not a fallback. */}
+              <div className="lg:hidden flex flex-col gap-[12px]">
+                {filteredOrders.map(o => {
+                  const m = STAGE_META[Math.min(o.stage, STAGE_META.length - 1)];
+                  const slip = paymentSlip(o);
+                  const receipt = paymentReceipt(o);
+                  const bSlip = balanceSlip(o);
+                  const bReceipt = balanceReceipt(o);
+                  const canDelete = hasPermission(currentUser, 'orders', 'edit');
+                  const origin = orderOriginMeta(o);
+                  const isPreOrder = o.depositRequired > 0 && o.balanceDue > 0;
+                  const hasDocs = slip || receipt || bSlip || bReceipt;
+                  return (
+                    <div key={o.id} className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[14px] p-4">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="min-w-0">
+                          <button onClick={() => setOrderDrawer(o)} className="text-[13px] font-bold text-rose-700 tabular hover:underline border-none bg-transparent cursor-pointer p-0 text-left">{o.id}</button>
+                          <div className="flex items-center gap-1 mt-1 flex-wrap">
+                            <span className="text-[9px] font-extrabold uppercase rounded-[4px] px-[5px] py-[2px] border" style={{ color: origin.tone, background: origin.bg, borderColor: origin.border }}>{origin.label}</span>
+                            {isPreOrder && <span className="text-[9px] font-extrabold uppercase text-rose-700 bg-[rgba(219,87,149,.1)] border border-[rgba(219,87,149,.3)] rounded-[4px] px-[5px] py-[2px]">Pre-order</span>}
+                            {o.quoteRef && <span className="text-[9px] font-extrabold text-[#8a6205] bg-[rgba(245,200,66,.1)] border border-[rgba(245,200,66,.25)] rounded-[4px] px-[5px] py-[2px]">from {o.quoteRef}</span>}
+                            {o.pdfUrl && <a href={o.pdfUrl} target="_blank" rel="noopener noreferrer" className="text-[9px] font-extrabold text-rose-700 border border-[rgba(219,87,149,.3)] rounded-[4px] px-[5px] py-[2px] no-underline">PDF</a>}
+                          </div>
+                        </div>
+                        {canDelete && (
+                          <button onClick={() => deleteOrder(o.id, o.id)} title="Delete order"
+                            className="flex-none w-[36px] h-[36px] rounded-[9px] border border-[rgba(0,0,0,.1)] bg-transparent text-muted cursor-pointer active:text-[#e81a2b] active:border-[rgba(255,61,77,.35)] transition-all flex items-center justify-center">
+                            <Trash2 size={15} />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="text-[15px] font-semibold truncate">{o.customer}</div>
+                      <div className="text-[12px] text-muted mb-3">{o.date} · {[o.method, o.locationName].filter(Boolean).join(' · ')}</div>
+
+                      <div className="text-[12.5px] text-sub mb-1 truncate">{o.items}</div>
+                      <div className="text-[19px] font-bold tabular mb-3">MVR {o.total.toLocaleString()}</div>
+
+                      <div className="h-px bg-[rgba(0,0,0,.07)] mb-3" />
+
+                      <div className="flex items-center gap-2 mb-3 flex-wrap">
+                        <button onClick={() => togglePaid(o.id)} className={`font-bold cursor-pointer border transition-colors ${BTN_FULL}`}
+                          style={{ background: o.paid ? '#db5795' : 'rgba(255,61,77,.12)', color: o.paid ? '#200612' : '#e81a2b', border: o.paid ? 'none' : '1px solid rgba(255,61,77,.35)' }}>
+                          {o.paid ? <><Check size={12} className="inline mr-1" /> {isPreOrder ? (o.balancePaid ? 'Paid in full' : 'Deposit paid') : 'Paid'}</> : 'Unpaid'}
+                        </button>
+                        {o.paid && isPreOrder && !o.balancePaid && (
+                          <button onClick={() => openMarkBalancePaid(o.id)}
+                            className={`font-bold cursor-pointer border transition-colors ${BTN_FULL} border-[rgba(245,200,66,.4)] bg-[rgba(245,200,66,.08)] text-[#8a6205]`}>
+                            Collect balance
+                          </button>
+                        )}
+                      </div>
+
+                      {o.origin === 'pos_sale' ? (
+                        <span className="inline-block text-[11px] font-extrabold uppercase px-3 py-[10px] rounded-[10px] border border-[rgba(219,87,149,.25)] text-rose-600 bg-[rgba(219,87,149,.07)] mb-3">Completed POS sale</span>
+                      ) : (
+                        <select value={o.stage} onChange={e => setOrderStage(o.id, +e.target.value)}
+                          className={`bg-well border font-archivo font-bold outline-none cursor-pointer mb-3 ${BTN_FULL_TOUCH}`}
+                          style={{ borderColor: m.fg, color: m.fg }}>
+                          {stageOptionsFor(o).map(st => <option key={st.value} value={st.value}>{st.label}</option>)}
+                        </select>
+                      )}
+
+                      {hasDocs && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {slip && (
+                            <button onClick={() => setSlipModal({ url: slip.url, expired: slip.expired })}
+                              className={`${BTN_ICON_TOUCH} border bg-transparent inline-flex items-center justify-center font-bold cursor-pointer transition-all ${slip.expired ? 'border-[rgba(0,0,0,.1)] text-[rgba(0,0,0,.3)]' : 'border-[rgba(0,0,0,.16)] text-sub'}`}>
+                              Slip
+                            </button>
+                          )}
+                          {receipt && (
+                            <a href={receipt.url} target="_blank" rel="noopener noreferrer"
+                              className={`${BTN_ICON_TOUCH} border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.08)] text-rose-700 inline-flex items-center justify-center font-extrabold no-underline transition-all`}>
+                              Rec
+                            </a>
+                          )}
+                          {bSlip && (
+                            <button onClick={() => setSlipModal({ url: bSlip.url, expired: bSlip.expired })}
+                              className={`${BTN_ICON_TOUCH} border bg-transparent inline-flex items-center justify-center font-bold cursor-pointer transition-all ${bSlip.expired ? 'border-[rgba(0,0,0,.1)] text-[rgba(0,0,0,.3)]' : 'border-[rgba(245,200,66,.4)] text-[#8a6205]'}`}>
+                              BSlip
+                            </button>
+                          )}
+                          {bReceipt && (
+                            <a href={bReceipt.url} target="_blank" rel="noopener noreferrer"
+                              className={`${BTN_ICON_TOUCH} border border-[rgba(245,200,66,.4)] bg-[rgba(245,200,66,.1)] text-[#8a6205] inline-flex items-center justify-center font-extrabold no-underline transition-all`}>
+                              BRec
+                            </a>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -4749,50 +4871,50 @@ export default function AdminPage() {
 
               {/* Links */}
               <div className="flex items-center gap-3 flex-wrap">
-                {orderDrawer.pdfUrl && <a href={orderDrawer.pdfUrl} target="_blank" rel="noopener noreferrer" className="text-[12px] font-bold text-rose-700 border border-[rgba(219,87,149,.3)] bg-[rgba(219,87,149,.06)] px-4 py-[8px] rounded-[9px] no-underline hover:brightness-125 transition-all">↓ Invoice PDF</a>}
+                {orderDrawer.pdfUrl && <a href={orderDrawer.pdfUrl} target="_blank" rel="noopener noreferrer" className={`font-bold text-rose-700 border border-[rgba(219,87,149,.3)] bg-[rgba(219,87,149,.06)] no-underline hover:brightness-125 transition-all ${BTN_COMPACT}`}>↓ Invoice PDF</a>}
                 {paymentSlip(orderDrawer) && (
                   <button onClick={() => setSlipModal({ url: paymentSlip(orderDrawer)!.url, expired: paymentSlip(orderDrawer)!.expired })}
                     title={paymentSlip(orderDrawer)!.expired ? 'Payment slip expired (auto-deleted after 90 days)' : undefined}
-                    className={`text-[12px] font-bold border px-4 py-[8px] rounded-[9px] bg-transparent cursor-pointer transition-colors ${paymentSlip(orderDrawer)!.expired ? 'border-[rgba(0,0,0,.1)] text-[rgba(0,0,0,.3)]' : 'border-[rgba(0,0,0,.14)] text-sub hover:text-body'}`}>
+                    className={`font-bold border bg-transparent cursor-pointer transition-colors ${BTN_COMPACT} ${paymentSlip(orderDrawer)!.expired ? 'border-[rgba(0,0,0,.1)] text-[rgba(0,0,0,.3)]' : 'border-[rgba(0,0,0,.14)] text-sub hover:text-body'}`}>
                     Payment slip
                   </button>
                 )}
                 {paymentReceipt(orderDrawer) && (
-                  <a href={paymentReceipt(orderDrawer)!.url} target="_blank" rel="noopener noreferrer" className="text-[12px] font-bold text-rose-700 border border-[rgba(219,87,149,.3)] bg-[rgba(219,87,149,.06)] px-4 py-[8px] rounded-[9px] no-underline hover:brightness-125 transition-all">↓ Receipt PDF</a>
+                  <a href={paymentReceipt(orderDrawer)!.url} target="_blank" rel="noopener noreferrer" className={`font-bold text-rose-700 border border-[rgba(219,87,149,.3)] bg-[rgba(219,87,149,.06)] no-underline hover:brightness-125 transition-all ${BTN_COMPACT}`}>↓ Receipt PDF</a>
                 )}
                 {orderDrawer.paid && !paymentReceipt(orderDrawer) && (
-                  <button onClick={() => generateOrderReceipt(orderDrawer.id)} className="text-[12px] font-bold text-rose-700 border border-[rgba(219,87,149,.3)] bg-transparent px-4 py-[8px] rounded-[9px] cursor-pointer hover:bg-[rgba(219,87,149,.06)] transition-all">Generate receipt</button>
+                  <button onClick={() => generateOrderReceipt(orderDrawer.id)} className={`font-bold text-rose-700 border border-[rgba(219,87,149,.3)] bg-transparent cursor-pointer hover:bg-[rgba(219,87,149,.06)] transition-all ${BTN_COMPACT}`}>Generate receipt</button>
                 )}
                 {balanceSlip(orderDrawer) && (
                   <button onClick={() => setSlipModal({ url: balanceSlip(orderDrawer)!.url, expired: balanceSlip(orderDrawer)!.expired })}
                     title={balanceSlip(orderDrawer)!.expired ? 'Balance slip expired (auto-deleted after 90 days)' : undefined}
-                    className={`text-[12px] font-bold border px-4 py-[8px] rounded-[9px] bg-transparent cursor-pointer transition-colors ${balanceSlip(orderDrawer)!.expired ? 'border-[rgba(0,0,0,.1)] text-[rgba(0,0,0,.3)]' : 'border-[rgba(0,0,0,.14)] text-sub hover:text-body'}`}>
+                    className={`font-bold border bg-transparent cursor-pointer transition-colors ${BTN_COMPACT} ${balanceSlip(orderDrawer)!.expired ? 'border-[rgba(0,0,0,.1)] text-[rgba(0,0,0,.3)]' : 'border-[rgba(0,0,0,.14)] text-sub hover:text-body'}`}>
                     Balance slip
                   </button>
                 )}
                 {balanceReceipt(orderDrawer) && (
-                  <a href={balanceReceipt(orderDrawer)!.url} target="_blank" rel="noopener noreferrer" className="text-[12px] font-bold text-rose-700 border border-[rgba(219,87,149,.3)] bg-[rgba(219,87,149,.06)] px-4 py-[8px] rounded-[9px] no-underline hover:brightness-125 transition-all">↓ Balance receipt PDF</a>
+                  <a href={balanceReceipt(orderDrawer)!.url} target="_blank" rel="noopener noreferrer" className={`font-bold text-rose-700 border border-[rgba(219,87,149,.3)] bg-[rgba(219,87,149,.06)] no-underline hover:brightness-125 transition-all ${BTN_COMPACT}`}>↓ Balance receipt PDF</a>
                 )}
               </div>
 
               {/* Actions */}
-              <div className="flex items-center gap-3 pt-2 border-t border-[rgba(0,0,0,.07)]">
+              <div className="flex items-center gap-3 pt-2 border-t border-[rgba(0,0,0,.07)] flex-wrap">
                 <button onClick={() => togglePaid(orderDrawer.id)}
-                  className="font-bold text-[12px] px-4 py-[9px] rounded-[8px] cursor-pointer border transition-colors"
+                  className={`font-bold cursor-pointer border transition-colors ${BTN_FULL}`}
                   style={{ background: orderDrawer.paid ? '#db5795' : 'rgba(255,61,77,.12)', color: orderDrawer.paid ? '#200612' : '#ff6370', border: orderDrawer.paid ? 'none' : '1px solid rgba(255,61,77,.35)' }}>
                   {orderDrawer.paid ? <><Check size={12} className="inline mr-1" /> Mark Unpaid</> : 'Mark Paid'}
                 </button>
                 {orderDrawer.paid && orderDrawer.balanceDue > 0 && !orderDrawer.balancePaid && (
                   <button onClick={() => openMarkBalancePaid(orderDrawer.id)}
-                    className="font-bold text-[12px] px-4 py-[9px] rounded-[8px] cursor-pointer border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.08)] text-rose-700 transition-colors">
+                    className={`font-bold cursor-pointer border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.08)] text-rose-700 transition-colors ${BTN_FULL}`}>
                     Record balance payment
                   </button>
                 )}
                 {orderDrawer.origin === 'pos_sale' ? (
-                  <span className="text-[11px] font-extrabold uppercase px-3 py-[9px] rounded-[8px] border border-[rgba(219,87,149,.25)] text-rose-600 bg-[rgba(219,87,149,.07)]">Completed POS sale</span>
+                  <span className={`font-extrabold uppercase border border-[rgba(219,87,149,.25)] text-rose-600 bg-[rgba(219,87,149,.07)] ${BTN_FULL}`}>Completed POS sale</span>
                 ) : (
                   <select value={orderDrawer.stage} onChange={e => setOrderStage(orderDrawer.id, +e.target.value)}
-                    className="bg-well border rounded-[8px] px-3 py-[9px] font-bold text-[12px] outline-none cursor-pointer"
+                    className={`bg-well border font-bold outline-none cursor-pointer ${BTN_FULL}`}
                     style={{ borderColor: STAGE_META[Math.min(orderDrawer.stage, STAGE_META.length - 1)].fg, color: STAGE_META[Math.min(orderDrawer.stage, STAGE_META.length - 1)].fg }}>
                     {stageOptionsFor(orderDrawer).map(st => <option key={st.value} value={st.value}>{st.label}</option>)}
                   </select>
