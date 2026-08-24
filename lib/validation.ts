@@ -124,6 +124,7 @@ const productFields = {
   showInWebStore: z.boolean(),
   img: z.string(),
   colorImages: z.record(z.string(), z.string()),
+  colorHex: z.record(z.string(), z.string()),
 };
 
 export const productCreateSchema = z.object({
@@ -146,6 +147,7 @@ export const productCreateSchema = z.object({
   showInWebStore: productFields.showInWebStore.optional().default(true),
   img: productFields.img.optional().default(''),
   colorImages: productFields.colorImages.optional().default({}),
+  colorHex: productFields.colorHex.optional().default({}),
 });
 
 // Partial — only provided keys are updated (preserves colors/sizes the admin UI doesn't edit).

@@ -26,6 +26,21 @@ export const COLOR_MAP: Record<string, string> = {
   Terracotta: '#c9704f', Navy: '#232a3d', Gold: '#c9a227', Black: '#1a1a1a',
 };
 
+const HEX_RE = /^#[0-9a-f]{6}$/i;
+
+/**
+ * Resolve a colour name to a display hex value: the product's own admin-set
+ * colorHex first, then the COLOR_MAP default for known names, then a neutral
+ * grey — never something a consumer (e.g. a native colour input) would reject.
+ */
+export function productColorHex(colorHex: Record<string, string> | undefined | null, name: string): string {
+  const v = colorHex?.[name];
+  if (v && HEX_RE.test(v)) return v;
+  const fallback = COLOR_MAP[name];
+  if (fallback && HEX_RE.test(fallback)) return fallback;
+  return '#cccccc';
+}
+
 export const ORDER_STAGES = [
   'Placed',            // 0
   'Payment Confirmed', // 1

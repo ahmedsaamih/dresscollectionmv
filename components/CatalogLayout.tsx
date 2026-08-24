@@ -6,7 +6,7 @@ import { ProductGridSkeleton } from '@/components/ProductSkeleton';
 import { Button } from '@/components/Button';
 import { SizeChartTrigger } from '@/components/SizeChart';
 import { Check } from 'lucide-react';
-import { COLOR_MAP, PRODUCT_SIZES } from '@/lib/utils';
+import { productColorHex, PRODUCT_SIZES } from '@/lib/utils';
 import type { Product, SizeChart } from '@/lib/types';
 
 const SORT_OPTIONS = [
@@ -56,7 +56,9 @@ export function CatalogLayout({
   const [sort, setSort] = useState<SortKey>('new');
   const [limit, setLimit] = useState(pageSize);
 
-  const colorHex = (name: string) => COLOR_MAP[name] ?? '#888';
+  // Facet swatches aggregate across every product — use whichever product set
+  // an explicit hex for this colour name, falling back to the shared default.
+  const colorHex = (name: string) => productColorHex(products.find(p => p.colorHex?.[name])?.colorHex, name);
 
   const facets = useMemo(() => {
     const categoryList = [...new Set(products.map(p => p.category))];

@@ -54,6 +54,7 @@ export function mapProduct(p: ProductRow): Product {
     showInWebStore: p.showInWebStore,
     img: p.img,
     colorImages: (p.colorImages as Record<string, string>) ?? {},
+    colorHex: (p.colorHex as Record<string, string>) ?? {},
   };
 }
 
