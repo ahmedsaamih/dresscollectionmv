@@ -5,10 +5,10 @@ const RECEIPT_KINDS: readonly OrderReceipt['kind'][] = ['payment_slip', 'payment
 function normalizeReceiptKind(kind: string | undefined): OrderReceipt['kind'] {
   return RECEIPT_KINDS.includes(kind as OrderReceipt['kind']) ? (kind as OrderReceipt['kind']) : 'payment_slip';
 }
-import { isReceiptExpired } from '@/lib/receipts';
+import { isReceiptExpired, isExpired } from '@/lib/receipts';
 
 export const orderInclude = {
-  receipts: { orderBy: { createdAt: 'desc' } },
+  receipts: { orderBy: { createdAt: 'desc' }, include: { ocr: true } },
   lineItems: true,
   location: { select: { id: true, name: true } },
   deliveryArea: { select: { id: true, name: true } },
@@ -51,6 +51,8 @@ export function serializeOrder(o: OrderWithDetails): Order {
     locationName: o.location?.name ?? null,
     quoteRef: o.quoteRef ?? null,
     pdfUrl: o.pdfUrl ?? null,
+    pdfExpiresAt: o.pdfExpiresAt?.toISOString() ?? null,
+    pdfExpired: isExpired(o.pdfExpiresAt),
     lineItems: (o.lineItems ?? []).map((li) => ({
       id: li.id,
       sku: li.sku,
@@ -71,6 +73,11 @@ export function serializeOrder(o: OrderWithDetails): Order {
       createdAt: r.createdAt.toISOString(),
       expiresAt: r.expiresAt?.toISOString() ?? null,
       expired: isReceiptExpired(r),
+      ocr: r.ocr ? {
+        bankName: r.ocr.bankName, status: r.ocr.status, referenceNumber: r.ocr.referenceNumber,
+        transactionDate: r.ocr.transactionDate, fromName: r.ocr.fromName, toName: r.ocr.toName,
+        toAccount: r.ocr.toAccount, amount: r.ocr.amount, currency: r.ocr.currency,
+      } : null,
     })),
   };
 }

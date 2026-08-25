@@ -57,6 +57,26 @@ function isSafeStorageUrl(value: string): boolean {
 export const storageUrl = (max = 2048) =>
   z.string().min(1).max(max).refine(isSafeStorageUrl, 'File URL is not from an allowed storage host');
 
+// Best-effort, client-submitted (in-browser Tesseract.js) fields read off a payment-slip
+// image — see lib/slip-ocr-parse.ts. Capped/nullable throughout since this arrives as
+// arbitrary client input; never trusted as proof of payment, purely a searchable convenience
+// stored alongside the slip.
+export const slipOcrSchema = z
+  .object({
+    bankName: z.string().trim().max(120).nullable(),
+    status: z.string().trim().max(40).nullable(),
+    referenceNumber: z.string().trim().max(120).nullable(),
+    transactionDate: z.string().trim().max(60).nullable(),
+    fromName: z.string().trim().max(120).nullable(),
+    toName: z.string().trim().max(120).nullable(),
+    toAccount: z.string().trim().max(80).nullable(),
+    amount: z.number().finite().min(0).max(10_000_000).nullable(),
+    currency: z.string().trim().max(10).nullable(),
+    rawText: z.string().max(8000),
+  })
+  .nullable()
+  .optional();
+
 // ─── Checkout (fixed-price order) ────────────────────────────────────────────
 
 const fixedItem = z.object({
@@ -84,6 +104,7 @@ export const checkoutSchema = z
     // depositRequired/balanceDue computed server-side in the checkout route); either way a
     // slip covering the amount actually due now is required at checkout.
     paymentSlipUrl: storageUrl(),
+    paymentSlipOcr: slipOcrSchema,
   })
   .refine((d) => d.method !== 'delivery' || !!d.address?.trim(), {
     message: 'Delivery address is required',

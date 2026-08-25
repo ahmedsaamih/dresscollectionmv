@@ -184,9 +184,21 @@ export async function POST(request: Request) {
         });
         await tx.promoCode.update({ where: { id: promoId }, data: { timesUsed: { increment: 1 } } });
       }
-      await tx.receipt.create({
+      const receipt = await tx.receipt.create({
         data: { orderId: ref, url: data.paymentSlipUrl, kind: 'payment_slip', expiresAt: new Date(Date.now() + RECEIPT_TTL_MS) },
       });
+      if (data.paymentSlipOcr) {
+        const ocr = data.paymentSlipOcr;
+        await tx.receiptOcrData.create({
+          data: {
+            receiptId: receipt.id,
+            bankName: ocr.bankName, status: ocr.status, referenceNumber: ocr.referenceNumber,
+            transactionDate: ocr.transactionDate, fromName: ocr.fromName, toName: ocr.toName,
+            toAccount: ocr.toAccount, amount: ocr.amount, currency: ocr.currency,
+            rawText: ocr.rawText,
+          },
+        });
+      }
       return created;
     });
 
@@ -210,7 +222,7 @@ export async function POST(request: Request) {
       });
       const stored = await storage.put({ bucket: 'pdf', filename: `${order.id}.pdf`, data: pdf, contentType: 'application/pdf' });
       pdfUrl = stored.url;
-      await prisma.order.update({ where: { id: order.id }, data: { pdfUrl } });
+      await prisma.order.update({ where: { id: order.id }, data: { pdfUrl, pdfExpiresAt: new Date(Date.now() + RECEIPT_TTL_MS) } });
     } catch (e) {
       console.error('order PDF generation failed', e);
     }

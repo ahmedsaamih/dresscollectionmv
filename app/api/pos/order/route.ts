@@ -14,6 +14,7 @@ import { canSendSms } from '@/lib/notify/sms-guard';
 import { decrementStock, InsufficientStockError } from '@/lib/inventory';
 import { requestReview } from '@/lib/reviews';
 import { computeEffectivePrice } from '@/lib/utils';
+import { RECEIPT_TTL_MS } from '@/lib/receipts';
 
 export const dynamic = 'force-dynamic';
 
@@ -205,7 +206,7 @@ export async function POST(request: Request) {
       });
       const stored = await storage.put({ bucket: 'pdf', filename: `${order.id}.pdf`, data: pdf, contentType: 'application/pdf' });
       pdfUrl = stored.url;
-      await prisma.order.update({ where: { id: order.id }, data: { pdfUrl } });
+      await prisma.order.update({ where: { id: order.id }, data: { pdfUrl, pdfExpiresAt: new Date(Date.now() + RECEIPT_TTL_MS) } });
     } catch (e) {
       console.error('POS order PDF generation failed', e);
     }

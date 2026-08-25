@@ -4955,7 +4955,13 @@ export default function AdminPage() {
 
               {/* Links */}
               <div className="flex items-center gap-3 flex-wrap">
-                {orderDrawer.pdfUrl && <a href={orderDrawer.pdfUrl} target="_blank" rel="noopener noreferrer" className={`font-bold text-rose-700 border border-[rgba(219,87,149,.3)] bg-[rgba(219,87,149,.06)] no-underline hover:brightness-125 transition-all ${BTN_COMPACT}`}>↓ Invoice PDF</a>}
+                {orderDrawer.pdfUrl && (
+                  <a href={orderDrawer.pdfUrl} target="_blank" rel="noopener noreferrer"
+                    title={orderDrawer.pdfExpired ? 'Invoice PDF expired (auto-deleted after 90 days)' : undefined}
+                    className={`font-bold no-underline transition-all ${BTN_COMPACT} ${orderDrawer.pdfExpired ? 'border border-[rgba(0,0,0,.1)] text-[rgba(0,0,0,.3)] bg-transparent' : 'text-rose-700 border border-[rgba(219,87,149,.3)] bg-[rgba(219,87,149,.06)] hover:brightness-125'}`}>
+                    ↓ Invoice PDF
+                  </a>
+                )}
                 {paymentSlip(orderDrawer) && (
                   <button onClick={() => setSlipModal({ url: paymentSlip(orderDrawer)!.url, expired: paymentSlip(orderDrawer)!.expired, title: 'Payment slip' })}
                     title={paymentSlip(orderDrawer)!.expired ? 'Payment slip expired (auto-deleted after 90 days)' : undefined}
@@ -4964,8 +4970,9 @@ export default function AdminPage() {
                   </button>
                 )}
                 {paymentReceipt(orderDrawer) && (
-                  <button onClick={() => setSlipModal({ url: paymentReceipt(orderDrawer)!.url, expired: false, title: 'Receipt' })}
-                    className={`font-bold text-rose-700 border border-[rgba(219,87,149,.3)] bg-[rgba(219,87,149,.06)] cursor-pointer hover:brightness-125 transition-all ${BTN_COMPACT}`}>Receipt</button>
+                  <button onClick={() => setSlipModal({ url: paymentReceipt(orderDrawer)!.url, expired: paymentReceipt(orderDrawer)!.expired, title: 'Receipt' })}
+                    title={paymentReceipt(orderDrawer)!.expired ? 'Receipt expired (auto-deleted after 90 days)' : undefined}
+                    className={`font-bold cursor-pointer transition-all ${BTN_COMPACT} ${paymentReceipt(orderDrawer)!.expired ? 'border border-[rgba(0,0,0,.1)] text-[rgba(0,0,0,.3)] bg-transparent' : 'text-rose-700 border border-[rgba(219,87,149,.3)] bg-[rgba(219,87,149,.06)] hover:brightness-125'}`}>Receipt</button>
                 )}
                 {orderDrawer.paid && !paymentReceipt(orderDrawer) && (
                   <button onClick={() => generateOrderReceipt(orderDrawer.id)} className={`font-bold text-rose-700 border border-[rgba(219,87,149,.3)] bg-transparent cursor-pointer hover:bg-[rgba(219,87,149,.06)] transition-all ${BTN_COMPACT}`}>Generate receipt</button>
@@ -4978,10 +4985,35 @@ export default function AdminPage() {
                   </button>
                 )}
                 {balanceReceipt(orderDrawer) && (
-                  <button onClick={() => setSlipModal({ url: balanceReceipt(orderDrawer)!.url, expired: false, title: 'Balance receipt' })}
-                    className={`font-bold text-rose-700 border border-[rgba(219,87,149,.3)] bg-[rgba(219,87,149,.06)] cursor-pointer hover:brightness-125 transition-all ${BTN_COMPACT}`}>Balance receipt</button>
+                  <button onClick={() => setSlipModal({ url: balanceReceipt(orderDrawer)!.url, expired: balanceReceipt(orderDrawer)!.expired, title: 'Balance receipt' })}
+                    title={balanceReceipt(orderDrawer)!.expired ? 'Balance receipt expired (auto-deleted after 90 days)' : undefined}
+                    className={`font-bold cursor-pointer transition-all ${BTN_COMPACT} ${balanceReceipt(orderDrawer)!.expired ? 'border border-[rgba(0,0,0,.1)] text-[rgba(0,0,0,.3)] bg-transparent' : 'text-rose-700 border border-[rgba(219,87,149,.3)] bg-[rgba(219,87,149,.06)] hover:brightness-125'}`}>Balance receipt</button>
                 )}
               </div>
+
+              {/* Extracted slip details — best-effort in-browser OCR, informational only */}
+              {(paymentSlip(orderDrawer)?.ocr || balanceSlip(orderDrawer)?.ocr) && (
+                <div className="bg-well border border-[rgba(0,0,0,.07)] rounded-[12px] p-4">
+                  <div className="text-[11px] font-extrabold uppercase tracking-[.07em] text-muted mb-3">Extracted from slip <span className="normal-case font-normal">— auto-read, verify against image</span></div>
+                  {[
+                    { label: 'Payment slip', ocr: paymentSlip(orderDrawer)?.ocr },
+                    { label: 'Balance slip', ocr: balanceSlip(orderDrawer)?.ocr },
+                  ].filter((x): x is { label: string; ocr: NonNullable<typeof x.ocr> } => !!x.ocr).map(({ label, ocr }, i, arr) => (
+                    <div key={label} className={i < arr.length - 1 ? 'mb-3 pb-3 border-b border-[rgba(0,0,0,.06)]' : ''}>
+                      {arr.length > 1 && <div className="text-[10.5px] font-bold text-muted mb-2">{label}</div>}
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-[6px] text-[12px]">
+                        {ocr.bankName && <div className="text-sub">Bank <span className="text-body font-semibold">{ocr.bankName}</span></div>}
+                        {ocr.status && <div className="text-sub">Status <span className="text-body font-semibold">{ocr.status}</span></div>}
+                        {ocr.referenceNumber && <div className="text-sub col-span-2">Ref <span className="text-body font-semibold tabular">{ocr.referenceNumber}</span></div>}
+                        {ocr.transactionDate && <div className="text-sub">Date <span className="text-body font-semibold">{ocr.transactionDate}</span></div>}
+                        {ocr.amount != null && <div className="text-sub">Amount <span className="text-body font-semibold tabular">{ocr.currency ?? ''} {ocr.amount.toLocaleString()}</span></div>}
+                        {ocr.fromName && <div className="text-sub">From <span className="text-body font-semibold">{ocr.fromName}</span></div>}
+                        {ocr.toName && <div className="text-sub">To <span className="text-body font-semibold">{ocr.toName}{ocr.toAccount ? ` · ${ocr.toAccount}` : ''}</span></div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Actions */}
               <div className="flex items-center gap-3 pt-2 border-t border-[rgba(0,0,0,.07)] flex-wrap">

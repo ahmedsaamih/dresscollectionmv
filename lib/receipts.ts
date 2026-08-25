@@ -12,7 +12,11 @@ export const RECEIPT_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
 export const ATTACH_WINDOW_MS = 60 * 60 * 1000;
 
 /** Mirrors the review-token soft-expiry pattern: a plain time check, no query filtering or background sweep. */
+export function isExpired(date: Date | string | null): boolean {
+  if (!date) return false;
+  return new Date(date).getTime() < Date.now();
+}
+
 export function isReceiptExpired(receipt: { expiresAt: Date | string | null }): boolean {
-  if (!receipt.expiresAt) return false;
-  return new Date(receipt.expiresAt).getTime() < Date.now();
+  return isExpired(receipt.expiresAt);
 }

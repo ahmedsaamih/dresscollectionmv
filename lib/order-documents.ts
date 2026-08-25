@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { displayDate } from '@/lib/http';
 import { paymentReceiptImage } from '@/lib/receipt-image';
 import { storage } from '@/lib/storage';
+import { RECEIPT_TTL_MS } from '@/lib/receipts';
 
 function paymentMode(paidCash: number, paidCard: number, paidTransfer: number): string {
   if (paidCash === 0 && paidCard === 0 && paidTransfer === 0) return 'Not recorded';
@@ -29,7 +30,7 @@ export async function ensurePaymentReceipt(orderId: string): Promise<string | nu
   // `total` preserves the exact receipt amount those orders always showed.
   const amount = order.depositRequired || order.total;
   const stored = await generateReceiptImage(order, settings, amount, 'receipt', false);
-  await prisma.receipt.create({ data: { orderId: order.id, url: stored.url, kind: 'payment_receipt' } });
+  await prisma.receipt.create({ data: { orderId: order.id, url: stored.url, kind: 'payment_receipt', expiresAt: new Date(Date.now() + RECEIPT_TTL_MS) } });
   return stored.url;
 }
 
@@ -48,7 +49,7 @@ export async function ensureBalanceReceipt(orderId: string): Promise<string | nu
   if (!order || !settings || !order.balancePaid || order.balanceDue <= 0) return null;
 
   const stored = await generateReceiptImage(order, settings, order.balanceDue, 'balance-receipt', true);
-  await prisma.receipt.create({ data: { orderId: order.id, url: stored.url, kind: 'balance_receipt' } });
+  await prisma.receipt.create({ data: { orderId: order.id, url: stored.url, kind: 'balance_receipt', expiresAt: new Date(Date.now() + RECEIPT_TTL_MS) } });
   return stored.url;
 }
 

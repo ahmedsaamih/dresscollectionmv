@@ -308,6 +308,7 @@ model Order {
   notes        String?
   date         String // display date, e.g. "12 Jun 2026"
   pdfUrl       String?
+  pdfExpiresAt DateTime? // invoice PDF auto-deleted from R2 at this time via a bucket lifecycle rule, same as Receipt.expiresAt
   quoteRef     String? // set when order was converted from a quote (→ Quote.id)
   createdAt    DateTime    @default(now())
   lineItems    OrderItem[]
@@ -430,11 +431,32 @@ model Receipt {
   url       String
   kind      String    @default("payment_slip") // "payment_slip" | "payment_receipt" | "balance_slip" | "balance_receipt"
   createdAt DateTime  @default(now())
-  expiresAt DateTime? // set for payment_slip/balance_slip (R2 lifecycle rule deletes the object at this time); null for payment_receipt/balance_receipt, kept indefinitely
+  expiresAt DateTime? // R2 lifecycle rule deletes the object at this time — set on every kind now, all documents expire after 90 days
   order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  ocr       ReceiptOcrData?
 
   @@index([orderId])
   @@index([kind])
+}
+
+// Client-extracted (Tesseract.js, in-browser) structured fields read off a payment_slip/
+// balance_slip image. Informational only — never trusted as proof of payment, since it's
+// client-submitted; the linked Receipt.url image stays the source of truth an admin verifies.
+model ReceiptOcrData {
+  id              String   @id @default(cuid())
+  receiptId       String   @unique
+  bankName        String?
+  status          String?  // e.g. "SUCCESS" as read off the slip, not an app-level status
+  referenceNumber String?
+  transactionDate String?  // kept as raw OCR text; slip date formats aren't reliably parseable
+  fromName        String?
+  toName          String?
+  toAccount       String?
+  amount          Float?
+  currency        String?
+  rawText         String   @db.Text // full OCR text, fallback for anything the parser missed
+  createdAt       DateTime @default(now())
+  receipt         Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
 }
 
 // ─── Customers (derived/deduped from Order contact info) ────────────────────

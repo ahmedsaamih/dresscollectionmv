@@ -10,6 +10,7 @@ import { ensurePaymentReceipt } from '@/lib/order-documents';
 import { decrementStock, InsufficientStockError } from '@/lib/inventory';
 import { optionalMobile } from '@/lib/validation';
 import { computeEffectivePrice } from '@/lib/utils';
+import { RECEIPT_TTL_MS } from '@/lib/receipts';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
@@ -192,7 +193,7 @@ export async function POST(request: Request) {
         termsConditions: settings.termsConditions,
       });
       const stored = await storage.put({ bucket: 'pdf', filename: `${order.id}.pdf`, data: pdf, contentType: 'application/pdf' });
-      await prisma.order.update({ where: { id: order.id }, data: { pdfUrl: stored.url } });
+      await prisma.order.update({ where: { id: order.id }, data: { pdfUrl: stored.url, pdfExpiresAt: new Date(Date.now() + RECEIPT_TTL_MS) } });
     } catch (e) {
       console.error('manual order PDF generation failed', e);
     }

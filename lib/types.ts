@@ -176,6 +176,20 @@ export interface Product {
 
 export type OrderStage = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
+// Best-effort, client-submitted (in-browser OCR) fields read off a payment-slip image.
+// Informational only — never proof of payment; the receipt's own image is the source of truth.
+export interface ReceiptOcr {
+  bankName: string | null;
+  status: string | null;
+  referenceNumber: string | null;
+  transactionDate: string | null;
+  fromName: string | null;
+  toName: string | null;
+  toAccount: string | null;
+  amount: number | null;
+  currency: string | null;
+}
+
 export interface OrderReceipt {
   id: string;
   url: string;
@@ -183,6 +197,7 @@ export interface OrderReceipt {
   createdAt: string;
   expiresAt: string | null;
   expired: boolean;
+  ocr: ReceiptOcr | null;
 }
 
 export interface OrderLineItem {
@@ -232,6 +247,8 @@ export interface Order {
   locationName?: string | null;
   quoteRef?: string | null;
   pdfUrl?: string | null;
+  pdfExpiresAt?: string | null;
+  pdfExpired?: boolean;
   lineItems?: OrderLineItem[];
   receipts?: OrderReceipt[];
 }
