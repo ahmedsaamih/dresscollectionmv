@@ -8,9 +8,13 @@ interface SlipUploadProps {
   /** Post-order mode: POSTs the uploaded file's storage URL to this endpoint (e.g. `/api/orders/{ref}/receipts`). */
   uploadUrl?: string;
   /** Pre-order mode: no order exists yet, so instead of POSTing anywhere this just hands the caller the uploaded
-   *  storage URL (and best-effort OCR-extracted slip fields, or null) to hold in form state and submit along
-   *  with the rest of the checkout payload. */
-  onUploaded?: (url: string, ocr: ParsedSlip | null) => void;
+   *  storage URL to hold in form state and submit along with the rest of the checkout payload. Called immediately
+   *  once the upload finishes — OCR is never awaited before this fires (see ocrImage's doc comment). */
+  onUploaded?: (url: string) => void;
+  /** Pre-order mode only: called later, in the background, once best-effort OCR extraction finishes (or not at
+   *  all, if it fails). The checkout form should hold this in state and include it in its eventual submit —
+   *  if the customer submits before this fires, the order is simply created without OCR data, which is fine. */
+  onOcrReady?: (ocr: ParsedSlip) => void;
   /** Pre-order mode: drops the "(optional)" label, since checkout requires a slip up front. */
   required?: boolean;
   /** uploadUrl mode only: receipt kind to record — defaults to 'payment_slip' (the deposit/full-payment slip). */
@@ -50,12 +54,18 @@ async function compressImage(file: File): Promise<File> {
  * to the real slip image, never as proof of payment. Returns null on any failure (unsupported
  * file type, OCR error) — never blocks the upload.
  *
+ * This downloads a multi-megabyte WASM core + language data on first use and can take a real
+ * while to run, so it is NEVER awaited before completing the upload — callers must kick this
+ * off after the upload/onUploaded has already resolved and treat its result as arriving late,
+ * in the background. (An earlier version of this awaited OCR before uploading, which left
+ * customers stuck on a "Reading slip…" state for the full download+compute time — see git
+ * history.)
+ *
  * Tesseract.js defaults to fetching its worker/core/language files from a CDN and spawning
  * its worker via a blob: URL — both are blocked by this app's CSP (script-src/connect-src
  * 'self' only, no blob: worker-src). So its assets are self-hosted under public/tesseract/
- * (see components/SlipUpload.tsx's git history for how they were staged) and workerBlobURL
- * is disabled so the worker loads from a plain same-origin URL instead — the whole pipeline
- * then stays same-origin and needs no CSP changes.
+ * and workerBlobURL is disabled so the worker loads from a plain same-origin URL instead —
+ * the whole pipeline then stays same-origin and needs no CSP changes.
  */
 async function ocrImage(file: File): Promise<ParsedSlip | null> {
   if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') return null;
@@ -85,55 +95,68 @@ async function ocrImage(file: File): Promise<ParsedSlip | null> {
   }
 }
 
+/** Fire-and-forget: attach OCR data to an already-created receipt once it's ready. Never surfaced to the user — a failure here just means the slip stays without extracted details, same as if OCR itself had failed. */
+function attachOcrInBackground(receiptId: string, ocr: ParsedSlip) {
+  fetch(`/api/receipts/${receiptId}/ocr`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ocr }),
+  }).catch(() => {});
+}
+
 /**
  * Payment-slip uploader. Two modes, mutually exclusive — pass exactly one of
  * `uploadUrl` (existing post-checkout confirmation / status-page use: an
  * order already exists) or `onUploaded` (pre-order use, from the checkout
  * form itself, before an order/ref exists).
  */
-export function SlipUpload({ uploadUrl, onUploaded, required = false, kind = 'payment_slip', contact }: SlipUploadProps) {
+export function SlipUpload({ uploadUrl, onUploaded, onOcrReady, required = false, kind = 'payment_slip', contact }: SlipUploadProps) {
   const { data } = useStore();
   const copy = data.settings.storefrontCopy.paymentCheckout;
   const [uploading, setUploading] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
   const [done, setDone] = useState(false);
   const [err, setErr] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
-  const busy = uploading || analyzing;
 
   const upload = async (file: File) => {
     if (!file) return;
     if (file.size > 8 * 1024 * 1024) { setErr('File too large (max 8 MB).'); return; }
-    setErr('');
+    setErr(''); setUploading(true);
     try {
-      setAnalyzing(true);
       const compressed = await compressImage(file);
-      const ocr = await ocrImage(compressed);
-      setAnalyzing(false);
 
-      setUploading(true);
       const form = new FormData();
       form.append('file', compressed);
       form.append('kind', 'receipt');
       const up = await fetch('/api/upload', { method: 'POST', body: form });
       const { url } = await up.json();
       if (!up.ok || !url) throw new Error('Upload failed');
+
+      let receiptId: string | null = null;
       if (onUploaded) {
-        onUploaded(url, ocr);
+        onUploaded(url);
       } else if (uploadUrl) {
         const save = await fetch(uploadUrl, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url, kind, contact, ocr }),
+          body: JSON.stringify({ url, kind, contact }),
         });
         if (!save.ok) throw new Error('Could not attach receipt.');
+        const saved = await save.json().catch(() => null);
+        receiptId = saved?.receipt?.id ?? null;
       }
       setDone(true);
+      setUploading(false);
+
+      // OCR runs after the upload is already done and visible — never blocks the UI above.
+      ocrImage(compressed).then(ocr => {
+        if (!ocr) return;
+        if (onOcrReady) onOcrReady(ocr);
+        else if (receiptId) attachOcrInBackground(receiptId, ocr);
+      });
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Upload failed. Please try again.');
-    } finally { setAnalyzing(false); setUploading(false); }
+      setUploading(false);
+    }
   };
-
-  const busyLabel = analyzing ? 'Reading slip…' : 'Uploading…';
 
   if (done) return (
     <div className="flex items-center justify-between gap-2 bg-[rgba(219,87,149,.06)] border border-[rgba(219,87,149,.25)] rounded-xl p-[14px_16px]">
@@ -145,9 +168,9 @@ export function SlipUpload({ uploadUrl, onUploaded, required = false, kind = 'pa
         <>
           <input ref={inputRef} type="file" accept="image/*,application/pdf" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ''; }} />
-          <button type="button" onClick={() => inputRef.current?.click()} disabled={busy}
+          <button type="button" onClick={() => inputRef.current?.click()} disabled={uploading}
             className="border-none bg-transparent text-rose-700 font-bold text-[12px] cursor-pointer disabled:opacity-50">
-            {busy ? busyLabel : 'Replace'}
+            {uploading ? 'Uploading…' : 'Replace'}
           </button>
         </>
       )}
@@ -160,9 +183,9 @@ export function SlipUpload({ uploadUrl, onUploaded, required = false, kind = 'pa
       <div className="text-[12px] text-sub leading-[1.55] mb-[12px]">{copy.slipUploadHelp}</div>
       <input ref={inputRef} type="file" accept="image/*,application/pdf" className="hidden"
         onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ''; }} />
-      <button type="button" onClick={() => inputRef.current?.click()} disabled={busy}
+      <button type="button" onClick={() => inputRef.current?.click()} disabled={uploading}
         className="inline-flex items-center gap-1 border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.06)] text-rose-700 font-bold text-[13px] px-[18px] py-[10px] rounded-[10px] cursor-pointer disabled:opacity-50">
-        {busy ? busyLabel : <><Upload size={13} /> Choose file</>}
+        {uploading ? 'Uploading…' : <><Upload size={13} /> Choose file</>}
       </button>
       {err && <div className="text-[11.5px] text-[#e81a2b] mt-[8px]">{err}</div>}
       <div className="text-[11px] text-muted mt-[8px]">{copy.receiptFileHint}</div>
