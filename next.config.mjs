@@ -18,6 +18,27 @@ const nextConfig = {
     // "ENOENT: lstat '.next/lock'" to fail every deploy.
     lockDistDir: false,
   },
+  // The two slip-receiving routes run Tesseract.js server-side (lib/slip-ocr.ts). In Node,
+  // tesseract.js spawns its own worker_threads Worker pointing at a `path.join(__dirname, ...)`
+  // script — a runtime-constructed path, not a `require()`/`import` — so Next's build-time file
+  // tracer can't follow it, and everything that worker script itself requires (its core/wasm
+  // files, wasm-feature-detect, ...) is invisible to the tracer too. Confirmed by inspecting
+  // the actual .next/server/**/*.nft.json trace after a build: none of it was included without
+  // this. Self-hosted trained-data file included for the same runtime-path reason.
+  outputFileTracingIncludes: {
+    '/api/checkout': [
+      './public/tesseract/lang-data/**',
+      './node_modules/tesseract.js/**',
+      './node_modules/tesseract.js-core/**',
+      './node_modules/wasm-feature-detect/**',
+    ],
+    '/api/orders/[id]/receipts': [
+      './public/tesseract/lang-data/**',
+      './node_modules/tesseract.js/**',
+      './node_modules/tesseract.js-core/**',
+      './node_modules/wasm-feature-detect/**',
+    ],
+  },
   images: {
     remotePatterns: [
       // Vercel Blob — still the active storage backend in production until

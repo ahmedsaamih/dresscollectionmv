@@ -8,7 +8,6 @@ import { useCart } from '@/contexts/CartContext';
 import { formatMVR } from '@/lib/utils';
 import { useStore } from '@/contexts/StoreContext';
 import { SlipUpload } from '@/components/SlipUpload';
-import type { ParsedSlip } from '@/lib/slip-ocr-parse';
 import { Check, X } from 'lucide-react';
 
 interface Conf { name:string; email:string; total:string; method:string; ref:string; discount:number; code:string|null; depositRequired:number; balanceDue:number }
@@ -26,7 +25,6 @@ export default function CheckoutPage() {
   const [deliveryAreaId, setDeliveryAreaId] = useState('');
   const [notes, setNotes] = useState('');
   const [paymentSlipUrl, setPaymentSlipUrl] = useState('');
-  const [paymentSlipOcr, setPaymentSlipOcr] = useState<ParsedSlip | null>(null);
   const [errors, setErrors] = useState<Record<string,boolean>>({});
   const [placed, setPlaced] = useState(false);
   const [conf, setConf] = useState<Conf|null>(null);
@@ -96,7 +94,6 @@ export default function CheckoutPage() {
           items: cart.fixed,
           promoCode: promo?.code ?? null,
           paymentSlipUrl,
-          paymentSlipOcr,
         }),
       });
       const json = await res.json();
@@ -249,7 +246,6 @@ export default function CheckoutPage() {
                 <SlipUpload
                   required
                   onUploaded={(url) => { setPaymentSlipUrl(url); setErrors(er => { const { paymentSlipUrl: _drop, ...rest } = er; return rest; }); }}
-                  onOcrReady={(ocr) => setPaymentSlipOcr(ocr)}
                 />
                 {errors.paymentSlipUrl && <div className="text-[11.5px] text-[#e81a2b] mt-[8px]">Upload your payment slip to place the order.</div>}
               </div>

@@ -1,24 +1,19 @@
 /**
  * Best-effort structured-field extraction from OCR'd payment-slip text.
  *
- * Input is block-level (paragraph-level) OCR output — each block's `text` may
- * contain internal newlines for a wrapped multi-line value (e.g. a recipient
- * name over one line and an account number over the next), and `x0`/`y0` are
- * its top-left position in the source image. This shape is deliberately
- * generic: the browser caller adapts Tesseract.js's `data.paragraphs`, and a
- * standalone test script adapts `tesseract --tsv` rows grouped by block_num —
- * see the verification script for the latter.
+ * Takes the plain OCR text (Tesseract's `data.text`) and pulls out fields via label-anchored
+ * regexes, rather than word/paragraph bounding-box positions. An earlier bounding-box-based
+ * version was only ever validated against a hand-reconstructed grouping of `tesseract --tsv`
+ * CLI output; tested against Tesseract.js's own real WASM output, the engine merges labels and
+ * values into large combined paragraphs (and can even reorder wrapped text) in a way bounding
+ * boxes didn't reliably capture. Plain regexes anchored on each label's own text are robust to
+ * that kind of paragraph-segmentation variance, since the label and its value are almost always
+ * textually adjacent regardless of how the engine grouped them visually.
  *
- * This is informational-only data read off a customer-submitted image; never
- * treat any field here as proof of payment. The linked Receipt.url image is
- * the source of truth an admin verifies against.
+ * This is informational-only data read off a customer-submitted image; never treat any field
+ * here as proof of payment. The linked Receipt.url image is the source of truth an admin
+ * verifies against.
  */
-
-export interface OcrBlock {
-  text: string;
-  x0: number;
-  y0: number;
-}
 
 export interface ParsedSlip {
   bankName: string | null;
@@ -30,94 +25,54 @@ export interface ParsedSlip {
   toAccount: string | null;
   amount: number | null;
   currency: string | null;
-  rawText: string;
 }
-
-const LABEL_TEXT: Record<'status' | 'reference' | 'date' | 'from' | 'to' | 'amount', string[]> = {
-  status: ['status'],
-  reference: ['reference', 'reference number', 'ref no', 'ref'],
-  date: ['transaction date', 'date', 'date & time', 'date and time'],
-  from: ['from', 'sender', 'debit account'],
-  to: ['to', 'recipient', 'credit account', 'beneficiary'],
-  amount: ['amount', 'transaction amount'],
-};
 
 const KNOWN_BANKS: [RegExp, string][] = [
   [/bank of maldives|\bbml\b/i, 'Bank of Maldives'],
   [/maldives islamic bank|\bmib\b/i, 'Maldives Islamic Bank'],
 ];
 
-function norm(text: string): string {
-  return text.trim().toLowerCase().replace(/\s+/g, ' ');
-}
+const STATUS_WORDS = '(SUCCESS|SUCCESSFUL|FAILED|PENDING|COMPLETED|DECLINED)';
+const DATE_PATTERN = '\\d{1,2}[/\\-]\\d{1,2}[/\\-]\\d{2,4}(?:[ ,]+\\d{1,2}:\\d{2}(?::\\d{2})?)?';
 
-function findLabelBlock(blocks: OcrBlock[], key: keyof typeof LABEL_TEXT): OcrBlock | null {
-  const candidates = LABEL_TEXT[key];
-  return blocks.find(b => candidates.includes(norm(b.text))) ?? null;
-}
-
-/** Nearest same-row value block to the right of a label, within a loose vertical band. */
-function nearestValueBlock(label: OcrBlock | null, valueBlocks: OcrBlock[], maxDist = 150): OcrBlock | null {
-  if (!label) return null;
-  let best: OcrBlock | null = null;
-  let bestDist = Infinity;
-  for (const v of valueBlocks) {
-    if (v.x0 <= label.x0) continue;
-    const dist = Math.abs(v.y0 - label.y0);
-    if (dist < maxDist && dist < bestDist) { best = v; bestDist = dist; }
-  }
-  return best;
-}
-
-export function parseSlipOcr(blocks: OcrBlock[]): ParsedSlip {
-  const rawText = blocks.map(b => b.text).join('\n');
-  const labelBlockSet = new Set<OcrBlock>();
-  const labelBlocks: Partial<Record<keyof typeof LABEL_TEXT, OcrBlock>> = {};
-  for (const key of Object.keys(LABEL_TEXT) as (keyof typeof LABEL_TEXT)[]) {
-    const block = findLabelBlock(blocks, key);
-    if (block) { labelBlocks[key] = block; labelBlockSet.add(block); }
-  }
-  const valueBlocks = blocks.filter(b => !labelBlockSet.has(b));
-
+export function parseSlipOcr(rawText: string): ParsedSlip {
   let bankName: string | null = null;
   for (const [pattern, canonical] of KNOWN_BANKS) {
     if (pattern.test(rawText)) { bankName = canonical; break; }
   }
 
-  const statusPattern = /\b(SUCCESS|SUCCESSFUL|FAILED|PENDING|COMPLETED|DECLINED)\b/i;
-  const statusBlock = nearestValueBlock(labelBlocks.status ?? null, valueBlocks);
-  const statusMatch = (statusBlock?.text ?? '').match(statusPattern) ?? rawText.match(statusPattern);
+  const statusMatch = rawText.match(new RegExp(`\\bStatus\\b[^A-Za-z]{0,10}${STATUS_WORDS}`, 'i')) ?? rawText.match(new RegExp(`\\b${STATUS_WORDS}\\b`, 'i'));
   const status = statusMatch ? statusMatch[1].toUpperCase() : null;
 
-  const dateMatch = rawText.match(/\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}(?:[ ,]+\d{1,2}:\d{2}(?::\d{2})?)?/);
-  const transactionDate = dateMatch ? dateMatch[0].trim() : null;
+  const referenceMatch = rawText.match(/\bReference\b(?:\s*Number)?\s*[:\-]?\s*([A-Z0-9]{6,})/i);
+  const referenceNumber = referenceMatch ? referenceMatch[1] : null;
 
-  const fromBlock = nearestValueBlock(labelBlocks.from ?? null, valueBlocks);
-  const fromName = fromBlock ? fromBlock.text.split('\n')[0]?.trim() || null : null;
+  const dateMatch = rawText.match(new RegExp(`\\bTransaction\\s*date\\b\\s*[:\\-]?\\s*(${DATE_PATTERN})`, 'i')) ?? rawText.match(new RegExp(DATE_PATTERN));
+  const transactionDate = dateMatch ? dateMatch[1] ?? dateMatch[0] : null;
 
-  const toBlock = nearestValueBlock(labelBlocks.to ?? null, valueBlocks);
-  const toLines = toBlock ? toBlock.text.split('\n').map(l => l.trim()).filter(Boolean) : [];
-  const toName = toLines[0] ?? null;
-  const toAccount = toLines[1] ?? null;
+  const fromMatch = rawText.match(/\bFrom\b\s*[:\-]?\s*([^\n]+)/i);
+  const fromName = fromMatch ? fromMatch[1].trim() || null : null;
+
+  let toName: string | null = null;
+  let toAccount: string | null = null;
+  const toMatch = rawText.match(/\bTo\b\s*[:\-]?\s*\n?\s*([^\n]+)(?:\n\s*([^\n]+))?/i);
+  if (toMatch) {
+    const line1 = toMatch[1]?.trim() || null;
+    const line2 = toMatch[2]?.trim() || null;
+    // Some layouts print the account number right after "To" (a wrapped name the engine
+    // reordered ahead of it) — if it looks like a bare account number, treat it as such rather
+    // than a name, and don't also grab the next line: at that point it's unrelated adjacent
+    // text (the following field), not part of this value.
+    if (line1 && /^\d[\d\s-]{4,}$/.test(line1)) { toAccount = line1; } else { toName = line1; toAccount = line2; }
+  }
 
   let amount: number | null = null;
   let currency: string | null = null;
-  const amountBlock = nearestValueBlock(labelBlocks.amount ?? null, valueBlocks);
-  const amountSource = amountBlock ? amountBlock.text : rawText;
-  const amountMatch = amountSource.match(/([A-Z]{3})\s*[:\-]?\s*([\d,]+\.\d{2})\b/);
+  const amountMatch = rawText.match(/\bAmount\b[^A-Za-z0-9]{0,15}([A-Z]{3})\s*[:\-]?\s*([\d,]+\.\d{2})\b/i) ?? rawText.match(/([A-Z]{3})\s*[:\-]?\s*([\d,]+\.\d{2})\b/);
   if (amountMatch) {
     currency = amountMatch[1].toUpperCase();
     amount = Number(amountMatch[2].replace(/,/g, ''));
   }
 
-  const refCandidates = valueBlocks.filter(b => /^[A-Z0-9]{8,}$/.test(b.text.trim()));
-  let referenceNumber: string | null = null;
-  if (refCandidates.length) {
-    const nearest = labelBlocks.reference
-      ? refCandidates.slice().sort((a, b) => Math.abs(a.y0 - labelBlocks.reference!.y0) - Math.abs(b.y0 - labelBlocks.reference!.y0))[0]
-      : refCandidates[0];
-    referenceNumber = nearest.text.trim();
-  }
-
-  return { bankName, status, referenceNumber, transactionDate, fromName, toName, toAccount, amount, currency, rawText };
+  return { bankName, status, referenceNumber, transactionDate, fromName, toName, toAccount, amount, currency };
 }

@@ -1,3 +1,4 @@
+import { after } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { nextRef } from '@/lib/ref';
 import { checkoutSchema } from '@/lib/validation';
@@ -11,7 +12,10 @@ import { upsertCustomerFromContact } from '@/lib/customers';
 import { rateLimitResponse } from '@/lib/rate-limit';
 import { decrementStock, InsufficientStockError } from '@/lib/inventory';
 import { RECEIPT_TTL_MS } from '@/lib/receipts';
+import { ocrSlipImage } from '@/lib/slip-ocr';
 import { computeEffectivePrice } from '@/lib/utils';
+
+export const maxDuration = 60;
 
 /**
  * POST /api/checkout
@@ -141,6 +145,7 @@ export async function POST(request: Request) {
     const balanceDue = total - depositRequired;
 
     // Atomic: ref + order + line items + stock decrement + promo redemption.
+    let paymentSlipReceiptId = '';
     const order = await prisma.$transaction(async (tx) => {
       const ref = await nextRef('DC', tx);
       const created = await tx.order.create({
@@ -187,19 +192,24 @@ export async function POST(request: Request) {
       const receipt = await tx.receipt.create({
         data: { orderId: ref, url: data.paymentSlipUrl, kind: 'payment_slip', expiresAt: new Date(Date.now() + RECEIPT_TTL_MS) },
       });
-      if (data.paymentSlipOcr) {
-        const ocr = data.paymentSlipOcr;
-        await tx.receiptOcrData.create({
-          data: {
-            receiptId: receipt.id,
-            bankName: ocr.bankName, status: ocr.status, referenceNumber: ocr.referenceNumber,
-            transactionDate: ocr.transactionDate, fromName: ocr.fromName, toName: ocr.toName,
-            toAccount: ocr.toAccount, amount: ocr.amount, currency: ocr.currency,
-            rawText: ocr.rawText,
-          },
-        });
-      }
+      paymentSlipReceiptId = receipt.id;
       return created;
+    });
+
+    // Best-effort server-side OCR of the slip — runs after the response is sent so it never
+    // delays checkout; see lib/slip-ocr.ts. Never trusted as proof of payment.
+    after(async () => {
+      try {
+        const res = await fetch(data.paymentSlipUrl);
+        if (!res.ok) return;
+        const contentType = res.headers.get('content-type') || '';
+        const buffer = Buffer.from(await res.arrayBuffer());
+        const ocr = await ocrSlipImage(buffer, contentType);
+        if (!ocr) return;
+        await prisma.receiptOcrData.create({ data: { receiptId: paymentSlipReceiptId, ...ocr } });
+      } catch (e) {
+        console.error('slip OCR failed', e);
+      }
     });
 
     await upsertCustomerFromContact({ name: data.name, phone: data.mobile, email: data.email });
