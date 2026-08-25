@@ -1,6 +1,5 @@
 import { PDFDocument, PDFPage, PDFFont, PDFImage, StandardFonts, rgb } from 'pdf-lib';
-import * as fs from 'fs';
-import * as path from 'path';
+import { RECEIPT_LOGO_DATA_URI } from '@/lib/receipt-logo';
 
 // ─── Colors ──────────────────────────────────────────────────────────────────
 const INK   = rgb(0.10, 0.10, 0.10);
@@ -8,7 +7,6 @@ const GRAY  = rgb(0.50, 0.50, 0.50);
 const LGRAY = rgb(0.93, 0.93, 0.93);
 const TBHDR = rgb(0.13, 0.13, 0.13);
 const WHITE = rgb(1.00, 1.00, 1.00);
-const GREEN = rgb(0.42, 0.68, 0.26);
 
 // ─── Page constants ───────────────────────────────────────────────────────────
 const PW  = 595;
@@ -266,15 +264,14 @@ function drawTextSection(ctx: Ctx, title: string, body: string | null | undefine
 }
 
 // ─── Load logo bytes (cached) ─────────────────────────────────────────────────
-// IMPORTANT: fs.readFileSync returns a pooled Buffer whose .buffer is the entire
-// Node.js pool, not just the JPEG slice. pdf-lib's JpegEmbedder does
-// new DataView(imageData.buffer) and reads from offset 0 of that ArrayBuffer,
-// missing the actual JPEG data. Copy into a standalone Uint8Array first.
+// Base64-embedded (lib/receipt-logo.ts), same source used by the payment-receipt
+// image generator — avoids a runtime disk read of public/mm-logo.jpg, which
+// doesn't exist in this deployment and was silently failing every invoice PDF.
 let _logoBytes: Uint8Array | null = null;
 function getLogoBytes(): Uint8Array {
   if (!_logoBytes) {
-    const raw = fs.readFileSync(path.join(process.cwd(), 'public', 'mm-logo.jpg'));
-    _logoBytes = new Uint8Array(raw);
+    const base64 = RECEIPT_LOGO_DATA_URI.slice(RECEIPT_LOGO_DATA_URI.indexOf(',') + 1);
+    _logoBytes = new Uint8Array(Buffer.from(base64, 'base64'));
   }
   return _logoBytes;
 }
@@ -308,31 +305,13 @@ export interface InvoicePdfData {
   termsConditions: string;
 }
 
-export interface PaymentReceiptPdfData {
-  orderRef: string;
-  customer: string;
-  paymentDate: string;
-  paymentMode: string;
-  referenceNumber: string;
-  subtotal: number;
-  deliveryFee: number;
-  discount: number;
-  amount: number;
-  invoiceDate: string;
-  storeName: string;
-  storeAddress: string;
-  storePhone: string;
-  storeEmail: string;
-  taxId: string;
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // ─── orderConfirmationPdf (Invoice) ──────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export async function orderConfirmationPdf(d: InvoicePdfData): Promise<Buffer> {
   const ctx = await mkCtx();
-  const logo = await ctx.doc.embedJpg(getLogoBytes());
+  const logo = await ctx.doc.embedPng(getLogoBytes());
 
   drawDocHeader(
     ctx, logo,
@@ -377,125 +356,6 @@ export async function orderConfirmationPdf(d: InvoicePdfData): Promise<Buffer> {
     tc = tc ? `${tc}\n\nBank Accounts:\n${bankLines}` : `Bank Accounts:\n${bankLines}`;
   }
   drawTextSection(ctx, 'Terms & Conditions', tc);
-
-  addFooters(ctx);
-  return Buffer.from(await ctx.doc.save());
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// ─── paymentReceiptPdf ────────────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════════
-
-export async function paymentReceiptPdf(d: PaymentReceiptPdfData): Promise<Buffer> {
-  const ctx = await mkCtx();
-  const logo = await ctx.doc.embedJpg(getLogoBytes());
-  const { page, b, r } = ctx;
-
-  // ── Header: large logo left, company info right ──────────────────────────────
-  const LOGO = 150;
-  const logoY = PH - 40 - LOGO; // 652
-  page.drawImage(logo, { x: ML, y: logoY, width: LOGO, height: LOGO });
-
-  const infoX = ML + LOGO + 20; // 220
-  let cy = PH - 40 - 14;
-  page.drawText(d.storeName, { x: infoX, y: cy, size: 16, font: b, color: INK });
-  cy -= 20;
-  if (d.storeAddress) { page.drawText(d.storeAddress, { x: infoX, y: cy, size: 9, font: r, color: GRAY }); cy -= 14; }
-  const contactLine = [d.storePhone, d.storeEmail].filter(Boolean).join('  ·  ');
-  if (contactLine) { page.drawText(contactLine, { x: infoX, y: cy, size: 9, font: r, color: GRAY }); cy -= 14; }
-  if (d.taxId) { page.drawText(`Tax ID: ${d.taxId}`, { x: infoX, y: cy, size: 9, font: r, color: GRAY }); }
-
-  // ── Full-width HR ─────────────────────────────────────────────────────────────
-  const hrY = logoY - 16;
-  hLine(page, hrY);
-  ctx.y = hrY - 22;
-
-  // ── "PAYMENT RECEIPT" title ───────────────────────────────────────────────────
-  // Spaced title — manually insert thin spaces for tracking effect
-  const title = 'P A Y M E N T   R E C E I P T';
-  const titleW = b.widthOfTextAtSize(title, 15);
-  page.drawText(title, { x: ML + (MR - ML - titleW) / 2, y: ctx.y, size: 15, font: b, color: INK });
-  ctx.y -= 28;
-
-  // ── Two-column info block ─────────────────────────────────────────────────────
-  const COL_MID = ML + Math.floor((MR - ML) * 0.55); // ~322
-  const LEFT_W = COL_MID - ML - 10;
-
-  // Left: payment meta
-  const leftPairs: [string, string][] = [
-    ['Payment Date',      d.paymentDate],
-    ['Reference Number',  d.referenceNumber],
-    ['Payment Mode',      d.paymentMode],
-  ];
-  let leftY = ctx.y;
-  for (const [label, value] of leftPairs) {
-    page.drawText(label, { x: ML, y: leftY, size: 9, font: r, color: GRAY });
-    leftY -= 14;
-    page.drawText(value, { x: ML, y: leftY, size: 11, font: b, color: INK });
-    leftY -= 20;
-  }
-
-  // Right: green amount box
-  const BOX_X = COL_MID + 10;
-  const BOX_W = MR - BOX_X;
-  const BOX_H = 80;
-  const boxY = ctx.y - BOX_H;
-  page.drawRectangle({ x: BOX_X, y: boxY, width: BOX_W, height: BOX_H, color: GREEN });
-  page.drawText('Amount Received', { x: BOX_X + 12, y: boxY + BOX_H - 22, size: 9, font: r, color: WHITE });
-  const amtText = fmt(d.amount);
-  const amtSz = 16;
-  const amtW = b.widthOfTextAtSize(amtText, amtSz);
-  page.drawText(amtText, { x: BOX_X + (BOX_W - amtW) / 2, y: boxY + 22, size: amtSz, font: b, color: WHITE });
-
-  ctx.y = Math.min(leftY, boxY) - 20;
-
-  // ── Received From ─────────────────────────────────────────────────────────────
-  page.drawText('Received From', { x: ML, y: ctx.y, size: 9, font: r, color: GRAY });
-  ctx.y -= 15;
-  page.drawText(d.customer, { x: ML, y: ctx.y, size: 12, font: b, color: INK });
-  ctx.y -= 20;
-
-  // ── HR ────────────────────────────────────────────────────────────────────────
-  hLine(page, ctx.y);
-  ctx.y -= 20;
-
-  // ── Breakdown (Product subtotal / Delivery / Discount) ───────────────────────
-  // amount is the full order total; break it down so a discounted or
-  // delivery-inclusive order doesn't collapse to a single opaque figure.
-  const bRow = (label: string, value: string, bold = false) => {
-    page.drawText(label, { x: ML, y: ctx.y, size: 9, font: bold ? b : r, color: bold ? INK : GRAY });
-    rAlign(page, value, MR, ctx.y, 9, bold ? b : r, INK);
-    ctx.y -= 14;
-  };
-  bRow('Product Subtotal', fmt(d.subtotal));
-  if (d.deliveryFee > 0) bRow('Delivery', fmt(d.deliveryFee));
-  if (d.discount > 0) bRow('Discount', `(−) ${fmt(d.discount)}`);
-  ctx.y -= 10;
-
-  // ── "Payment for" table ───────────────────────────────────────────────────────
-  page.drawText('Payment for', { x: ML, y: ctx.y, size: 11, font: b, color: INK });
-  ctx.y -= 16;
-
-  // Table header (light border, not dark)
-  const TBL_TOP = ctx.y;
-  const cols = ['Invoice Number', 'Invoice Date', 'Invoice Amount', 'Payment Amount'];
-  const colX = [ML, 180, 310, 430];
-  page.drawRectangle({ x: ML, y: TBL_TOP - 20, width: MR - ML, height: 20, color: LGRAY });
-  cols.forEach((col, i) => {
-    page.drawText(col, { x: colX[i] + 4, y: TBL_TOP - 14, size: 8, font: b, color: INK });
-  });
-  ctx.y = TBL_TOP - 20;
-
-  // Data row
-  const ROW_DATA_Y = ctx.y - 20;
-  page.drawRectangle({ x: ML, y: ROW_DATA_Y, width: MR - ML, height: 20, color: WHITE });
-  page.drawLine({ start: { x: ML, y: ROW_DATA_Y }, end: { x: MR, y: ROW_DATA_Y }, thickness: 0.5, color: LGRAY });
-  const vals = [d.orderRef, d.invoiceDate, fmt(d.amount), fmt(d.amount)];
-  vals.forEach((val, i) => {
-    page.drawText(val, { x: colX[i] + 4, y: ROW_DATA_Y + 6, size: 9, font: r, color: INK });
-  });
-  ctx.y = ROW_DATA_Y - 1;
-  page.drawLine({ start: { x: ML, y: ctx.y }, end: { x: MR, y: ctx.y }, thickness: 0.5, color: LGRAY });
 
   addFooters(ctx);
   return Buffer.from(await ctx.doc.save());
