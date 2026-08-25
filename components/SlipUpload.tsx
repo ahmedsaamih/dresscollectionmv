@@ -49,12 +49,24 @@ async function compressImage(file: File): Promise<File> {
  * result is client-submitted data: treat it as an informational/searchable convenience next
  * to the real slip image, never as proof of payment. Returns null on any failure (unsupported
  * file type, OCR error) — never blocks the upload.
+ *
+ * Tesseract.js defaults to fetching its worker/core/language files from a CDN and spawning
+ * its worker via a blob: URL — both are blocked by this app's CSP (script-src/connect-src
+ * 'self' only, no blob: worker-src). So its assets are self-hosted under public/tesseract/
+ * (see components/SlipUpload.tsx's git history for how they were staged) and workerBlobURL
+ * is disabled so the worker loads from a plain same-origin URL instead — the whole pipeline
+ * then stays same-origin and needs no CSP changes.
  */
 async function ocrImage(file: File): Promise<ParsedSlip | null> {
   if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') return null;
   try {
     const { createWorker } = await import('tesseract.js');
-    const worker = await createWorker('eng');
+    const worker = await createWorker('eng', undefined, {
+      workerPath: '/tesseract/worker.min.js',
+      corePath: '/tesseract/tesseract-core-lstm.wasm.js',
+      langPath: '/tesseract/lang-data',
+      workerBlobURL: false,
+    });
     try {
       const { data } = await worker.recognize(file, {}, { blocks: true });
       const blocks: OcrBlock[] = [];
