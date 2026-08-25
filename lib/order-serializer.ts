@@ -17,7 +17,7 @@ export const orderInclude = {
 type OrderWithDetails = Prisma.OrderGetPayload<{ include: typeof orderInclude }>;
 
 export function serializeOrder(o: OrderWithDetails): Order {
-  const origin = (o.origin || (o.quoteRef ? 'quote_conversion' : o.source === 'pos' ? 'pos_sale' : 'web_checkout')) as Order['origin'];
+  const origin = (o.origin || (o.source === 'pos' ? 'pos_sale' : 'web_checkout')) as Order['origin'];
   return {
     id: o.id,
     customer: o.customer,
@@ -40,7 +40,6 @@ export function serializeOrder(o: OrderWithDetails): Order {
     date: o.date,
     paid: o.paid,
     paidCash: o.paidCash,
-    paidCard: o.paidCard,
     paidTransfer: o.paidTransfer,
     depositRequired: o.depositRequired,
     balanceDue: o.balanceDue,
@@ -49,7 +48,6 @@ export function serializeOrder(o: OrderWithDetails): Order {
     origin,
     locationId: o.locationId ?? null,
     locationName: o.location?.name ?? null,
-    quoteRef: o.quoteRef ?? null,
     pdfUrl: o.pdfUrl ?? null,
     pdfExpiresAt: o.pdfExpiresAt?.toISOString() ?? null,
     pdfExpired: isExpired(o.pdfExpiresAt),

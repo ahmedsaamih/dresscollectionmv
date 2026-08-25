@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Boxes, Layers, ShoppingCart,
   Tag, Ruler, Settings, Store, Users, Package, Shirt,
-  Home, Truck, DollarSign, CreditCard, ArrowLeftRight, Sparkles,
+  Home, Truck, DollarSign, ArrowLeftRight, Sparkles,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -33,8 +33,7 @@ export const FULFILLMENT_ICONS: Record<'Pickup' | 'Delivery', LucideIcon> = {
 };
 
 /** POS payment method. */
-export const PAYMENT_METHOD_ICONS: Record<'Cash' | 'Card' | 'Transfer', LucideIcon> = {
+export const PAYMENT_METHOD_ICONS: Record<'Cash' | 'Transfer', LucideIcon> = {
   Cash: DollarSign,
-  Card: CreditCard,
   Transfer: ArrowLeftRight,
 };

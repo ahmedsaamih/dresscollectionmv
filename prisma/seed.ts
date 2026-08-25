@@ -81,8 +81,8 @@ const products: SeedProduct[] = [
 ];
 
 const orders = [
-  { id: 'DC-26-48213', customer: 'Amina Shareef', email: 'amina@email.mv', items: 'Amara Wrap Midi ×1, Silk Scarf ×1', total: 835, method: OrderMethod.Delivery, stage: 2, date: '12 Jun 2026', paid: true },
-  { id: 'DC-26-47980', customer: 'Aishath Rasheed', email: 'aishath@email.mv', items: 'Horizon Maxi Dress ×1', total: 855, method: OrderMethod.Delivery, stage: 3, date: '11 Jun 2026', paid: true },
+  { id: 'DC-26-48213', customer: 'Amina Shareef', email: 'amina@email.mv', items: 'Amara Wrap Midi ×1, Silk Scarf ×1', total: 835, method: OrderMethod.Delivery, stage: 3, date: '12 Jun 2026', paid: true },
+  { id: 'DC-26-47980', customer: 'Aishath Rasheed', email: 'aishath@email.mv', items: 'Horizon Maxi Dress ×1', total: 855, method: OrderMethod.Delivery, stage: 4, date: '11 Jun 2026', paid: true },
   { id: 'DC-26-47655', customer: 'Fathimath Nazly', email: 'fathimath@email.mv', items: 'Everyday Linen Dress ×2', total: 915, method: OrderMethod.Delivery, stage: 1, date: '10 Jun 2026', paid: false },
   { id: 'DC-26-47502', customer: 'Mariyam Zoona', email: 'mariyam@email.mv', items: 'Champagne Cocktail Dress ×1, Layered Chain Necklace ×1', total: 1245, method: OrderMethod.Delivery, stage: 0, date: '09 Jun 2026', paid: false },
 ];

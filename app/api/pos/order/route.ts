@@ -24,7 +24,7 @@ export const dynamic = 'force-dynamic';
  * Creates a POS order. Key differences from web checkout:
  * - Requires edit access to the Sales Terminal module
  * - Accepts `locationId` — stock decremented from that location
- * - Accepts split payment: paidCash + paidCard + paidTransfer
+ * - Accepts split payment: paidCash + paidTransfer
  * - Accepts an optional `promoCode` (mutually exclusive with the manual `discount`),
  *   re-validated and redeemed the same way as web checkout
  * - `source` is always "pos"
@@ -130,12 +130,12 @@ export async function POST(request: Request) {
       discount = Math.min(data.discount, subtotal + deliveryFee);
     }
     const total = subtotal + deliveryFee - discount;
-    const paidTotal = data.paidCash + data.paidCard + data.paidTransfer;
+    const paidTotal = data.paidCash + data.paidTransfer;
     if (paidTotal !== total) {
       return fail(`Payment total (${paidTotal}) must equal order total (${total})`, 400);
     }
 
-    const paid = (data.paidCash + data.paidCard + data.paidTransfer) >= total;
+    const paid = (data.paidCash + data.paidTransfer) >= total;
     const summary = lineItems.map((i) => `${i.name} ×${i.qty}`).join(', ');
 
     const order = await prisma.$transaction(async (tx) => {
@@ -159,7 +159,6 @@ export async function POST(request: Request) {
           stage: 0,
           paid,
           paidCash: data.paidCash,
-          paidCard: data.paidCard,
           paidTransfer: data.paidTransfer,
           source: 'pos',
           origin: 'pos_sale',
@@ -257,7 +256,6 @@ export async function POST(request: Request) {
       total,
       paid,
       paidCash: data.paidCash,
-      paidCard: data.paidCard,
       paidTransfer: data.paidTransfer,
       customer: data.customer,
       method: data.method,

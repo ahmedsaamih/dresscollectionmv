@@ -28,7 +28,7 @@ export interface PaymentReceiptImageData {
   balanceDue: number; // 0 unless the order contains pre-order items
   isBalancePayment: boolean; // true when this receipt documents the balance installment, not the deposit
   amount: number; // the amount THIS receipt documents (depositRequired, balanceDue, or total)
-  invoiceDate: string;
+  orderDate: string;
   storeName: string;
   storeAddress: string;
   storePhone: string;
@@ -48,8 +48,8 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
 
 export async function paymentReceiptImage(d: PaymentReceiptImageData): Promise<Buffer> {
   const contactLine = [d.storePhone, d.storeEmail].filter(Boolean).join('  ·  ');
-  const cols = ['Invoice Number', 'Invoice Date', 'Invoice Amount', 'Payment Amount'];
-  const vals = [d.orderRef, d.invoiceDate, fmt(d.total), fmt(d.amount)];
+  const cols = ['Order Number', 'Order Date', 'Order Amount', 'Payment Amount'];
+  const vals = [d.orderRef, d.orderDate, fmt(d.total), fmt(d.amount)];
   const isSplitOrder = d.balanceDue > 0; // this order actually has a deposit/balance split
   const amountLabel = d.isBalancePayment ? 'Balance Received' : isSplitOrder ? 'Deposit Received' : 'Amount Received';
   // "Product Subtotal" shown gross (pre-discount) so "Product savings" below it is a real

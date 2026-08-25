@@ -4,11 +4,10 @@ import { paymentReceiptImage } from '@/lib/receipt-image';
 import { storage } from '@/lib/storage';
 import { RECEIPT_TTL_MS } from '@/lib/receipts';
 
-function paymentMode(paidCash: number, paidCard: number, paidTransfer: number): string {
-  if (paidCash === 0 && paidCard === 0 && paidTransfer === 0) return 'Not recorded';
-  if (paidCash > 0 && paidCard === 0 && paidTransfer === 0) return 'Cash';
-  if (paidCard > 0 && paidCash === 0 && paidTransfer === 0) return 'Card';
-  if (paidTransfer > 0 && paidCash === 0 && paidCard === 0) return 'Bank Transfer';
+function paymentMode(paidCash: number, paidTransfer: number): string {
+  if (paidCash === 0 && paidTransfer === 0) return 'Not recorded';
+  if (paidCash > 0 && paidTransfer === 0) return 'Cash';
+  if (paidTransfer > 0 && paidCash === 0) return 'Bank Transfer';
   return 'Split Payment';
 }
 
@@ -61,7 +60,7 @@ async function generateReceiptImage(order: OrderRow, settings: SettingRow, amoun
     orderRef: order.id,
     customer: order.customer,
     paymentDate: displayDate(),
-    paymentMode: paymentMode(order.paidCash, order.paidCard, order.paidTransfer),
+    paymentMode: paymentMode(order.paidCash, order.paidTransfer),
     referenceNumber: order.id,
     subtotal: order.subtotal,
     deliveryFee: order.deliveryFee,
@@ -72,7 +71,7 @@ async function generateReceiptImage(order: OrderRow, settings: SettingRow, amoun
     balanceDue: order.balanceDue,
     isBalancePayment,
     amount,
-    invoiceDate: order.date,
+    orderDate: order.date,
     storeName: settings.storeName,
     storeAddress: settings.address,
     storePhone: settings.phone,

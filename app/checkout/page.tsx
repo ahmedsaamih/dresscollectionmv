@@ -157,7 +157,7 @@ export default function CheckoutPage() {
         </div>
 
         <div className="flex gap-3 justify-center mt-[26px] flex-wrap">
-          <Link href="/status" className="no-underline bg-rose-500 text-[#200612] font-extrabold text-[14px] px-6 py-[13px] rounded-xl">Track this order →</Link>
+          <Link href={`/status?ref=${encodeURIComponent(conf.ref)}&contact=${encodeURIComponent(conf.email)}`} className="no-underline bg-rose-500 text-[#200612] font-extrabold text-[14px] px-6 py-[13px] rounded-xl">Track this order →</Link>
           <Link href="/" className="no-underline border border-[rgba(0,0,0,.16)] text-body font-bold text-[14px] px-6 py-[13px] rounded-xl">Back to home</Link>
         </div>
       </div>
@@ -218,6 +218,33 @@ export default function CheckoutPage() {
                 <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Anything we should know…" className="w-full h-[60px] resize-none bg-well border border-[rgba(0,0,0,.12)] rounded-[10px] px-[14px] py-[11px] text-body font-archivo text-[13.5px] outline-none focus:border-rose-500"/>
               </div>
             </section>
+            <section className="bg-surface rounded-2xl p-[22px]">
+              <h2 className="font-archivo-narrow font-bold text-[16px] uppercase tracking-[.04em] mb-5">Promo or referral code</h2>
+              {!promo ? (
+                <>
+                  <div className="flex gap-2">
+                    <input value={promoInput} onChange={e=>{ setPromoInput(e.target.value.toUpperCase()); setPromoError(''); }}
+                      onKeyDown={e=>{ if(e.key==='Enter'){ e.preventDefault(); applyPromo(); } }}
+                      placeholder="Enter code"
+                      className="flex-1 min-w-0 bg-well border border-[rgba(0,0,0,.12)] rounded-[10px] px-[14px] py-3 text-body font-archivo text-[14px] uppercase tracking-[.04em] outline-none focus:ring-2 focus:ring-rose-500/15"/>
+                    <button onClick={applyPromo} disabled={promoChecking || !promoInput.trim()}
+                      className="flex-none border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.08)] text-rose-700 font-bold text-[13px] px-[18px] rounded-[10px] cursor-pointer disabled:opacity-50">
+                      {promoChecking ? '…' : 'Apply'}
+                    </button>
+                  </div>
+                  {promoError && <div className="text-[11.5px] text-[#e81a2b] mt-[7px]">{promoError}</div>}
+                </>
+              ) : (
+                <div className="flex items-center justify-between bg-[rgba(219,87,149,.06)] border border-[rgba(219,87,149,.25)] rounded-[10px] px-[14px] py-[11px]">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-rose-700"><Check size={14} /></span>
+                    <span className="text-[13px] font-bold text-[#705260] truncate">{promo.code}</span>
+                    <span className="text-[11.5px] text-muted">applied</span>
+                  </div>
+                  <button onClick={removePromo} aria-label="Remove code" className="border-none bg-transparent text-muted hover:text-[#e81a2b] cursor-pointer flex-none"><X size={16} /></button>
+                </div>
+              )}
+            </section>
             <section className="border border-[rgba(219,87,149,.2)] rounded-2xl p-[22px]" style={{ background:'linear-gradient(180deg,#fbeaf2,#f7f2f4)' }}>
               <div className="flex items-center gap-[9px] mb-3">
                 <h2 className="font-archivo-narrow font-bold text-[18px]">{copy.paymentHeading}</h2>
@@ -268,35 +295,6 @@ export default function CheckoutPage() {
               ))}
             </div>
             <div className="h-px bg-[rgba(0,0,0,.08)] my-[14px]"/>
-
-            {/* Promo / referral code */}
-            <div className="mb-[14px]">
-              {!promo ? (
-                <>
-                  <label className="text-[11.5px] font-semibold text-sub block mb-[7px]">Promo or referral code</label>
-                  <div className="flex gap-2">
-                    <input value={promoInput} onChange={e=>{ setPromoInput(e.target.value.toUpperCase()); setPromoError(''); }}
-                      onKeyDown={e=>{ if(e.key==='Enter'){ e.preventDefault(); applyPromo(); } }}
-                      placeholder="Enter code"
-                      className="flex-1 min-w-0 bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[12px] py-[9px] text-body font-archivo text-[13px] uppercase tracking-[.04em] outline-none focus:border-rose-500"/>
-                    <button onClick={applyPromo} disabled={promoChecking || !promoInput.trim()}
-                      className="flex-none border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.08)] text-rose-700 font-bold text-[12.5px] px-[14px] rounded-[9px] cursor-pointer disabled:opacity-50">
-                      {promoChecking ? '…' : 'Apply'}
-                    </button>
-                  </div>
-                  {promoError && <div className="text-[11.5px] text-[#e81a2b] mt-[7px]">{promoError}</div>}
-                </>
-              ) : (
-                <div className="flex items-center justify-between bg-[rgba(219,87,149,.06)] border border-[rgba(219,87,149,.25)] rounded-[9px] px-[12px] py-[9px]">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-rose-700"><Check size={13} /></span>
-                    <span className="text-[12.5px] font-bold text-[#705260] truncate">{promo.code}</span>
-                    <span className="text-[11px] text-muted">applied</span>
-                  </div>
-                  <button onClick={removePromo} aria-label="Remove code" className="border-none bg-transparent text-muted hover:text-[#e81a2b] cursor-pointer flex-none"><X size={15} /></button>
-                </div>
-              )}
-            </div>
 
             <div className="flex justify-between text-[13px] text-sub mb-2"><span>Subtotal</span><span className="text-body font-semibold">{formatMVR(sub)}</span></div>
             {discount > 0 && <div className="flex justify-between text-[13px] mb-2"><span className="text-rose-700">Discount{promo?` · ${promo.code}`:''}</span><span className="text-rose-700 font-semibold">−{formatMVR(discount)}</span></div>}

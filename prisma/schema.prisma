@@ -291,25 +291,23 @@ model Order {
   deliveryAreaId String? // → DeliveryArea.id; set when method = Delivery
   total        Int // subtotal + fee − discount
   method       OrderMethod
-  stage        Int         @default(0) // 0=Placed 1=Payment Confirmed 2=Ready for Pickup 3=Ready for Delivery 4=Out for Delivery 5=Completed 6=Cancelled (restocks Inventory on transition in; irreversible)
+  stage        Int         @default(0) // 0=Placed 1=Payment Confirmed 2=Arrived at Facility (pre-order only) 3=Ready for Pickup 4=Ready for Delivery 5=Out for Delivery 6=Completed 7=Cancelled (restocks Inventory on transition in; irreversible)
   readyForDeliveryAt DateTime?
   paid         Boolean     @default(false) // for a pre-order (depositRequired>0), means "deposit confirmed"
   paidCash     Int         @default(0) // MVR collected in cash at POS — cumulative across deposit + balance
-  paidCard     Int         @default(0) // MVR collected via card terminal — cumulative across deposit + balance
   paidTransfer Int         @default(0) // MVR received by bank transfer (admin marks) — cumulative across deposit + balance
   depositRequired Int      @default(0) // amount required at checkout; equals `total` for a non-pre-order order
   balanceDue   Int         @default(0) // total − depositRequired; 0 unless the order contains pre-order items
   balancePaid  Boolean     @default(false) // remaining balance confirmed (deposit + balance = fully settled)
   source       String      @default("web") // "web" | "pos"
-  origin       String      @default("web_checkout") // "web_checkout" | "pos_sale" | "manual_order" | "quote_conversion"
+  origin       String      @default("web_checkout") // "web_checkout" | "pos_sale" | "manual_order"
   locationId   String?
   discountNote String?     // free-text reason for manual POS discounts
   address      String?
   notes        String?
   date         String // display date, e.g. "12 Jun 2026"
   pdfUrl       String?
-  pdfExpiresAt DateTime? // invoice PDF auto-deleted from R2 at this time via a bucket lifecycle rule, same as Receipt.expiresAt
-  quoteRef     String? // set when order was converted from a quote (→ Quote.id)
+  pdfExpiresAt DateTime? // order confirmation PDF auto-deleted from R2 at this time via a bucket lifecycle rule, same as Receipt.expiresAt
   createdAt    DateTime    @default(now())
   lineItems    OrderItem[]
   receipts     Receipt[]

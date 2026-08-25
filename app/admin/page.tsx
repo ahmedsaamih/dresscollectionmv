@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/contexts/StoreContext';
 import { adminApi, ApiError, type ReferrerSummary, type InventoryItem, type XfrRecord, type PosOrderResult } from '@/lib/admin-api';
-import { ORDER_STAGES, STAGE_META, formatMVR, PICKUP_STAGE_IDS, DELIVERY_STAGE_IDS, PRODUCT_SIZES, COLOR_MAP, productColorHex, computeEffectivePrice } from '@/lib/utils';
+import { ORDER_STAGES, STAGE_META, formatMVR, stageIdsFor, isPreOrder, PRODUCT_SIZES, COLOR_MAP, productColorHex, computeEffectivePrice } from '@/lib/utils';
 import { ORDER_NOTIFICATION_EVENTS, NOTIFICATION_EVENT_LABELS } from '@/lib/notify/event-labels';
 import type { Order, SizeChart, PromoCode, Redemption, AdminUser, AdminRole, Product, ProductSection, Customer, NotificationLog, Review, DeliveryArea } from '@/lib/types';
 import { hasPermission, MODULES, type ModuleKey, type Permissions } from '@/lib/permissions';
@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 
 type Tab = 'dashboard' | 'products' | 'categories' | 'orders' | 'settings' | 'sizechart' | 'promos' | 'pos' | 'customers';
-type OrderFilter = 'all' | 'web_checkout' | 'pos_sale' | 'manual_order' | 'quote_conversion' | 'paid' | 'unpaid';
+type OrderFilter = 'all' | 'web_checkout' | 'pos_sale' | 'manual_order' | 'paid' | 'unpaid';
 type Session = { email: string; role: AdminRole; permissions: Permissions } | null;
 
 const ALL_TABS: Tab[] = ['dashboard', 'products', 'categories', 'orders', 'promos', 'sizechart', 'settings', 'pos', 'customers'];
@@ -161,15 +161,14 @@ function CostPriceRow({ product, saving, onSave }: { product: { id: string; name
 }
 
 function orderOriginMeta(o: Order) {
-  const origin = o.origin || (o.quoteRef ? 'quote_conversion' : o.source === 'pos' ? 'pos_sale' : 'web_checkout');
+  const origin = o.origin || (o.source === 'pos' ? 'pos_sale' : 'web_checkout');
   return origin === 'pos_sale' ? { label: 'POS Sale', tone: '#705260', bg: 'rgba(0,0,0,.08)', border: 'rgba(0,0,0,.12)' }
        : origin === 'manual_order' ? { label: 'Manual', tone: '#f5c842', bg: 'rgba(245,200,66,.1)', border: 'rgba(245,200,66,.25)' }
-       : origin === 'quote_conversion' ? { label: 'Quote', tone: '#f5c842', bg: 'rgba(245,200,66,.1)', border: 'rgba(245,200,66,.25)' }
        : { label: 'Online', tone: '#600a32', bg: 'rgba(219,87,149,.07)', border: 'rgba(219,87,149,.18)' };
 }
 
-function stageOptionsFor(o: Pick<Order, 'method'>) {
-  return (o.method === 'Delivery' ? DELIVERY_STAGE_IDS : PICKUP_STAGE_IDS).map(i => ({ value: i, label: ORDER_STAGES[i] }));
+function stageOptionsFor(o: Pick<Order, 'method' | 'depositRequired' | 'balanceDue'>) {
+  return stageIdsFor(o.method, isPreOrder(o)).map(i => ({ value: i, label: ORDER_STAGES[i] }));
 }
 
 function daysSinceReady(o: Order) {
@@ -262,11 +261,11 @@ export default function AdminPage() {
   // Mark-paid amount entry modal (cash/card/transfer breakdown for orders with no
   // per-method amounts recorded yet — e.g. quote conversions, web-checkout orders).
   const [markPaidModal, setMarkPaidModal] = useState<{ orderId: string; total: number } | null>(null);
-  const [markPaidDraft, setMarkPaidDraft] = useState({ paidCash: '', paidCard: '', paidTransfer: '' });
+  const [markPaidDraft, setMarkPaidDraft] = useState({ paidCash: '', paidTransfer: '' });
   const [markPaidError, setMarkPaidError] = useState('');
   const [markPaidSaving, setMarkPaidSaving] = useState(false);
   const [markBalancePaidModal, setMarkBalancePaidModal] = useState<{ orderId: string; total: number; balanceDue: number } | null>(null);
-  const [markBalancePaidDraft, setMarkBalancePaidDraft] = useState({ paidCash: '', paidCard: '', paidTransfer: '' });
+  const [markBalancePaidDraft, setMarkBalancePaidDraft] = useState({ paidCash: '', paidTransfer: '' });
   const [markBalancePaidError, setMarkBalancePaidError] = useState('');
   const [markBalancePaidSaving, setMarkBalancePaidSaving] = useState(false);
 
@@ -302,7 +301,7 @@ export default function AdminPage() {
   const [orderDrawer, setOrderDrawer] = useState<Order | null>(null);
   const [manualOrderModal, setManualOrderModal] = useState(false);
   type ManualOrderLine = { sku: string; name: string; meta: string; img: string; size: string; color: string; qty: number; unitPrice: number };
-  const [manualOrderDraft, setManualOrderDraft] = useState({ customer: '', email: '', mobile: '', discount: '0', discountNote: '', method: 'Pickup' as 'Pickup' | 'Delivery', address: '', deliveryAreaId: '', paidCash: '', paidCard: '', paidTransfer: '', notes: '', locationId: '' });
+  const [manualOrderDraft, setManualOrderDraft] = useState({ customer: '', email: '', mobile: '', discount: '0', discountNote: '', method: 'Pickup' as 'Pickup' | 'Delivery', address: '', deliveryAreaId: '', paidCash: '', paidTransfer: '', notes: '', locationId: '' });
   const [manualOrderLines, setManualOrderLines] = useState<ManualOrderLine[]>([]);
   const [manualOrderInvRows, setManualOrderInvRows] = useState<InventoryItem[]>([]);
   const [manualOrderProductId, setManualOrderProductId] = useState('');
@@ -331,9 +330,8 @@ export default function AdminPage() {
   const [posAddress, setPosAddress] = useState('');
   const [posDeliveryAreaId, setPosDeliveryAreaId] = useState('');
   const [posCash, setPosCash] = useState('');
-  const [posCard, setPosCard] = useState('');
   const [posTransfer, setPosTransfer] = useState('');
-  const [posPaymentMethod, setPosPaymentMethod] = useState<'Cash' | 'Card' | 'Transfer'>('Cash');
+  const [posPaymentMethod, setPosPaymentMethod] = useState<'Cash' | 'Transfer'>('Cash');
   const [posPaymentSplit, setPosPaymentSplit] = useState(false);
   const [posDiscount, setPosDiscount] = useState('');
   const [posDiscountNote, setPosDiscountNote] = useState('');
@@ -597,11 +595,11 @@ export default function AdminPage() {
           sku: i.sku, name: i.name, meta: i.meta, img: i.img, size: i.size, color: i.color, qty: i.qty,
         })),
         ...(posPromo ? { promoCode: posPromo.code } : { discount: posDiscountAmt, discountNote: posDiscountNote.trim() || null }),
-        paidCash: parseInt(posCash) || 0, paidCard: parseInt(posCard) || 0, paidTransfer: parseInt(posTransfer) || 0,
+        paidCash: parseInt(posCash) || 0, paidTransfer: parseInt(posTransfer) || 0,
       });
       setPosReceipt(result); setPosCart([]); setPosCustomer({ name: '', mobile: '', email: '' });
       setPosMethod('Pickup'); setPosAddress(''); setPosDeliveryAreaId('');
-      setPosCash(''); setPosCard(''); setPosTransfer(''); setPosDiscount(''); setPosDiscountNote('');
+      setPosCash(''); setPosTransfer(''); setPosDiscount(''); setPosDiscountNote('');
       setPosPromo(null); setPosPromoInput(''); setPosPromoError('');
       await reloadOrders();
       flash(`Order ${result.ref} placed — MVR ${result.total.toLocaleString()}`);
@@ -621,9 +619,8 @@ export default function AdminPage() {
     const deliveryFee = manualOrderDeliveryFee;
     const total = Math.max(0, itemSubtotal + deliveryFee - discount);
     const paidCash = parseInt(d.paidCash) || 0;
-    const paidCard = parseInt(d.paidCard) || 0;
     const paidTransfer = parseInt(d.paidTransfer) || 0;
-    if (paidCash + paidCard + paidTransfer > total) { setManualOrderError(`Payment received cannot exceed MVR ${total.toLocaleString()}.`); return; }
+    if (paidCash + paidTransfer > total) { setManualOrderError(`Payment received cannot exceed MVR ${total.toLocaleString()}.`); return; }
     setManualOrderSaving(true); setManualOrderError('');
     try {
       await adminApi.createManualOrder({
@@ -631,10 +628,10 @@ export default function AdminPage() {
         items: manualOrderLines.map(i => ({ sku: i.sku, size: i.size, color: i.color, qty: i.qty })),
         discount, discountNote: d.discountNote.trim() || null, method: d.method, address: d.method === 'Delivery' ? d.address.trim() : null,
         deliveryAreaId: d.method === 'Delivery' ? d.deliveryAreaId : null,
-        paidCash, paidCard, paidTransfer, notes: d.notes.trim() || null,
+        paidCash, paidTransfer, notes: d.notes.trim() || null,
       });
       setManualOrderModal(false);
-      setManualOrderDraft({ customer: '', email: '', mobile: '', discount: '0', discountNote: '', method: 'Pickup', address: '', deliveryAreaId: '', paidCash: '', paidCard: '', paidTransfer: '', notes: '', locationId: '' });
+      setManualOrderDraft({ customer: '', email: '', mobile: '', discount: '0', discountNote: '', method: 'Pickup', address: '', deliveryAreaId: '', paidCash: '', paidTransfer: '', notes: '', locationId: '' });
       setManualOrderLines([]);
       setManualOrderProductId('');
       setManualOrderInvRows([]);
@@ -648,8 +645,8 @@ export default function AdminPage() {
     if (!window.confirm(`Mark order ${order.id} as Cancelled? This cannot be undone.`)) return;
     setPosReturnSubmitting(true);
     try {
-      await adminApi.updateOrder(order.id, { stage: 6 });
-      setOrders(os => os.map(o => o.id === order.id ? { ...o, stage: 6 as any } : o));
+      await adminApi.updateOrder(order.id, { stage: 7 });
+      setOrders(os => os.map(o => o.id === order.id ? { ...o, stage: 7 as any } : o));
       setPosReturnOrder(null); setPosReturnSearch(''); setPosReturnNote('');
       flash(`Order ${order.id} marked as Cancelled.`);
     } catch (e) { onError(e, 'Could not process return.'); }
@@ -996,7 +993,6 @@ export default function AdminPage() {
     setMarkPaidError('');
     setMarkPaidDraft({
       paidCash: cur.paidCash ? String(cur.paidCash) : '',
-      paidCard: cur.paidCard ? String(cur.paidCard) : '',
       paidTransfer: cur.paidTransfer ? String(cur.paidTransfer) : (hasSlip ? String(dueNow) : ''),
     });
     setMarkPaidModal({ orderId: id, total: cur.total });
@@ -1004,15 +1000,14 @@ export default function AdminPage() {
   const confirmMarkPaid = async () => {
     if (!markPaidModal) return;
     const paidCash = parseInt(markPaidDraft.paidCash) || 0;
-    const paidCard = parseInt(markPaidDraft.paidCard) || 0;
     const paidTransfer = parseInt(markPaidDraft.paidTransfer) || 0;
-    if (paidCash + paidCard + paidTransfer > markPaidModal.total) {
+    if (paidCash + paidTransfer > markPaidModal.total) {
       setMarkPaidError(`Payment received cannot exceed MVR ${markPaidModal.total.toLocaleString()}.`);
       return;
     }
     setMarkPaidSaving(true); setMarkPaidError('');
     try {
-      const { order } = await adminApi.updateOrder(markPaidModal.orderId, { paid: true, paidCash, paidCard, paidTransfer });
+      const { order } = await adminApi.updateOrder(markPaidModal.orderId, { paid: true, paidCash, paidTransfer });
       setOrders(os => os.map(o => o.id === order.id ? { ...order, receipts: order.receipts ?? o.receipts } : o));
       setOrderDrawer(o => o && o.id === order.id ? { ...order, receipts: order.receipts ?? o.receipts } : o);
       setMarkPaidModal(null);
@@ -1030,7 +1025,6 @@ export default function AdminPage() {
     setMarkBalancePaidError('');
     setMarkBalancePaidDraft({
       paidCash: cur.paidCash ? String(cur.paidCash) : '',
-      paidCard: cur.paidCard ? String(cur.paidCard) : '',
       paidTransfer: prefilledTransfer ? String(prefilledTransfer) : '',
     });
     setMarkBalancePaidModal({ orderId: id, total: cur.total, balanceDue: cur.balanceDue });
@@ -1038,15 +1032,14 @@ export default function AdminPage() {
   const confirmMarkBalancePaid = async () => {
     if (!markBalancePaidModal) return;
     const paidCash = parseInt(markBalancePaidDraft.paidCash) || 0;
-    const paidCard = parseInt(markBalancePaidDraft.paidCard) || 0;
     const paidTransfer = parseInt(markBalancePaidDraft.paidTransfer) || 0;
-    if (paidCash + paidCard + paidTransfer > markBalancePaidModal.total) {
+    if (paidCash + paidTransfer > markBalancePaidModal.total) {
       setMarkBalancePaidError(`Payment received cannot exceed MVR ${markBalancePaidModal.total.toLocaleString()}.`);
       return;
     }
     setMarkBalancePaidSaving(true); setMarkBalancePaidError('');
     try {
-      const { order } = await adminApi.updateOrder(markBalancePaidModal.orderId, { balancePaid: true, paidCash, paidCard, paidTransfer });
+      const { order } = await adminApi.updateOrder(markBalancePaidModal.orderId, { balancePaid: true, paidCash, paidTransfer });
       setOrders(os => os.map(o => o.id === order.id ? { ...order, receipts: order.receipts ?? o.receipts } : o));
       setOrderDrawer(o => o && o.id === order.id ? { ...order, receipts: order.receipts ?? o.receipts } : o);
       setMarkBalancePaidModal(null);
@@ -1604,7 +1597,7 @@ export default function AdminPage() {
     const q = search.toLowerCase();
     return c.name.toLowerCase().includes(q) || c.phone.toLowerCase().includes(q) || (c.email ?? '').toLowerCase().includes(q);
   });
-  const openOrders = orders.filter(o => o.stage < 3).length;
+  const openOrders = orders.filter(o => o.stage < 4).length;
   const pendingReviews = reviews.filter(r => r.status === 'pending').length;
   // Actually collected, not the full order total — a pre-order that's only had its
   // deposit confirmed contributes just the deposit until its balance is also paid.
@@ -1616,7 +1609,6 @@ export default function AdminPage() {
     { key: 'web_checkout', label: 'Online', count: orders.filter(o => o.origin === 'web_checkout').length },
     { key: 'pos_sale', label: 'POS', count: orders.filter(o => o.origin === 'pos_sale').length },
     { key: 'manual_order', label: 'Manual', count: orders.filter(o => o.origin === 'manual_order').length },
-    { key: 'quote_conversion', label: 'Quotes', count: orders.filter(o => o.origin === 'quote_conversion').length },
     { key: 'paid', label: 'Paid', count: orders.filter(o => o.paid).length },
     { key: 'unpaid', label: 'Unpaid', count: orders.filter(o => !o.paid).length },
   ];
@@ -1635,7 +1627,6 @@ export default function AdminPage() {
     acc.paid += collected;
     acc.unpaid += o.total - collected;
     acc.cash += o.paidCash;
-    acc.card += o.paidCard;
     acc.transfer += o.paidTransfer;
     // Cost data only ever reaches non-superadmin browsers' network tab (not gated at the
     // API layer, matching this codebase's existing low-stakes internal-tool posture); the
@@ -1643,14 +1634,14 @@ export default function AdminPage() {
     const lineProfit = (o.lineItems ?? []).reduce((sum, li) => sum + (li.price - li.costPrice) * li.qty, 0);
     acc.profit += lineProfit - (o.discount ?? 0);
     return acc;
-  }, { gross: 0, discount: 0, productDiscount: 0, total: 0, paid: 0, unpaid: 0, cash: 0, card: 0, transfer: 0, profit: 0 });
+  }, { gross: 0, discount: 0, productDiscount: 0, total: 0, paid: 0, unpaid: 0, cash: 0, transfer: 0, profit: 0 });
   const s = settingsDraft;
   const storefrontCopy = normalizeStorefrontCopy(s.storefrontCopy);
   const posSubtotal = posCart.reduce((sum, i) => sum + i.unitPrice * i.qty, 0);
   const posDeliveryFee = posMethod === 'Delivery' ? (data.deliveryAreas.find(a => a.id === posDeliveryAreaId)?.rate ?? 0) : 0;
   const posDiscountAmt = posPromo ? Math.min(posPromo.discount, posSubtotal + posDeliveryFee) : Math.min(parseInt(posDiscount) || 0, posSubtotal + posDeliveryFee);
   const posTotal = posSubtotal + posDeliveryFee - posDiscountAmt;
-  const posPaidTotal = (parseInt(posCash) || 0) + (parseInt(posCard) || 0) + (parseInt(posTransfer) || 0);
+  const posPaidTotal = (parseInt(posCash) || 0) + (parseInt(posTransfer) || 0);
   const posBlockers: string[] = [];
   if (!posLocId) posBlockers.push('Select a location');
   if (posCart.length === 0) posBlockers.push('Add at least one item');
@@ -1680,10 +1671,10 @@ export default function AdminPage() {
     ? Math.max(0, Math.round(manualOrderRegularSubtotal + manualOrderPreOrderSubtotal * 0.5) + manualOrderDeliveryFee - manualOrderDiscount)
     : manualOrderTotal;
   const manualOrderBalanceDue = manualOrderTotal - manualOrderDepositRequired;
-  const manualOrderPaidTotal = (parseInt(manualOrderDraft.paidCash) || 0) + (parseInt(manualOrderDraft.paidCard) || 0) + (parseInt(manualOrderDraft.paidTransfer) || 0);
+  const manualOrderPaidTotal = (parseInt(manualOrderDraft.paidCash) || 0) + (parseInt(manualOrderDraft.paidTransfer) || 0);
   const manualOrderAvailable = manualOrderProduct ? inventoryStockForVariant(manualOrderInvRows, manualOrderProduct.id, manualOrderColor, manualOrderSize) : 0;
   const pendingDeliveries = orders
-    .filter(o => o.method === 'Delivery' && (o.stage === 3 || o.stage === 4))
+    .filter(o => o.method === 'Delivery' && (o.stage === 4 || o.stage === 5))
     .sort((a, b) => daysSinceReady(b) - daysSinceReady(a));
 
   const colOpts = data.collections.map(c => ({ v: c.key, label: c.label }));
@@ -2188,7 +2179,6 @@ export default function AdminPage() {
                   ['Paid collected', ledgerTotals.paid],
                   ['Unpaid balance', ledgerTotals.unpaid],
                   ['Cash', ledgerTotals.cash],
-                  ['Card', ledgerTotals.card],
                   ['Bank transfer', ledgerTotals.transfer],
                   ['Net sales', ledgerTotals.total],
                   ...(currentUser?.role === 'admin' ? ([
@@ -2227,16 +2217,15 @@ export default function AdminPage() {
                   const origin = orderOriginMeta(o);
                   // Stays true for the order's whole life — depositRequired/balanceDue are
                   // snapshots taken at creation, never recomputed once balancePaid flips.
-                  const isPreOrder = o.depositRequired > 0 && o.balanceDue > 0;
+                  const preOrder = isPreOrder(o);
                   return (
                     <div key={o.id} className="grid px-[18px] py-[13px] border-b border-[rgba(0,0,0,.07)] items-center hover:bg-[rgba(0,0,0,.045)] transition-colors" style={{ gridTemplateColumns: '148px 1.3fr 1.5fr .85fr 1fr 1.5fr 100px 36px' }}>
                       <div className="min-w-0">
                         <button onClick={() => setOrderDrawer(o)} className="text-[12px] font-bold text-rose-700 tabular hover:underline border-none bg-transparent cursor-pointer p-0 text-left">{o.id}</button>
                         <div className="flex items-center gap-1 mt-[2px]">
                           <span className="text-[8.5px] font-extrabold uppercase rounded-[4px] px-[5px] py-[1px] border" style={{ color: origin.tone, background: origin.bg, borderColor: origin.border }}>{origin.label}</span>
-                          {isPreOrder && <span className="text-[8.5px] font-extrabold uppercase text-rose-700 bg-[rgba(219,87,149,.1)] border border-[rgba(219,87,149,.3)] rounded-[4px] px-[5px] py-[1px]">Pre-order</span>}
-                          {o.quoteRef && <span className="text-[8.5px] font-extrabold text-[#8a6205] bg-[rgba(245,200,66,.1)] border border-[rgba(245,200,66,.25)] rounded-[4px] px-[5px] py-[1px]">from {o.quoteRef}</span>}
-                          {o.pdfUrl && <a href={o.pdfUrl} target="_blank" rel="noopener noreferrer" title="Download invoice PDF" className="text-[8.5px] font-extrabold text-rose-700 border border-[rgba(219,87,149,.3)] rounded-[4px] px-[5px] py-[1px] no-underline hover:brightness-125">PDF</a>}
+                          {preOrder && <span className="text-[8.5px] font-extrabold uppercase text-rose-700 bg-[rgba(219,87,149,.1)] border border-[rgba(219,87,149,.3)] rounded-[4px] px-[5px] py-[1px]">Pre-order</span>}
+                          {o.pdfUrl && <a href={o.pdfUrl} target="_blank" rel="noopener noreferrer" title="Download order confirmation PDF" className="text-[8.5px] font-extrabold text-rose-700 border border-[rgba(219,87,149,.3)] rounded-[4px] px-[5px] py-[1px] no-underline hover:brightness-125">PDF</a>}
                         </div>
                       </div>
                       <div className="min-w-0"><div className="text-[13px] font-semibold truncate">{o.customer}</div><div className="text-[11px] text-muted">{o.date} · {[o.method, o.locationName].filter(Boolean).join(' · ')}</div></div>
@@ -2245,9 +2234,9 @@ export default function AdminPage() {
                       <div className="flex flex-col items-start gap-2">
                         <button onClick={() => togglePaid(o.id)} className={`justify-self-start font-bold cursor-pointer border transition-colors ${BTN_FULL}`}
                           style={{ background: o.paid ? '#db5795' : 'rgba(255,61,77,.12)', color: o.paid ? '#200612' : '#e81a2b', border: o.paid ? 'none' : '1px solid rgba(255,61,77,.35)' }}>
-                          {o.paid ? <><Check size={11} className="inline mr-1" /> {isPreOrder ? (o.balancePaid ? 'Paid in full' : 'Deposit paid') : 'Paid'}</> : 'Unpaid'}
+                          {o.paid ? <><Check size={11} className="inline mr-1" /> {preOrder ? (o.balancePaid ? 'Paid in full' : 'Deposit paid') : 'Paid'}</> : 'Unpaid'}
                         </button>
-                        {o.paid && isPreOrder && !o.balancePaid && (
+                        {o.paid && preOrder && !o.balancePaid && (
                           <button onClick={() => openMarkBalancePaid(o.id)}
                             className={`font-bold cursor-pointer border transition-colors ${BTN_FULL} border-[rgba(245,200,66,.4)] bg-[rgba(245,200,66,.08)] text-[#8a6205] hover:brightness-105`}>
                             Collect balance
@@ -2317,7 +2306,7 @@ export default function AdminPage() {
                   const bReceipt = balanceReceipt(o);
                   const canDelete = hasPermission(currentUser, 'orders', 'edit');
                   const origin = orderOriginMeta(o);
-                  const isPreOrder = o.depositRequired > 0 && o.balanceDue > 0;
+                  const preOrder = isPreOrder(o);
                   const hasDocs = slip || receipt || bSlip || bReceipt;
                   return (
                     <div key={o.id} className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[14px] p-4">
@@ -2326,8 +2315,7 @@ export default function AdminPage() {
                           <button onClick={() => setOrderDrawer(o)} className="text-[13px] font-bold text-rose-700 tabular hover:underline border-none bg-transparent cursor-pointer p-0 text-left">{o.id}</button>
                           <div className="flex items-center gap-1 mt-1 flex-wrap">
                             <span className="text-[9px] font-extrabold uppercase rounded-[4px] px-[5px] py-[2px] border" style={{ color: origin.tone, background: origin.bg, borderColor: origin.border }}>{origin.label}</span>
-                            {isPreOrder && <span className="text-[9px] font-extrabold uppercase text-rose-700 bg-[rgba(219,87,149,.1)] border border-[rgba(219,87,149,.3)] rounded-[4px] px-[5px] py-[2px]">Pre-order</span>}
-                            {o.quoteRef && <span className="text-[9px] font-extrabold text-[#8a6205] bg-[rgba(245,200,66,.1)] border border-[rgba(245,200,66,.25)] rounded-[4px] px-[5px] py-[2px]">from {o.quoteRef}</span>}
+                            {preOrder && <span className="text-[9px] font-extrabold uppercase text-rose-700 bg-[rgba(219,87,149,.1)] border border-[rgba(219,87,149,.3)] rounded-[4px] px-[5px] py-[2px]">Pre-order</span>}
                             {o.pdfUrl && <a href={o.pdfUrl} target="_blank" rel="noopener noreferrer" className="text-[9px] font-extrabold text-rose-700 border border-[rgba(219,87,149,.3)] rounded-[4px] px-[5px] py-[2px] no-underline">PDF</a>}
                           </div>
                         </div>
@@ -2350,9 +2338,9 @@ export default function AdminPage() {
                       <div className="flex items-center gap-2 mb-3 flex-wrap">
                         <button onClick={() => togglePaid(o.id)} className={`font-bold cursor-pointer border transition-colors ${BTN_FULL}`}
                           style={{ background: o.paid ? '#db5795' : 'rgba(255,61,77,.12)', color: o.paid ? '#200612' : '#e81a2b', border: o.paid ? 'none' : '1px solid rgba(255,61,77,.35)' }}>
-                          {o.paid ? <><Check size={12} className="inline mr-1" /> {isPreOrder ? (o.balancePaid ? 'Paid in full' : 'Deposit paid') : 'Paid'}</> : 'Unpaid'}
+                          {o.paid ? <><Check size={12} className="inline mr-1" /> {preOrder ? (o.balancePaid ? 'Paid in full' : 'Deposit paid') : 'Paid'}</> : 'Unpaid'}
                         </button>
-                        {o.paid && isPreOrder && !o.balancePaid && (
+                        {o.paid && preOrder && !o.balancePaid && (
                           <button onClick={() => openMarkBalancePaid(o.id)}
                             className={`font-bold cursor-pointer border transition-colors ${BTN_FULL} border-[rgba(245,200,66,.4)] bg-[rgba(245,200,66,.08)] text-[#8a6205]`}>
                             Collect balance
@@ -2606,7 +2594,7 @@ export default function AdminPage() {
                         <option value="">Select location…</option>
                         {data.locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                       </select>
-                      <input autoFocus value={posSearch} onChange={e => setPosSearch(e.target.value)}
+                      <input value={posSearch} onChange={e => setPosSearch(e.target.value)}
                         onKeyDown={e => {
                           if (e.key === 'Enter' && posProducts.length === 1) {
                             openPosProduct(posProducts[0]);
@@ -2678,7 +2666,7 @@ export default function AdminPage() {
                           {posReceipt.pdfUrl && (
                             <a href={posReceipt.pdfUrl} target="_blank" rel="noopener noreferrer"
                               className="text-[11.5px] font-bold text-sub border border-[rgba(0,0,0,.14)] px-3 py-[5px] rounded-[7px] no-underline hover:text-body transition-all">
-                              ↓ Invoice PDF
+                              ↓ Order Confirmation PDF
                             </a>
                           )}
                           <button onClick={() => setPosReceipt(null)} className="text-[11.5px] text-sub border-none bg-transparent cursor-pointer underline">Dismiss</button>
@@ -2830,18 +2818,17 @@ export default function AdminPage() {
                         )}
 
                         <div className="inline-flex items-center gap-[6px] text-[13px] font-bold mb-3 mt-4"><DollarSign size={13} /> Payment</div>
-                        <div className="grid grid-cols-3 gap-2 mb-2">
-                          {(['Cash', 'Card', 'Transfer'] as const).map(m => {
+                        <div className="grid grid-cols-2 gap-2 mb-2">
+                          {(['Cash', 'Transfer'] as const).map(m => {
                             const MethodIcon = PAYMENT_METHOD_ICONS[m];
                             return (
                             <button key={m} type="button"
                               onClick={() => {
                                 setPosPaymentMethod(m); setPosPaymentSplit(false);
                                 if (m !== 'Cash') setPosCash('');
-                                if (m !== 'Card') setPosCard('');
                                 if (m !== 'Transfer') setPosTransfer('');
-                                const current = m === 'Cash' ? posCash : m === 'Card' ? posCard : posTransfer;
-                                if (!parseInt(current)) (m === 'Cash' ? setPosCash : m === 'Card' ? setPosCard : setPosTransfer)(String(posTotal));
+                                const current = m === 'Cash' ? posCash : posTransfer;
+                                if (!parseInt(current)) (m === 'Cash' ? setPosCash : setPosTransfer)(String(posTotal));
                               }}
                               className="rounded-[8px] px-2 py-[11px] lg:py-[9px] text-[11px] font-extrabold border cursor-pointer transition-colors flex flex-col items-center gap-[2px]"
                               style={{ background: !posPaymentSplit && posPaymentMethod === m ? 'rgba(219,87,149,.08)' : 'transparent', color: !posPaymentSplit && posPaymentMethod === m ? '#600a32' : '#705260', borderColor: !posPaymentSplit && posPaymentMethod === m ? 'rgba(219,87,149,.45)' : 'rgba(0,0,0,.12)' }}>
@@ -2856,14 +2843,14 @@ export default function AdminPage() {
                           <div className="flex items-center gap-2 mb-2">
                             <label className="text-[12px] font-semibold text-sub w-[60px] flex-none">{posPaymentMethod}</label>
                             <input key={posPaymentMethod} type="number" min="0"
-                              value={posPaymentMethod === 'Cash' ? posCash : posPaymentMethod === 'Card' ? posCard : posTransfer}
-                              onChange={e => (posPaymentMethod === 'Cash' ? setPosCash : posPaymentMethod === 'Card' ? setPosCard : setPosTransfer)(e.target.value)}
+                              value={posPaymentMethod === 'Cash' ? posCash : posTransfer}
+                              onChange={e => (posPaymentMethod === 'Cash' ? setPosCash : setPosTransfer)(e.target.value)}
                               placeholder="0"
                               className="flex-1 min-w-0 bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-3 py-[11px] text-[15px] font-semibold tabular outline-none focus:border-rose-500" />
                           </div>
                         ) : (
                           <>
-                            {([['Cash', posCash, setPosCash], ['Card', posCard, setPosCard], ['Transfer', posTransfer, setPosTransfer]] as [string, string, (v: string) => void][]).map(([lbl, val, setFn]) => (
+                            {([['Cash', posCash, setPosCash], ['Transfer', posTransfer, setPosTransfer]] as [string, string, (v: string) => void][]).map(([lbl, val, setFn]) => (
                               <div key={lbl} className="flex items-center gap-2 mb-2">
                                 <label className="text-[12px] font-semibold text-sub w-[60px] flex-none">{lbl}</label>
                                 <input type="number" min="0" value={val} onChange={e => setFn(e.target.value)} placeholder="0"
@@ -2959,13 +2946,13 @@ export default function AdminPage() {
                   {(() => {
                     const deliveryOrders = orders
                       .filter(o => o.method === 'Delivery' && (!posOrderSearch || [o.id, o.customer, o.mobile ?? '', o.address ?? ''].some(v => v.toLowerCase().includes(posOrderSearch.toLowerCase()))))
-                      .sort((a, b) => (a.stage === 3 || a.stage === 4 ? 0 : 1) - (b.stage === 3 || b.stage === 4 ? 0 : 1) || daysSinceReady(b) - daysSinceReady(a));
+                      .sort((a, b) => (a.stage === 4 || a.stage === 5 ? 0 : 1) - (b.stage === 4 || b.stage === 5 ? 0 : 1) || daysSinceReady(b) - daysSinceReady(a));
                     // "Out for delivery" or "Ready for delivery" — the one-tap Mark Delivered
                     // shortcut only makes sense in these; POS-sale-origin orders keep the
                     // existing read-only status badge (their stage isn't editable here at all).
-                    const canMarkDelivered = (o: Order) => (o.stage === 3 || o.stage === 4) && o.origin !== 'pos_sale';
+                    const canMarkDelivered = (o: Order) => (o.stage === 4 || o.stage === 5) && o.origin !== 'pos_sale';
                     const markDelivered = (o: Order) => {
-                      if (window.confirm(`Mark ${o.id} (${o.customer}) as delivered?`)) setOrderStage(o.id, 5);
+                      if (window.confirm(`Mark ${o.id} (${o.customer}) as delivered?`)) setOrderStage(o.id, 6);
                     };
                     return (
                       <>
@@ -2977,7 +2964,7 @@ export default function AdminPage() {
                           {deliveryOrders.map(o => {
                             const m = STAGE_META[Math.min(o.stage, STAGE_META.length - 1)];
                             const origin = orderOriginMeta(o);
-                            const waiting = o.stage === 3 || o.stage === 4 ? `${daysSinceReady(o)} day${daysSinceReady(o) === 1 ? '' : 's'}` : '—';
+                            const waiting = o.stage === 4 || o.stage === 5 ? `${daysSinceReady(o)} day${daysSinceReady(o) === 1 ? '' : 's'}` : '—';
                             const tel = telHref(o.mobile);
                             return (
                               <div key={o.id} className="grid px-4 py-3 border-b border-[rgba(0,0,0,.07)] items-center hover:bg-[rgba(0,0,0,.04)] transition-colors" style={{ gridTemplateColumns: '130px 1.1fr 1.5fr .75fr .75fr .85fr 1.5fr' }}>
@@ -3032,7 +3019,7 @@ export default function AdminPage() {
                           {deliveryOrders.map(o => {
                             const m = STAGE_META[Math.min(o.stage, STAGE_META.length - 1)];
                             const origin = orderOriginMeta(o);
-                            const waiting = o.stage === 3 || o.stage === 4 ? `${daysSinceReady(o)} day${daysSinceReady(o) === 1 ? '' : 's'}` : '—';
+                            const waiting = o.stage === 4 || o.stage === 5 ? `${daysSinceReady(o)} day${daysSinceReady(o) === 1 ? '' : 's'}` : '—';
                             const tel = telHref(o.mobile);
                             return (
                               <div key={o.id} className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[14px] p-4">
@@ -3126,7 +3113,7 @@ export default function AdminPage() {
                             <span className="text-[10.5px] font-extrabold uppercase px-2 py-1 rounded-[5px]" style={{ color: STAGE_META[Math.min(posReturnOrder.stage, STAGE_META.length - 1)].fg, background: STAGE_META[Math.min(posReturnOrder.stage, STAGE_META.length - 1)].bg }}>{ORDER_STAGES[posReturnOrder.stage] ?? 'Cancelled'}</span>
                             <span className="text-[10.5px] font-extrabold uppercase px-2 py-1 rounded-[5px]" style={{ background: posReturnOrder.paid ? 'rgba(219,87,149,.1)' : 'rgba(255,61,77,.1)', color: posReturnOrder.paid ? '#600a32' : '#e81a2b' }}>{posReturnOrder.paid ? 'Paid' : 'Unpaid'}</span>
                           </div>
-                          {posReturnOrder.stage === 6 ? (
+                          {posReturnOrder.stage === 7 ? (
                             <div className="mt-3 text-[12px] text-[#e81a2b] font-semibold">This order is already cancelled.</div>
                           ) : (
                             <>
@@ -3150,8 +3137,8 @@ export default function AdminPage() {
                     <div>
                       <div className="font-bold text-[14px] mb-3">Recent Cancellations</div>
                       <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[14px] overflow-hidden">
-                        {orders.filter(o => o.stage === 6).length === 0 && <div className="py-10 text-center text-[13px] text-muted">No cancelled orders.</div>}
-                        {orders.filter(o => o.stage === 6).slice(0, 20).map(o => (
+                        {orders.filter(o => o.stage === 7).length === 0 && <div className="py-10 text-center text-[13px] text-muted">No cancelled orders.</div>}
+                        {orders.filter(o => o.stage === 7).slice(0, 20).map(o => (
                           <div key={o.id} className="flex items-center gap-3 px-4 py-3 border-b border-[rgba(0,0,0,.07)] last:border-0">
                             <div className="flex-1 min-w-0">
                               <div className="text-[12.5px] font-bold text-[#e81a2b]">{o.id}</div>
@@ -3744,7 +3731,7 @@ export default function AdminPage() {
                   </div>
                   <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[15px] p-[22px]">
                     <div className="font-archivo-narrow font-bold text-[18px] mb-1">PDF &amp; Tax settings</div>
-                    <div className="text-[12px] text-muted mb-4">Used on Invoice and Payment Receipt PDFs.</div>
+                    <div className="text-[12px] text-muted mb-4">Used on order confirmation and payment receipt PDFs.</div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
                       <FieldInput label="Tax ID" value={s.taxId ?? ''} onChange={v => setSetting('taxId', v)} />
                       <FieldInput label="Tax rate (%)" value={String(s.taxRate ?? 0)} onChange={v => setSetting('taxRate', parseFloat(v) || 0)} />
@@ -3753,7 +3740,7 @@ export default function AdminPage() {
                     <div>
                       <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Terms &amp; Conditions</label>
                       <textarea value={s.termsConditions ?? ''} onChange={e => setSetting('termsConditions', e.target.value)}
-                        placeholder="Enter your full T&C here — included at the bottom of every Invoice and Quotation PDF."
+                        placeholder="Enter your full T&C here — included at the bottom of every order confirmation PDF."
                         className="w-full h-36 resize-y bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-[13px] py-[10px] text-body font-archivo text-[13px] outline-none focus:border-rose-500 leading-relaxed" />
                     </div>
                   </div>
@@ -4740,7 +4727,7 @@ export default function AdminPage() {
               <button onClick={() => setMarkPaidModal(null)} className="border-none bg-transparent text-muted text-[22px] cursor-pointer"><X size={22} /></button>
             </div>
             <div className="grid grid-cols-1 gap-3">
-              {([['paidCash','Cash'],['paidCard','Card'],['paidTransfer','Bank Transfer']] as [keyof typeof markPaidDraft, string][]).map(([k, lbl]) => (
+              {([['paidCash','Cash'],['paidTransfer','Bank Transfer']] as [keyof typeof markPaidDraft, string][]).map(([k, lbl]) => (
                 <div key={k}>
                   <label className="text-[11.5px] font-semibold text-sub block mb-[5px]">{lbl} (MVR)</label>
                   <input type="number" min="0" value={markPaidDraft[k]} onChange={e => setMarkPaidDraft(d => ({ ...d, [k]: e.target.value }))}
@@ -4765,7 +4752,7 @@ export default function AdminPage() {
               <button onClick={() => setMarkBalancePaidModal(null)} className="border-none bg-transparent text-muted text-[22px] cursor-pointer"><X size={22} /></button>
             </div>
             <div className="grid grid-cols-1 gap-3">
-              {([['paidCash','Cash'],['paidCard','Card'],['paidTransfer','Bank Transfer']] as [keyof typeof markBalancePaidDraft, string][]).map(([k, lbl]) => (
+              {([['paidCash','Cash'],['paidTransfer','Bank Transfer']] as [keyof typeof markBalancePaidDraft, string][]).map(([k, lbl]) => (
                 <div key={k}>
                   <label className="text-[11.5px] font-semibold text-sub block mb-[5px]">{lbl} (MVR)</label>
                   <input type="number" min="0" value={markBalancePaidDraft[k]} onChange={e => setMarkBalancePaidDraft(d => ({ ...d, [k]: e.target.value }))}
@@ -4872,7 +4859,6 @@ export default function AdminPage() {
                 <div className="text-[12px] text-muted mt-[3px]">{[orderDrawer.date, orderDrawer.method, orderDrawer.locationName].filter(Boolean).join(' · ')}</div>
                 <div className="flex items-center gap-2 mt-2">
                   <span className="text-[9px] font-extrabold uppercase border px-[7px] py-[2px] rounded-full" style={{ color: origin.tone, background: origin.bg, borderColor: origin.border }}>{origin.label}</span>
-                  {orderDrawer.quoteRef && <span className="text-[9px] font-extrabold text-[#8a6205] bg-[rgba(245,200,66,.1)] border border-[rgba(245,200,66,.25)] px-[7px] py-[2px] rounded-full">from {orderDrawer.quoteRef}</span>}
                   <span className="text-[9px] font-extrabold uppercase px-[7px] py-[2px] rounded-full" style={{ color: STAGE_META[Math.min(orderDrawer.stage, STAGE_META.length - 1)].fg, background: STAGE_META[Math.min(orderDrawer.stage, STAGE_META.length - 1)].bg }}>{ORDER_STAGES[orderDrawer.stage] ?? 'Unknown'}</span>
                   <span className="text-[9px] font-extrabold uppercase px-[7px] py-[2px] rounded-full" style={{ background: orderDrawer.paid ? 'rgba(219,87,149,.1)' : 'rgba(255,61,77,.1)', color: orderDrawer.paid ? '#600a32' : '#e81a2b' }}>{orderDrawer.paid ? 'Paid' : 'Unpaid'}</span>
                 </div>
@@ -4937,7 +4923,7 @@ export default function AdminPage() {
                     </>
                   )}
                   <div className="flex justify-between font-bold mb-3"><span>Total</span><span className="tabular text-rose-600">MVR {orderDrawer.total.toLocaleString()}</span></div>
-                  {orderDrawer.depositRequired > 0 && orderDrawer.balanceDue > 0 && (
+                  {isPreOrder(orderDrawer) && (
                     <>
                       <div className="h-px bg-[rgba(0,0,0,.08)] mb-3" />
                       <div className="flex justify-between text-[12.5px] mb-2"><span className="text-sub">Deposit (50%)</span><span className="tabular">{orderDrawer.paid ? <><Check size={11} className="inline mr-1 text-rose-600" />Confirmed</> : 'Awaiting'} · MVR {orderDrawer.depositRequired.toLocaleString()}</span></div>
@@ -4946,9 +4932,8 @@ export default function AdminPage() {
                   )}
                   <div className="h-px bg-[rgba(0,0,0,.08)] mb-3" />
                   {orderDrawer.paidCash > 0 && <div className="flex justify-between text-[12px] text-sub mb-1"><span>Cash</span><span className="tabular">MVR {orderDrawer.paidCash.toLocaleString()}</span></div>}
-                  {orderDrawer.paidCard > 0 && <div className="flex justify-between text-[12px] text-sub mb-1"><span>Card</span><span className="tabular">MVR {orderDrawer.paidCard.toLocaleString()}</span></div>}
                   {orderDrawer.paidTransfer > 0 && <div className="flex justify-between text-[12px] text-sub mb-1"><span>Bank transfer</span><span className="tabular">MVR {orderDrawer.paidTransfer.toLocaleString()}</span></div>}
-                  {(orderDrawer.paidCash === 0 && orderDrawer.paidCard === 0 && orderDrawer.paidTransfer === 0) && <div className="text-[12px] text-muted">No payment recorded.</div>}
+                  {(orderDrawer.paidCash === 0 && orderDrawer.paidTransfer === 0) && <div className="text-[12px] text-muted">No payment recorded.</div>}
                   {orderDrawer.discountNote && <div className="mt-2 text-[11.5px] text-muted">Discount note: {orderDrawer.discountNote}</div>}
                 </div>
               </div>
@@ -4957,9 +4942,9 @@ export default function AdminPage() {
               <div className="flex items-center gap-3 flex-wrap">
                 {orderDrawer.pdfUrl && (
                   <a href={orderDrawer.pdfUrl} target="_blank" rel="noopener noreferrer"
-                    title={orderDrawer.pdfExpired ? 'Invoice PDF expired (auto-deleted after 90 days)' : undefined}
+                    title={orderDrawer.pdfExpired ? 'Order confirmation PDF expired (auto-deleted after 90 days)' : undefined}
                     className={`font-bold no-underline transition-all ${BTN_COMPACT} ${orderDrawer.pdfExpired ? 'border border-[rgba(0,0,0,.1)] text-[rgba(0,0,0,.3)] bg-transparent' : 'text-rose-700 border border-[rgba(219,87,149,.3)] bg-[rgba(219,87,149,.06)] hover:brightness-125'}`}>
-                    ↓ Invoice PDF
+                    ↓ Order Confirmation PDF
                   </a>
                 )}
                 {paymentSlip(orderDrawer) && (
@@ -5170,7 +5155,7 @@ export default function AdminPage() {
                 Payment received — {manualOrderHasPreOrder ? 'deposit due' : 'total due'} {formatMVR(manualOrderDepositRequired)}
                 {manualOrderPaidTotal > 0 && <span className={manualOrderPaidTotal > manualOrderTotal ? 'text-[#e81a2b]' : manualOrderPaidTotal >= manualOrderDepositRequired ? 'text-rose-600' : 'text-[#8a6205]'}> · entered {formatMVR(manualOrderPaidTotal)}</span>}
               </div>
-              {([['paidCash','Cash'],['paidCard','Card'],['paidTransfer','Bank Transfer']] as [keyof typeof manualOrderDraft, string][]).map(([k, lbl]) => (
+              {([['paidCash','Cash'],['paidTransfer','Bank Transfer']] as [keyof typeof manualOrderDraft, string][]).map(([k, lbl]) => (
                 <div key={k}>
                   <label className="text-[11.5px] font-semibold text-sub block mb-[5px]">{lbl} (MVR)</label>
                   <input type="number" min="0" value={(manualOrderDraft as any)[k]} onChange={e => setManualOrderDraft(d => ({ ...d, [k]: e.target.value }))}

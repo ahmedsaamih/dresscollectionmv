@@ -174,7 +174,7 @@ export interface Product {
   preOrder: boolean; // true = orderable with zero real stock, at a 50% deposit (public reads synthesize availability)
 }
 
-export type OrderStage = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+export type OrderStage = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 // Best-effort, client-submitted (in-browser OCR) fields read off a payment-slip image.
 // Informational only — never proof of payment; the receipt's own image is the source of truth.
@@ -236,16 +236,14 @@ export interface Order {
   date: string;
   paid: boolean; // for a pre-order (depositRequired>0), means "deposit confirmed"
   paidCash: number;
-  paidCard: number;
   paidTransfer: number;
   depositRequired: number; // amount required at checkout; equals `total` for a non-pre-order order
   balanceDue: number; // total − depositRequired; 0 unless the order contained pre-order items
   balancePaid: boolean;
   source: 'web' | 'pos';
-  origin: 'web_checkout' | 'pos_sale' | 'manual_order' | 'quote_conversion';
+  origin: 'web_checkout' | 'pos_sale' | 'manual_order';
   locationId?: string | null;
   locationName?: string | null;
-  quoteRef?: string | null;
   pdfUrl?: string | null;
   pdfExpiresAt?: string | null;
   pdfExpired?: boolean;

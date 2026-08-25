@@ -48,7 +48,6 @@ const manualOrderSchema = z.object({
   discountNote: z.string().trim().nullish(),
   method: z.enum(['Pickup', 'Delivery']).default('Pickup'),
   paidCash: z.coerce.number().int().nonnegative().default(0),
-  paidCard: z.coerce.number().int().nonnegative().default(0),
   paidTransfer: z.coerce.number().int().nonnegative().default(0),
 }).refine((d) => d.method !== 'Delivery' || !!d.deliveryAreaId?.trim(), {
   message: 'Delivery area is required',
@@ -129,7 +128,7 @@ export async function POST(request: Request) {
     const depositRequired = Math.max(0, Math.round(regularSubtotal + preOrderSubtotal * 0.5) + deliveryFee - discount);
     const balanceDue = total - depositRequired;
 
-    const paidTotal = data.paidCash + data.paidCard + data.paidTransfer;
+    const paidTotal = data.paidCash + data.paidTransfer;
     if (paidTotal > total) return fail(`Payment total (${paidTotal}) cannot exceed order total (${total})`, 400);
     // For a pre-order sale, collecting the deposit is enough to mark it paid — the
     // balance is confirmed later via the same admin/self-service flow web checkout uses.
@@ -160,7 +159,6 @@ export async function POST(request: Request) {
           depositRequired,
           balanceDue,
           paidCash: data.paidCash,
-          paidCard: data.paidCard,
           paidTransfer: data.paidTransfer,
           source: 'web',
           origin: 'manual_order',

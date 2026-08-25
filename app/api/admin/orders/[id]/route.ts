@@ -7,7 +7,7 @@ import { canSendSms } from '@/lib/notify/sms-guard';
 import { requestReview } from '@/lib/reviews';
 import { ok, fail, handleError } from '@/lib/http';
 import { orderInclude, serializeOrder } from '@/lib/order-serializer';
-import { PICKUP_STAGE_IDS, DELIVERY_STAGE_IDS } from '@/lib/utils';
+import { stageIdsFor, isPreOrder } from '@/lib/utils';
 import { ensurePaymentReceipt, ensureBalanceReceipt } from '@/lib/order-documents';
 import { incrementStock } from '@/lib/inventory';
 
@@ -47,22 +47,21 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     if (data.stage !== undefined && before.origin === 'pos_sale') {
       return fail('POS sale fulfilment status is locked', 403);
     }
-    if (data.stage !== undefined && before.stage === 6 && data.stage !== 6) {
+    if (data.stage !== undefined && before.stage === 7 && data.stage !== 7) {
       return fail('Cancelled orders cannot be un-cancelled', 400);
     }
     if (data.stage !== undefined) {
-      const validStages = before.method === 'Delivery' ? DELIVERY_STAGE_IDS : PICKUP_STAGE_IDS;
+      const validStages = stageIdsFor(before.method as 'Pickup' | 'Delivery', isPreOrder(before));
       if (!validStages.includes(data.stage)) {
         return fail(`Invalid stage for a ${before.method} order`, 400);
       }
     }
 
-    const touchesPaidAmounts = data.paidCash !== undefined || data.paidCard !== undefined || data.paidTransfer !== undefined;
+    const touchesPaidAmounts = data.paidCash !== undefined || data.paidTransfer !== undefined;
     if (touchesPaidAmounts) {
       const paidCash = data.paidCash ?? before.paidCash;
-      const paidCard = data.paidCard ?? before.paidCard;
       const paidTransfer = data.paidTransfer ?? before.paidTransfer;
-      if (paidCash + paidCard + paidTransfer > before.total) {
+      if (paidCash + paidTransfer > before.total) {
         return fail(`Payment received cannot exceed MVR ${before.total.toLocaleString()}.`, 400);
       }
     }
@@ -70,12 +69,11 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     const update: Prisma.OrderUpdateInput = {};
     if (data.stage !== undefined) update.stage = data.stage;
     if (data.stage !== undefined) {
-      if (data.stage === 3 && !before.readyForDeliveryAt) update.readyForDeliveryAt = new Date();
-      if (data.stage < 3) update.readyForDeliveryAt = null;
+      if (data.stage === 4 && !before.readyForDeliveryAt) update.readyForDeliveryAt = new Date();
+      if (data.stage < 4) update.readyForDeliveryAt = null;
     }
     if (data.paid !== undefined) update.paid = data.paid;
     if (data.paidCash !== undefined) update.paidCash = data.paidCash;
-    if (data.paidCard !== undefined) update.paidCard = data.paidCard;
     if (data.paidTransfer !== undefined) update.paidTransfer = data.paidTransfer;
     if (data.balancePaid !== undefined) {
       if (data.balancePaid && before.balanceDue <= 0) {
@@ -85,8 +83,8 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     }
 
     const updated = await prisma.$transaction(async (tx) => {
-      // Cancelling (stage -> 6) restocks whatever this order actually decremented, atomically with the stage change.
-      if (data.stage === 6 && before.stage !== 6) {
+      // Cancelling (stage -> 7) restocks whatever this order actually decremented, atomically with the stage change.
+      if (data.stage === 7 && before.stage !== 7) {
         await restockOrderItems(tx, before.locationId, before.lineItems);
       }
       return tx.order.update({
@@ -107,7 +105,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       // this branch (stage changes are blocked for them above) — they get
       // their review request at sale creation instead, since a POS sale is
       // "completed" the moment it's paid in full.
-      if (updated.stage === 5 && (updated.origin === 'web_checkout' || updated.origin === 'quote_conversion' || updated.origin === 'manual_order')) {
+      if (updated.stage === 6 && (updated.origin === 'web_checkout' || updated.origin === 'manual_order')) {
         await requestReview({ id: updated.id, email: updated.email, customer: updated.customer, mobile: updated.mobile }, { smsAllowed: stageSmsAllowed });
       }
     }

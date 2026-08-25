@@ -192,15 +192,14 @@ export const categoryUpdateSchema = z
 
 export const orderUpdateSchema = z
   .object({
-    stage: z.coerce.number().int().min(0).max(6),
+    stage: z.coerce.number().int().min(0).max(7),
     paid: z.boolean(),
     paidCash: z.coerce.number().int().nonnegative(),
-    paidCard: z.coerce.number().int().nonnegative(),
     paidTransfer: z.coerce.number().int().nonnegative(),
     balancePaid: z.boolean(),
   })
   .partial()
-  .refine((d) => d.stage !== undefined || d.paid !== undefined || d.paidCash !== undefined || d.paidCard !== undefined || d.paidTransfer !== undefined || d.balancePaid !== undefined, 'Nothing to update');
+  .refine((d) => d.stage !== undefined || d.paid !== undefined || d.paidCash !== undefined || d.paidTransfer !== undefined || d.balancePaid !== undefined, 'Nothing to update');
 
 // Shared by the review rejection endpoint.
 export const rejectNoteSchema = z.object({
@@ -357,7 +356,6 @@ export const posOrderSchema = z.object({
   discountNote: z.string().trim().nullish(),
   promoCode: z.string().trim().nullish(),
   paidCash: z.coerce.number().int().nonnegative().default(0),
-  paidCard: z.coerce.number().int().nonnegative().default(0),
   paidTransfer: z.coerce.number().int().nonnegative().default(0),
   notes: z.string().trim().nullish(),
 }).refine((d) => d.method !== 'Delivery' || !!d.address?.trim(), {

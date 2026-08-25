@@ -97,7 +97,7 @@ function addFooters(ctx: Ctx) {
   ctx.pages.forEach((p, i) => cAlign(p, String(i + 1), 0, PW, 22, 9, ctx.r, GRAY));
 }
 
-// ─── Shared header (Invoice) ─────────────────────────────────────────────────
+// ─── Shared header (Order Confirmation) ──────────────────────────────────────
 function drawDocHeader(
   ctx: Ctx,
   logo: PDFImage,
@@ -133,7 +133,7 @@ function drawDocHeader(
   }
 
   // Doc type / ref / balance — right side
-  const titleY = PH - 40 - 28; // baseline of doc type title (e.g. "Invoice")
+  const titleY = PH - 40 - 28; // baseline of doc type title (e.g. "Order Confirmation")
   rAlign(page, docType, MR, titleY, 28, b, INK);
   rAlign(page, refLine, MR, titleY - 24, 11, r, GRAY);
   if (balanceLabel && balanceAmt) {
@@ -147,7 +147,7 @@ function drawDocHeader(
   ctx.y = hrY - 18;
 }
 
-// ─── Bill To + meta block (Invoice) ────────────────────────────────────────────
+// ─── Bill To + meta block (Order Confirmation) ───────────────────────────────
 function drawBillTo(
   ctx: Ctx,
   customer: string,
@@ -266,7 +266,7 @@ function drawTextSection(ctx: Ctx, title: string, body: string | null | undefine
 // ─── Load logo bytes (cached) ─────────────────────────────────────────────────
 // Base64-embedded (lib/receipt-logo.ts), same source used by the payment-receipt
 // image generator — avoids a runtime disk read of public/mm-logo.jpg, which
-// doesn't exist in this deployment and was silently failing every invoice PDF.
+// doesn't exist in this deployment and was silently failing every order confirmation PDF.
 let _logoBytes: Uint8Array | null = null;
 function getLogoBytes(): Uint8Array {
   if (!_logoBytes) {
@@ -280,7 +280,7 @@ function getLogoBytes(): Uint8Array {
 // ─── PUBLIC INTERFACES ───────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export interface InvoicePdfData {
+export interface OrderConfirmationPdfData {
   ref: string;
   customer: string;
   email: string;
@@ -306,24 +306,22 @@ export interface InvoicePdfData {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ─── orderConfirmationPdf (Invoice) ──────────────────────────────────────────
+// ─── orderConfirmationPdf (Order Confirmation) ───────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export async function orderConfirmationPdf(d: InvoicePdfData): Promise<Buffer> {
+export async function orderConfirmationPdf(d: OrderConfirmationPdfData): Promise<Buffer> {
   const ctx = await mkCtx();
   const logo = await ctx.doc.embedPng(getLogoBytes());
 
   drawDocHeader(
     ctx, logo,
-    'Invoice', `# ${d.ref}`,
+    'Order Confirmation', `# ${d.ref}`,
     'Balance Due', fmt(d.total),
     { name: d.storeName, address: d.storeAddress, phone: d.storePhone, email: d.storeEmail, taxId: d.taxId },
   );
 
   drawBillTo(ctx, d.customer, d.email, d.mobile, [
-    ['Invoice Date', d.date],
-    ['Terms', 'Due on Receipt'],
-    ['Due Date', d.date],
+    ['Order Date', d.date],
   ]);
 
   drawTableHeader(ctx);
