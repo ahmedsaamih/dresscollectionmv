@@ -18,13 +18,20 @@ const nextConfig = {
     // "ENOENT: lstat '.next/lock'" to fail every deploy.
     lockDistDir: false,
   },
-  // The two slip-receiving routes run Tesseract.js server-side (lib/slip-ocr.ts). In Node,
-  // tesseract.js spawns its own worker_threads Worker pointing at a `path.join(__dirname, ...)`
-  // script — a runtime-constructed path, not a `require()`/`import` — so Next's build-time file
-  // tracer can't follow it, and everything that worker script itself requires (its core/wasm
-  // files, wasm-feature-detect, ...) is invisible to the tracer too. Confirmed by inspecting
-  // the actual .next/server/**/*.nft.json trace after a build: none of it was included without
-  // this. Self-hosted trained-data file included for the same runtime-path reason.
+  // tesseract.js spawns its Node worker via `path.join(__dirname, ...)` computed inside its own
+  // package — webpack (this project's `next build --webpack`) bundles route code into a single
+  // chunk and rewrites `__dirname` to reflect that bundle's location instead of the package's
+  // real one, so the computed worker-script path is wrong at runtime ("Cannot find module
+  // '/var/task/.next/worker-script/node/index.js'", confirmed via a live Vercel deployment's
+  // runtime logs). Excluding it from bundling leaves its own require()/__dirname logic intact,
+  // resolved normally against the real node_modules at runtime.
+  serverExternalPackages: ['tesseract.js', 'tesseract.js-core', 'wasm-feature-detect'],
+  // The two slip-receiving routes run Tesseract.js server-side (lib/slip-ocr.ts). Even as an
+  // external package, its worker-thread script path and self-hosted trained-data file are still
+  // runtime-constructed strings, not `require()`/`import` — Next's build-time file tracer can't
+  // follow those, so everything they need (core/wasm files, wasm-feature-detect, the trained
+  // data) has to be listed explicitly or it silently goes missing from the deployed bundle.
+  // Confirmed by inspecting the actual .next/server/**/*.nft.json trace after a build.
   outputFileTracingIncludes: {
     '/api/checkout': [
       './public/tesseract/lang-data/**',
