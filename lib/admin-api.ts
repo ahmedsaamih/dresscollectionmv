@@ -112,17 +112,17 @@ export const adminApi = {
 
   // settings
   updateSettings: (body: Record<string, unknown>) => req('/api/admin/settings', 'PATCH', body),
-  testTelegram: (botToken: string, chatId: string) => req<{ username: string; chatId: string; lastTestAt: string | null; enabled: boolean }>('/api/admin/settings/telegram/test', 'POST', { botToken: botToken || undefined, chatId }),
-  detectTelegramChats: (botToken: string) => req<{ chats: { id: string; title: string }[] }>('/api/admin/settings/telegram/detect-chat-id', 'POST', { botToken: botToken || undefined }),
-  disconnectTelegram: () => req<{ disconnected: boolean }>('/api/admin/settings/telegram/disconnect', 'POST'),
+  testTelegram: (botToken: string, chatId: string) => req<{ username: string; chatId: string; lastTestAt: string | null; enabled: boolean }>('/api/admin/settings/telegram', 'POST', { action: 'test', botToken: botToken || undefined, chatId }),
+  detectTelegramChats: (botToken: string) => req<{ chats: { id: string; title: string }[] }>('/api/admin/settings/telegram', 'POST', { action: 'detectChatId', botToken: botToken || undefined }),
+  disconnectTelegram: () => req<{ disconnected: boolean }>('/api/admin/settings/telegram', 'DELETE'),
   testEmail: (apiKey: string, emailFromUser: string, emailFromName: string, testRecipient: string) =>
-    req<{ emailFromUser: string; emailFromName: string; lastTestAt: string | null; enabled: boolean }>('/api/admin/settings/email/test', 'POST', {
+    req<{ emailFromUser: string; emailFromName: string; lastTestAt: string | null; enabled: boolean }>('/api/admin/settings/email', 'POST', {
       apiKey: apiKey || undefined, emailFromUser, emailFromName, testRecipient,
     }),
-  disconnectEmail: () => req<{ disconnected: boolean }>('/api/admin/settings/email/disconnect', 'POST'),
+  disconnectEmail: () => req<{ disconnected: boolean }>('/api/admin/settings/email', 'DELETE'),
   testSms: (apiKey: string, senderId: string, testRecipient: string) =>
-    req<{ senderId: string; lastTestAt: string | null; enabled: boolean }>('/api/admin/settings/sms/test', 'POST', { apiKey: apiKey || undefined, senderId, testRecipient }),
-  disconnectSms: () => req<{ disconnected: boolean }>('/api/admin/settings/sms/disconnect', 'POST'),
+    req<{ senderId: string; lastTestAt: string | null; enabled: boolean }>('/api/admin/settings/sms', 'POST', { apiKey: apiKey || undefined, senderId, testRecipient }),
+  disconnectSms: () => req<{ disconnected: boolean }>('/api/admin/settings/sms', 'DELETE'),
   listNotificationPrefs: () => req<{ prefs: { event: string; emailEnabled: boolean; smsEnabled: boolean }[] }>('/api/admin/settings/notification-prefs', 'GET'),
   updateNotificationPrefs: (prefs: { event: string; emailEnabled: boolean; smsEnabled: boolean }[]) =>
     req<{ prefs: { event: string; emailEnabled: boolean; smsEnabled: boolean }[] }>('/api/admin/settings/notification-prefs', 'PATCH', { prefs }),
@@ -160,21 +160,21 @@ export const adminApi = {
 
   // reviews
   listReviews: () => req<{ reviews: Review[] }>('/api/admin/reviews', 'GET'),
-  approveReview: (id: string) => req<{ review: { id: string; status: string } }>(`/api/admin/reviews/${id}/approve`, 'POST'),
-  rejectReview: (id: string, note?: string) => req<{ review: { id: string; status: string } }>(`/api/admin/reviews/${id}/reject`, 'POST', note ? { note } : undefined),
+  approveReview: (id: string) => req<{ review: { id: string; status: string } }>(`/api/admin/reviews/${id}`, 'POST', { action: 'approve' }),
+  rejectReview: (id: string, note?: string) => req<{ review: { id: string; status: string } }>(`/api/admin/reviews/${id}`, 'POST', { action: 'reject', note }),
   setReviewFeatured: (id: string, featured: boolean) => req<{ review: { id: string; featured: boolean } }>(`/api/admin/reviews/${id}`, 'PATCH', { featured }),
 
   // notification delivery log (email + SMS)
   listNotifications: () => req<{ logs: NotificationLog[]; total: number }>('/api/admin/notifications', 'GET'),
-  refreshNotificationStatus: () => req<{ checked: number; updated: number }>('/api/admin/notifications/refresh', 'POST'),
+  refreshNotificationStatus: () => req<{ checked: number; updated: number }>('/api/admin/notifications', 'POST'),
 
   // inventory
   listInventory: (locationId?: string) => req<{ inventory: InventoryItem[] }>(`/api/admin/inventory${locationId ? `?locationId=${encodeURIComponent(locationId)}` : ''}`, 'GET'),
   updateInventoryPlacement: (body: { locationId: string; productId: string; physicalLocation: string }) => req<{ placement: { locationId: string; productId: string; physicalLocation: string } }>('/api/admin/inventory', 'PATCH', body),
-  receiveStock: (body: Record<string, unknown>) => req<{ row: unknown }>('/api/admin/inventory/receive', 'POST', body),
+  receiveStock: (body: Record<string, unknown>) => req<{ row: unknown }>('/api/admin/inventory', 'POST', { ...body, action: 'receive' }),
   listTransfers: () => req<{ transfers: XfrRecord[] }>('/api/admin/inventory/transfer', 'GET'),
   transferStock: (body: Record<string, unknown>) => req<{ transfer: unknown }>('/api/admin/inventory/transfer', 'POST', body),
-  adjustStock: (body: Record<string, unknown>) => req<{ row: unknown }>('/api/admin/inventory/adjust', 'POST', body),
+  adjustStock: (body: Record<string, unknown>) => req<{ row: unknown }>('/api/admin/inventory', 'POST', { ...body, action: 'adjust' }),
 
   // POS order
   createPosOrder: (body: Record<string, unknown>) => req<PosOrderResult>('/api/pos/order', 'POST', body),

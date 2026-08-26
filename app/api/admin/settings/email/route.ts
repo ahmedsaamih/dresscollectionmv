@@ -17,7 +17,7 @@ const bodySchema = z.object({
 });
 
 /**
- * POST /api/admin/settings/email/test
+ * POST /api/admin/settings/email
  * Sends a real test email to verify the Resend API key works, saving it
  * (encrypted) on success. `apiKey` may be omitted to re-test with a newly
  * edited "from" name/user against the already-saved key.
@@ -82,6 +82,29 @@ export async function POST(request: Request) {
       lastTestAt: updated.emailLastTestAt?.toISOString() ?? null,
       enabled: updated.emailAlertsEnabled,
     });
+  } catch (err) {
+    return handleError(err);
+  }
+}
+
+/**
+ * DELETE /api/admin/settings/email — clears the stored Resend key.
+ * Leaves emailFromUser/emailFromName intact since they aren't secrets and
+ * are annoying to retype if the admin reconnects shortly after.
+ */
+export async function DELETE() {
+  try {
+    const session = await requirePermission('settingsGeneral', 'edit');
+    await prisma.setting.update({
+      where: { id: 'singleton' },
+      data: {
+        emailApiKey: '',
+        emailAlertsEnabled: false,
+        emailLastTestAt: null,
+      },
+    });
+    await audit(session.email, 'settings.email.disconnect', 'singleton');
+    return ok({ disconnected: true });
   } catch (err) {
     return handleError(err);
   }

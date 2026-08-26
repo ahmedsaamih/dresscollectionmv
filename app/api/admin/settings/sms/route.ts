@@ -16,7 +16,7 @@ const bodySchema = z.object({
 });
 
 /**
- * POST /api/admin/settings/sms/test
+ * POST /api/admin/settings/sms
  * Sends a real test SMS via MsgOwl to verify the API key + sender ID work,
  * saving them (key encrypted) on success. `apiKey` may be omitted to re-test
  * a new sender ID against the already-saved key.
@@ -69,6 +69,29 @@ export async function POST(request: Request) {
       lastTestAt: updated.smsLastTestAt?.toISOString() ?? null,
       enabled: updated.smsAlertsEnabled,
     });
+  } catch (err) {
+    return handleError(err);
+  }
+}
+
+/**
+ * DELETE /api/admin/settings/sms — clears the stored MsgOwl key.
+ * Leaves msgowlSenderId intact since it isn't a secret and is annoying to
+ * retype if the admin reconnects shortly after.
+ */
+export async function DELETE() {
+  try {
+    const session = await requirePermission('settingsGeneral', 'edit');
+    await prisma.setting.update({
+      where: { id: 'singleton' },
+      data: {
+        msgowlApiKey: '',
+        smsAlertsEnabled: false,
+        smsLastTestAt: null,
+      },
+    });
+    await audit(session.email, 'settings.sms.disconnect', 'singleton');
+    return ok({ disconnected: true });
   } catch (err) {
     return handleError(err);
   }
