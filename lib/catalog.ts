@@ -1,3 +1,5 @@
+import { Prisma } from '@prisma/client';
+import { unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import type {
   Product,
@@ -15,7 +17,45 @@ import type {
 import { normalizeStorefrontCopy } from '@/lib/storefront-copy';
 import { PRODUCT_SIZES, computeEffectivePrice } from '@/lib/utils';
 
-type ProductRow = Awaited<ReturnType<typeof prisma.product.findMany<{ include: { inventory: { include: { location: true } } } }>>>[number];
+/**
+ * Scoped to exactly what mapProduct reads (drops costPrice and the legacy
+ * stock/sizeStock columns, which are recomputed from Inventory and never
+ * read directly), and scopes the inventory relation to web-visible
+ * locations only — avoids fetching POS-only stock rows for public reads.
+ * Admin routes need the full model (costPrice, all locations) and
+ * deliberately don't use this.
+ */
+export const productListSelect = {
+  id: true,
+  name: true,
+  collection: true,
+  category: true,
+  sub: true,
+  price: true,
+  was: true,
+  discountType: true,
+  discountValue: true,
+  status: true,
+  badge: true,
+  colors: true,
+  descriptionSections: true,
+  showInWebStore: true,
+  img: true,
+  colorImages: true,
+  colorHex: true,
+  preOrder: true,
+  inventory: {
+    where: { location: { showOnWeb: true } },
+    select: {
+      size: true,
+      color: true,
+      qty: true,
+      location: { select: { showOnWeb: true } },
+    },
+  },
+} satisfies Prisma.ProductSelect;
+
+type ProductRow = Prisma.ProductGetPayload<{ select: typeof productListSelect }>;
 
 export function mapProduct(p: ProductRow): Product {
   // Compute stock + sizeStock + colorSizeStock from Inventory rows (web-visible locations only)
@@ -106,7 +146,7 @@ interface CatalogData {
 }
 
 /** Fetch the full public catalog in one round-trip. */
-export async function getCatalog(): Promise<CatalogData> {
+async function fetchCatalog(): Promise<CatalogData> {
   const [
     setting,
     collections,
@@ -122,7 +162,7 @@ export async function getCatalog(): Promise<CatalogData> {
     prisma.category.findMany(),
     prisma.product.findMany({
       where: { status: 'active', showInWebStore: true },
-      include: { inventory: { include: { location: true } } },
+      select: productListSelect,
       orderBy: { name: 'asc' },
     }),
     prisma.location.findMany({ orderBy: { sortOrder: 'asc' } }),
@@ -219,6 +259,18 @@ export async function getCatalog(): Promise<CatalogData> {
     })),
   };
 }
+
+/**
+ * Fetch the full public catalog, cached under the `catalog` tag. Every
+ * storefront page shares this one cache entry; `revalidateTag('catalog')` is
+ * the real freshness mechanism (called from every admin write that affects
+ * catalog output), with a 5-minute TTL as a safety net in case a mutation
+ * route is ever missed.
+ */
+export const getCatalog = unstable_cache(fetchCatalog, ['catalog'], {
+  tags: ['catalog'],
+  revalidate: 300,
+});
 
 const EMPTY_SETTINGS: StoreSetting = {
   storeName: 'Dress Collection',

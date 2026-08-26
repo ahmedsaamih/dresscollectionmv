@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { mapProduct } from '@/lib/catalog';
+import { mapProduct, productListSelect } from '@/lib/catalog';
 import { ok, fail, handleError } from '@/lib/http';
 import { rateLimitResponse } from '@/lib/rate-limit';
 
@@ -40,7 +40,7 @@ export async function GET(request: Request) {
       sort === 'price_asc' ? { price: 'asc' } : sort === 'price_desc' ? { price: 'desc' } : { name: 'asc' };
 
     const [rows, total] = await Promise.all([
-      prisma.product.findMany({ where, orderBy, take: limit, skip: offset, include: { inventory: { include: { location: true } } } }),
+      prisma.product.findMany({ where, orderBy, take: limit, skip: offset, select: productListSelect }),
       prisma.product.count({ where }),
     ]);
 

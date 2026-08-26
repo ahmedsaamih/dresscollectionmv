@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { mapProduct } from '@/lib/catalog';
+import { mapProduct, productListSelect } from '@/lib/catalog';
 import { ok, handleError } from '@/lib/http';
 import { rateLimitResponse } from '@/lib/rate-limit';
 
@@ -31,7 +31,7 @@ export async function GET(request: Request) {
       ],
     };
 
-    const rows = await prisma.product.findMany({ where, orderBy: { name: 'asc' }, take: limit, include: { inventory: { include: { location: true } } } });
+    const rows = await prisma.product.findMany({ where, orderBy: { name: 'asc' }, take: limit, select: productListSelect });
     return ok({ query: q, products: rows.map(mapProduct), total: rows.length });
   } catch (err) {
     return handleError(err);

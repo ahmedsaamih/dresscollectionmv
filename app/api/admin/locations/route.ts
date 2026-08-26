@@ -1,3 +1,4 @@
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { locationCreateSchema } from '@/lib/validation';
 import { requirePermission, audit, genId } from '@/lib/admin-guard';
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
     });
 
     await audit(session.email, 'location.create', id, { name: data.name });
+    revalidateTag('catalog', { expire: 0 });
     return ok({ location }, 201);
   } catch (err) {
     return handleError(err);

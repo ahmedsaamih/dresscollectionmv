@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { inventoryPlacementSchema, adjustStockSchema, receiveStockSchema } from '@/lib/validation';
 import { requirePermission, audit } from '@/lib/admin-guard';
@@ -104,6 +105,7 @@ export async function POST(request: Request) {
       });
 
       await audit(session.email, 'inventory.receive', data.productId, { locationId: data.locationId, size: data.size, color: data.color, qty: data.qty });
+      revalidateTag('catalog', { expire: 0 });
       return ok({ row });
     }
 
@@ -147,6 +149,7 @@ export async function POST(request: Request) {
       await audit(session.email, 'inventory.adjust', `${data.productId}@${data.locationId}`, {
         size: data.size, color: data.color, qty: data.qty, reason: data.reason,
       });
+      revalidateTag('catalog', { expire: 0 });
 
       return ok({ row: { locationId: row.locationId, productId: row.productId, size: row.size, color: row.color, qty: row.qty } });
     }

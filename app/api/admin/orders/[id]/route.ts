@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { orderUpdateSchema } from '@/lib/validation';
 import { requirePermission, audit } from '@/lib/admin-guard';
@@ -93,6 +94,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
         include: orderInclude,
       });
     });
+    if (data.stage === 7 && before.stage !== 7) revalidateTag('catalog', { expire: 0 });
     await audit(session.email, 'order.update', params.id, data);
 
     // Email the customer when the fulfilment stage actually changes.
@@ -180,6 +182,7 @@ export async function DELETE(_request: Request, props: { params: Promise<{ id: s
       return o;
     });
     if (!order) return fail('Order not found', 404);
+    revalidateTag('catalog', { expire: 0 });
     await audit(session.email, 'order.delete', params.id);
     return ok({ deleted: true });
   } catch (err) {

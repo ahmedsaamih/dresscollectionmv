@@ -1,3 +1,4 @@
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requirePermission, audit } from '@/lib/admin-guard';
 import { ok, fail, handleError, displayDate } from '@/lib/http';
@@ -173,6 +174,7 @@ export async function POST(request: Request) {
       }
       return created;
     });
+    revalidateTag('catalog', { expire: 0 });
 
     await upsertCustomerFromContact({ name: data.customer, phone: data.mobile, email: data.email });
 

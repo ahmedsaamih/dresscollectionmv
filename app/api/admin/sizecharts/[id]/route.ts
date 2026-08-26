@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { sizeChartUpdateSchema } from '@/lib/validation';
 import { requirePermission, audit } from '@/lib/admin-guard';
@@ -21,6 +22,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       : await prisma.sizeChart.update({ where: { id: params.id }, data: body });
 
     await audit(session.email, 'sizechart.update', params.id, { keys: Object.keys(body) });
+    revalidateTag('catalog', { expire: 0 });
     return ok({ sizeChart: updated });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
@@ -45,6 +47,7 @@ export async function DELETE(_request: Request, props: { params: Promise<{ id: s
 
     await prisma.sizeChart.delete({ where: { id: params.id } });
     await audit(session.email, 'sizechart.delete', params.id, { collectionsAffected: chart.collections.length });
+    revalidateTag('catalog', { expire: 0 });
     return ok({ deleted: true });
   } catch (err) {
     return handleError(err);

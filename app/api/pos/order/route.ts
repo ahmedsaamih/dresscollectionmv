@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { createOrderWithRef } from '@/lib/ref';
 import { posOrderSchema } from '@/lib/validation';
@@ -184,6 +185,7 @@ export async function POST(request: Request) {
 
       return created;
     });
+    revalidateTag('catalog', { expire: 0 });
 
     await upsertCustomerFromContact({ name: data.customer, phone: data.mobile, email: data.email });
 

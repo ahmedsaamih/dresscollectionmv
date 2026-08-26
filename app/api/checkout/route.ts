@@ -1,4 +1,5 @@
 import { after } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { createOrderWithRef } from '@/lib/ref';
 import { checkoutSchema } from '@/lib/validation';
@@ -194,6 +195,7 @@ export async function POST(request: Request) {
       paymentSlipReceiptId = receipt.id;
       return created;
     });
+    revalidateTag('catalog', { expire: 0 });
 
     // Best-effort server-side OCR of the slip — runs after the response is sent so it never
     // delays checkout; see lib/slip-ocr.ts. Never trusted as proof of payment.

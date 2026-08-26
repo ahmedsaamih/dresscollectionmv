@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { settingsUpdateSchema } from '@/lib/validation';
 import { requirePermission, audit } from '@/lib/admin-guard';
@@ -70,6 +71,7 @@ export async function PATCH(request: Request) {
 
     const updated = await prisma.setting.update({ where: { id: 'singleton' }, data: data as Prisma.SettingUpdateInput });
     await audit(session.email, 'settings.update', 'singleton', { keys: Object.keys(data) });
+    revalidateTag('catalog', { expire: 0 });
     return ok({ settings: toSettings(updated) });
   } catch (err) {
     return handleError(err);

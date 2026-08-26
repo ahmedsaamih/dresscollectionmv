@@ -1,3 +1,4 @@
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { collectionCreateSchema } from '@/lib/validation';
 import { requirePermission, audit, genId } from '@/lib/admin-guard';
@@ -24,6 +25,7 @@ export async function POST(request: Request) {
 
     const created = await prisma.collection.create({ data: { id: genId('cl'), key, label, sizeChartId: sizeChartId ?? null } });
     await audit(session.email, 'collection.create', key, { label, sizeChartId });
+    revalidateTag('catalog', { expire: 0 });
     return ok({ collection: { id: created.id, key: created.key, label: created.label, sizeChartId: created.sizeChartId } }, 201);
   } catch (err) {
     return handleError(err);

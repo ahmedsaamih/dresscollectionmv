@@ -1,3 +1,4 @@
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requireSuperAdmin, audit } from '@/lib/admin-guard';
 import { ok, fail, handleError } from '@/lib/http';
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
     };
 
     await audit(session.email, 'system.reset_test_data', 'all', countsDeleted);
+    revalidateTag('catalog', { expire: 0 });
     return ok({ countsDeleted });
   } catch (err) {
     return handleError(err);

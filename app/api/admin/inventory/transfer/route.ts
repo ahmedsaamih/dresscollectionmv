@@ -1,3 +1,4 @@
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { transferStockSchema } from '@/lib/validation';
 import { requirePermission, audit } from '@/lib/admin-guard';
@@ -42,6 +43,7 @@ export async function POST(request: Request) {
     });
 
     await audit(session.email, 'inventory.transfer', data.productId, { fromId: data.fromId, toId: data.toId, size: data.size, color: data.color, qty: data.qty });
+    revalidateTag('catalog', { expire: 0 });
     return ok({ transfer: result });
   } catch (err) {
     return handleError(err);

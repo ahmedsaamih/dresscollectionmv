@@ -1,3 +1,4 @@
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { mapProduct } from '@/lib/catalog';
 import { deriveLegacyStock, syncColorSizeStock } from '@/lib/inventory';
@@ -99,6 +100,7 @@ export async function POST(request: Request) {
     });
 
     await audit(session.email, 'product.create', id, { name: data.name });
+    revalidateTag('catalog', { expire: 0 });
     const product = session.role === 'admin' ? { ...mapProduct(created), costPrice: created.costPrice } : mapProduct(created);
     return ok({ product }, 201);
   } catch (err) {

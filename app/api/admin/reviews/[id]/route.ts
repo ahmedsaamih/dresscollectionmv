@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requirePermission, audit } from '@/lib/admin-guard';
 import { ok, fail, handleError } from '@/lib/http';
@@ -22,6 +23,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
     const updated = await prisma.review.update({ where: { id: params.id }, data: { featured } });
     await audit(session.email, 'review.feature', params.id, { featured });
+    revalidateTag('catalog', { expire: 0 });
     return ok({ review: { id: updated.id, featured: updated.featured } });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
@@ -52,6 +54,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
         data: { status: 'approved', resolvedBy: session.email, resolvedAt: new Date() },
       });
       await audit(session.email, 'review.approve', params.id);
+      revalidateTag('catalog', { expire: 0 });
       return ok({ review: { id: updated.id, status: updated.status } });
     }
 
@@ -60,6 +63,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       data: { status: 'rejected', resolvedBy: session.email, resolvedAt: new Date(), rejectionNote: data.note ?? null },
     });
     await audit(session.email, 'review.reject', params.id, { note: data.note ?? null });
+    revalidateTag('catalog', { expire: 0 });
     return ok({ review: { id: updated.id, status: updated.status } });
   } catch (err) {
     return handleError(err);

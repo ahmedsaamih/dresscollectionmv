@@ -1,3 +1,4 @@
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { deliveryAreaUpdateSchema } from '@/lib/validation';
 import { requirePermission, audit } from '@/lib/admin-guard';
@@ -15,6 +16,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     const deliveryArea = await prisma.deliveryArea.update({ where: { id: params.id }, data });
 
     await audit(session.email, 'deliveryArea.update', params.id, data as Record<string, unknown>);
+    revalidateTag('catalog', { expire: 0 });
     return ok({ deliveryArea });
   } catch (err) {
     return handleError(err);
@@ -34,6 +36,7 @@ export async function DELETE(_: Request, props: { params: Promise<{ id: string }
 
     await prisma.deliveryArea.delete({ where: { id: params.id } });
     await audit(session.email, 'deliveryArea.delete', params.id);
+    revalidateTag('catalog', { expire: 0 });
     return ok({ deleted: true });
   } catch (err) {
     return handleError(err);
