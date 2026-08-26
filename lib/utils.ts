@@ -25,11 +25,6 @@ export function computeEffectivePrice(price: number, discountType: string | null
   return price;
 }
 
-export function genRef(prefix: 'DC'): string {
-  const yy = new Date().getFullYear().toString().slice(2);
-  const n = Math.floor(10000 + Math.random() * 89999);
-  return `${prefix}-${yy}-${n}`;
-}
 
 export const LOW_STOCK_THRESHOLD = 5; // customer-facing "running low" cutoff
 export const STOCK_BAR_MAX = 20; // visual reference: bar reads "full" at this many units — not a business rule

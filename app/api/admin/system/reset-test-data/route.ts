@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       return fail(`Confirmation required: send { "confirm": "${CONFIRM_PHRASE}" }`, 400);
     }
 
-    const [review, stockTransfer, stockAdjustment, inventoryPlacement, inventory, order, product, customer, refSequence] =
+    const [review, stockTransfer, stockAdjustment, inventoryPlacement, inventory, order, product, customer] =
       await prisma.$transaction([
         prisma.review.deleteMany({}),
         prisma.stockTransfer.deleteMany({}),
@@ -37,7 +37,6 @@ export async function POST(request: Request) {
         prisma.order.deleteMany({}),
         prisma.product.deleteMany({}),
         prisma.customer.deleteMany({}),
-        prisma.refSequence.deleteMany({ where: { prefix: 'DC' } }),
       ]);
 
     const countsDeleted = {
@@ -49,7 +48,6 @@ export async function POST(request: Request) {
       order: order.count,
       product: product.count,
       customer: customer.count,
-      refSequence: refSequence.count,
     };
 
     await audit(session.email, 'system.reset_test_data', 'all', countsDeleted);

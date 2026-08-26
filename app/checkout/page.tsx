@@ -10,7 +10,7 @@ import { useStore } from '@/contexts/StoreContext';
 import { SlipUpload } from '@/components/SlipUpload';
 import { Check, X } from 'lucide-react';
 
-interface Conf { name:string; email:string; total:string; method:string; ref:string; discount:number; code:string|null; depositRequired:number; balanceDue:number }
+interface Conf { name:string; mobile:string; total:string; method:string; ref:string; discount:number; code:string|null; depositRequired:number; balanceDue:number }
 
 export default function CheckoutPage() {
   const { cart, refresh } = useCart();
@@ -18,7 +18,6 @@ export default function CheckoutPage() {
   const copy = data.settings.storefrontCopy.paymentCheckout;
   const shippingCopy = data.settings.storefrontCopy.shippingPickup;
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
   const [mobile, setMobile] = useState('');
   const method = 'delivery' as const;
   const [address, setAddress] = useState('');
@@ -75,7 +74,6 @@ export default function CheckoutPage() {
   const place = async () => {
     const e: Record<string,boolean> = {};
     if (!name.trim()) e.name=true;
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email=true;
     if (!mobile.trim()) e.mobile=true;
     if (!address.trim()) e.address=true;
     if (!deliveryAreaId) e.deliveryAreaId=true;
@@ -87,7 +85,7 @@ export default function CheckoutPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name, email, mobile, method,
+          name, mobile, method,
           address,
           deliveryAreaId,
           notes: notes || null,
@@ -100,7 +98,7 @@ export default function CheckoutPage() {
       if (!res.ok) { setApiError(json.error || 'Could not place order. Please try again.'); setSubmitting(false); return; }
       cart.fixed.slice().forEach(i => MMCart.remove(i.id));
       refresh();
-      setConf({ name, email, total: formatMVR(json.total), method: 'Delivery', ref: json.ref, discount: json.discount || 0, code: json.discountCode || null, depositRequired: json.depositRequired ?? json.total, balanceDue: json.balanceDue ?? 0 });
+      setConf({ name, mobile, total: formatMVR(json.total), method: 'Delivery', ref: json.ref, discount: json.discount || 0, code: json.discountCode || null, depositRequired: json.depositRequired ?? json.total, balanceDue: json.balanceDue ?? 0 });
       setPlaced(true);
       window.scrollTo({ top:0, behavior:'smooth' });
     } catch {
@@ -115,7 +113,7 @@ export default function CheckoutPage() {
       <div className="max-w-[620px] mx-auto px-5 sm:px-8 py-[70px] text-center">
         <div className="w-[74px] h-[74px] rounded-[20px] bg-rose-500 text-[#200612] inline-flex items-center justify-center animate-pop"><Check size={38} strokeWidth={3} /></div>
         <h1 className="font-archivo-narrow font-bold text-[28px] sm:text-[38px] mt-6">{conf.balanceDue > 0 ? copy.depositConfirmationTitle : copy.orderPlacedTitle}</h1>
-        <p className="text-[15px] text-sub mt-3 leading-[1.6]">Thanks, {conf.name}. {conf.balanceDue > 0 ? copy.depositConfirmationBody : copy.orderPlacedBody} <span className="text-[#705260]">{conf.email}</span>.</p>
+        <p className="text-[15px] text-sub mt-3 leading-[1.6]">Thanks, {conf.name}. {conf.balanceDue > 0 ? copy.depositConfirmationBody : copy.orderPlacedBody}</p>
         <div className="bg-surface border border-[rgba(219,87,149,.25)] rounded-2xl p-6 mt-7">
           <div className="text-[11px] tracking-[.18em] uppercase text-muted">Order reference</div>
           <div className="font-archivo-narrow font-bold text-[34px] text-rose-700 tracking-[.04em] mt-2 tabular">{conf.ref}</div>
@@ -152,12 +150,8 @@ export default function CheckoutPage() {
           )}
         </div>
 
-        <div className="mt-[14px]">
-          <SlipUpload uploadUrl={`/api/orders/${conf.ref}/receipts`} />
-        </div>
-
         <div className="flex gap-3 justify-center mt-[26px] flex-wrap">
-          <Link href={`/status?ref=${encodeURIComponent(conf.ref)}&contact=${encodeURIComponent(conf.email)}`} className="no-underline bg-rose-500 text-[#200612] font-extrabold text-[14px] px-6 py-[13px] rounded-xl">Track this order →</Link>
+          <Link href={`/status?ref=${encodeURIComponent(conf.ref)}&contact=${encodeURIComponent(conf.mobile)}`} className="no-underline bg-rose-500 text-[#200612] font-extrabold text-[14px] px-6 py-[13px] rounded-xl">Track this order →</Link>
           <Link href="/" className="no-underline border border-[rgba(0,0,0,.16)] text-body font-bold text-[14px] px-6 py-[13px] rounded-xl">Back to home</Link>
         </div>
       </div>
@@ -188,10 +182,7 @@ export default function CheckoutPage() {
               <h2 className="font-archivo-narrow font-bold text-[16px] uppercase tracking-[.04em] mb-5">Your details</h2>
               <div className="flex flex-col gap-[14px]">
                 <div><label className="text-[12px] font-semibold text-sub block mb-[7px]">Full name</label>{inp(name,setName,'e.g. Ahmed Saleem',!!errors.name,'name')}{errors.name&&<span className="text-[11.5px] text-[#e81a2b] mt-1.5 block">Please enter your name.</span>}</div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-[14px]">
-                  <div><label className="text-[12px] font-semibold text-sub block mb-[7px]">Email</label>{inp(email,setEmail,'you@email.com',!!errors.email,'email')}{errors.email&&<span className="text-[11.5px] text-[#e81a2b] mt-1.5 block">Enter a valid email.</span>}</div>
-                  <div><label className="text-[12px] font-semibold text-sub block mb-[7px]">Mobile</label>{inp(mobile,setMobile,'+960 …',!!errors.mobile,'mobile')}{errors.mobile&&<span className="text-[11.5px] text-[#e81a2b] mt-1.5 block">Enter your mobile.</span>}</div>
-                </div>
+                <div><label className="text-[12px] font-semibold text-sub block mb-[7px]">Mobile</label>{inp(mobile,setMobile,'+960 …',!!errors.mobile,'mobile')}{errors.mobile&&<span className="text-[11.5px] text-[#e81a2b] mt-1.5 block">Enter your mobile.</span>}</div>
               </div>
             </section>
             <section className="bg-surface rounded-2xl p-[22px]">

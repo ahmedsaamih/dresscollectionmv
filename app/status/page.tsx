@@ -22,7 +22,7 @@ export default function StatusPage() {
     const key = (refOverride ?? ref).trim().toUpperCase();
     const contactVal = contactOverride ?? contact;
     if (!key) { setError('Enter a reference number.'); return; }
-    if (!/^DC-/.test(key)) { setError('References start with DC-.'); return; }
+    if (!/^[A-Z0-9-]{3,40}$/.test(key)) { setError('Enter a valid reference.'); return; }
     if (!contactVal.trim()) { setError('Enter the email or mobile on your confirmation.'); return; }
     setError(''); setLoading(true);
     try {
@@ -39,7 +39,7 @@ export default function StatusPage() {
     }
   };
 
-  // Prefill from a shared/SMS/email tracking link (?ref=DC-26-48213). Read via
+  // Prefill from a shared/SMS/email tracking link (?ref=K7B4X). Read via
   // window.location instead of useSearchParams so this page can stay static.
   // If a ?contact= is also present (e.g. a future "Proceed to Payment" link),
   // auto-track so results render without requiring a manual "Track →" click.
@@ -77,7 +77,7 @@ export default function StatusPage() {
           <div className="flex-1">
             <input value={ref} onChange={e=>{ setRef(e.target.value); setError(''); }}
               onKeyDown={e=>{ if(e.key==='Enter') track(); }}
-              placeholder="e.g. DC-26-48213"
+              placeholder="e.g. K7B4X"
               className="w-full bg-well border rounded-xl px-4 py-[14px] text-body font-archivo text-[15px] outline-none tracking-[.02em]"
               style={{ borderColor:error?'#ff3d4d':'rgba(0,0,0,.12)' }}/>
             <input value={contact} onChange={e=>{ setContact(e.target.value); setError(''); }}
@@ -88,7 +88,7 @@ export default function StatusPage() {
             {error && <div className="text-[12px] text-[#e81a2b] mt-2">{error}</div>}
             <div className="flex gap-2 mt-[11px] flex-wrap items-center">
               <span className="text-[11.5px] text-muted">Try:</span>
-              {[['DC-26-48213','amina@email.mv']].map(([s,c])=>(
+              {[['K7B4X','amina@email.mv']].map(([s,c])=>(
                 <button key={s} onClick={()=>{ setRef(s); setContact(c); setError(''); }} className="border border-[rgba(0,0,0,.12)] bg-transparent text-sub font-archivo text-[11.5px] px-[10px] py-1 rounded-full cursor-pointer hover:border-[rgba(219,87,149,.3)] hover:text-rose-700 transition-colors tabular">{s}</button>
               ))}
             </div>

@@ -9,7 +9,7 @@ import { contactMatches } from '@/lib/order-contact';
 export const dynamic = 'force-dynamic';
 
 /**
- * GET /api/status?ref=DC-26-48213&contact=customer@email.mv
+ * GET /api/status?ref=K7B4X&contact=customer@email.mv
  *
  * Public order lookup. No login — verified by reference + the contact
  * (email or mobile) on file. A wrong/missing contact returns the same
@@ -26,7 +26,9 @@ export async function GET(request: Request) {
 
     if (!ref) return fail('Enter a reference number.', 400);
     if (ref.length > 40) return fail('Reference is too long.', 400);
-    if (!/^DC-/.test(ref)) return fail('References start with DC-.', 400);
+    // Accepts both the new short codes (e.g. "K7B4X") and pre-existing
+    // DC-YY-NNNNN references from before the format changed.
+    if (!/^[A-Z0-9-]{3,40}$/.test(ref)) return fail('Enter a valid reference.', 400);
     if (!contact) return fail('Enter the email or mobile on your confirmation.', 400);
     if (contact.length > 254) return fail('Contact is too long.', 400);
 

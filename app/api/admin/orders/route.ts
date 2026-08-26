@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { requirePermission, audit } from '@/lib/admin-guard';
 import { ok, fail, handleError, displayDate } from '@/lib/http';
-import { nextRef } from '@/lib/ref';
+import { createOrderWithRef } from '@/lib/ref';
 import { orderInclude, serializeOrder } from '@/lib/order-serializer';
 import { upsertCustomerFromContact } from '@/lib/customers';
 import { orderConfirmationPdf } from '@/lib/pdf';
@@ -135,8 +135,7 @@ export async function POST(request: Request) {
     const paid = paidTotal >= (depositRequired || total);
     const summary = lineItems.map((i) => `${i.name} ×${i.qty}`).join(', ');
 
-    const order = await prisma.$transaction(async (tx) => {
-      const ref = await nextRef('DC', tx);
+    const order = await createOrderWithRef(async (tx, ref) => {
       const created = await tx.order.create({
         data: {
           id: ref,

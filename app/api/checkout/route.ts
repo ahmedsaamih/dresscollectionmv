@@ -1,6 +1,6 @@
 import { after } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { nextRef } from '@/lib/ref';
+import { createOrderWithRef } from '@/lib/ref';
 import { checkoutSchema } from '@/lib/validation';
 import { ok, fail, handleError, displayDate } from '@/lib/http';
 import { notifier } from '@/lib/notify';
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
       scope: 'checkout:contact',
       limit: 10,
       windowMs: 60 * 60 * 1000,
-      identifiers: [data.email.toLowerCase(), data.mobile],
+      identifiers: [data.mobile],
     });
     if (contactLimit) return contactLimit;
 
@@ -146,8 +146,7 @@ export async function POST(request: Request) {
 
     // Atomic: ref + order + line items + stock decrement + promo redemption.
     let paymentSlipReceiptId = '';
-    const order = await prisma.$transaction(async (tx) => {
-      const ref = await nextRef('DC', tx);
+    const order = await createOrderWithRef(async (tx, ref) => {
       const created = await tx.order.create({
         data: {
           id: ref,

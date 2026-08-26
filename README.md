@@ -64,7 +64,8 @@ contexts/
 lib/
   types.ts                All TypeScript interfaces
   store.ts                 Client-side seed/fallback data (mirrors prisma/seed.ts)
-  utils.ts                 formatMVR, genRef, COLOR_MAP, ORDER_STAGES, etc.
+  utils.ts                 formatMVR, COLOR_MAP, ORDER_STAGES, etc.
+  ref.ts                   createOrderWithRef — generates order reference codes
 
 prisma/
   schema.prisma            Database schema
@@ -80,7 +81,7 @@ public/
 ## Key design decisions
 
 ### No card payments
-Checkout produces an **order reference** (`DC-YY-NNNNN`). Customers pay by bank transfer only — no payment gateway is wired, no card details are ever collected. The admin panel marks orders as paid once a transfer is verified.
+Checkout produces an **order reference** (a random 5-character code, e.g. `K7B4X`). Customers pay by bank transfer only — no payment gateway is wired, no card details are ever collected. The admin panel marks orders as paid once a transfer is verified.
 
 ### Delivery only
 Dress Collection has no physical storefront. `settings.pickupEnabled` is `false` and the checkout flow only offers delivery, priced per delivery area.
@@ -137,10 +138,9 @@ GSAP is installed (`gsap`). The Home page (`app/page.tsx`) dynamically imports i
 
 | Type | Format | Example |
 |---|---|---|
-| Order | `DC-YY-NNNNN` | `DC-26-48213` |
-| Quote (admin-only) | `QT-YY-NNNNN` | `QT-26-10293` |
+| Order | 5-character code | `K7B4X` |
 
-Generated server-side, sequentially, via `nextRef('DC' | 'QT')` in `lib/ref.ts`.
+Generated server-side via `createOrderWithRef()` in `lib/ref.ts` — a random code from an unambiguous charset (no `0`/`O`/`1`/`I`/`L`), with the order-creation transaction retried on the rare id collision.
 
 ---
 

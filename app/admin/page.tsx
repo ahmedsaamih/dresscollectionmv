@@ -3078,7 +3078,7 @@ export default function AdminPage() {
                       <div className="font-bold text-[14px] mb-4">Find Order to Return</div>
                       <div className="mb-4">
                         <label className="text-[11px] text-sub block mb-1">Order ref or customer name</label>
-                        <input value={posReturnSearch} onChange={e => { setPosReturnSearch(e.target.value); setPosReturnOrder(null); }} placeholder="e.g. DC-26-12345 or customer name"
+                        <input value={posReturnSearch} onChange={e => { setPosReturnSearch(e.target.value); setPosReturnOrder(null); }} placeholder="e.g. K7B4X or customer name"
                           className="w-full bg-well border border-[rgba(0,0,0,.12)] rounded-[9px] px-3 py-[9px] text-[13px] outline-none focus:border-rose-500" />
                       </div>
                       {posReturnSearch.length >= 2 && !posReturnOrder && (

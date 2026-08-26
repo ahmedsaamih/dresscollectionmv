@@ -81,10 +81,10 @@ const products: SeedProduct[] = [
 ];
 
 const orders = [
-  { id: 'DC-26-48213', customer: 'Amina Shareef', email: 'amina@email.mv', items: 'Amara Wrap Midi ×1, Silk Scarf ×1', total: 835, method: OrderMethod.Delivery, stage: 3, date: '12 Jun 2026', paid: true },
-  { id: 'DC-26-47980', customer: 'Aishath Rasheed', email: 'aishath@email.mv', items: 'Horizon Maxi Dress ×1', total: 855, method: OrderMethod.Delivery, stage: 4, date: '11 Jun 2026', paid: true },
-  { id: 'DC-26-47655', customer: 'Fathimath Nazly', email: 'fathimath@email.mv', items: 'Everyday Linen Dress ×2', total: 915, method: OrderMethod.Delivery, stage: 1, date: '10 Jun 2026', paid: false },
-  { id: 'DC-26-47502', customer: 'Mariyam Zoona', email: 'mariyam@email.mv', items: 'Champagne Cocktail Dress ×1, Layered Chain Necklace ×1', total: 1245, method: OrderMethod.Delivery, stage: 0, date: '09 Jun 2026', paid: false },
+  { id: 'K7B4X', customer: 'Amina Shareef', email: 'amina@email.mv', items: 'Amara Wrap Midi ×1, Silk Scarf ×1', total: 835, method: OrderMethod.Delivery, stage: 3, date: '12 Jun 2026', paid: true },
+  { id: 'M3Q8Z', customer: 'Aishath Rasheed', email: 'aishath@email.mv', items: 'Horizon Maxi Dress ×1', total: 855, method: OrderMethod.Delivery, stage: 4, date: '11 Jun 2026', paid: true },
+  { id: 'T5W2C', customer: 'Fathimath Nazly', email: 'fathimath@email.mv', items: 'Everyday Linen Dress ×2', total: 915, method: OrderMethod.Delivery, stage: 1, date: '10 Jun 2026', paid: false },
+  { id: 'R9F6H', customer: 'Mariyam Zoona', email: 'mariyam@email.mv', items: 'Champagne Cocktail Dress ×1, Layered Chain Necklace ×1', total: 1245, method: OrderMethod.Delivery, stage: 0, date: '09 Jun 2026', paid: false },
 ];
 
 async function main() {
@@ -154,9 +154,6 @@ async function main() {
   }
 
   for (const o of orders) await prisma.order.upsert({ where: { id: o.id }, update: o, create: o });
-
-  // Ref sequences continue above the highest seeded ref for year "26".
-  await prisma.refSequence.upsert({ where: { prefix_year: { prefix: 'DC', year: '26' } }, update: { lastValue: 48213 }, create: { prefix: 'DC', year: '26', lastValue: 48213 } });
 
   // Admin user (Phase 6 auth). Password from env, hashed here.
   const email = process.env.ADMIN_EMAIL || 'admin@dresscollectionmv.com';

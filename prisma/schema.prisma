@@ -506,18 +506,6 @@ model Review {
   @@index([featured])
 }
 
-// ─── Infrastructure ──────────────────────────────────────────────────────────
-
-// Atomic sequential reference generation (replaces random genRef()).
-// One row per (prefix, year): "MM"+"26", ...
-model RefSequence {
-  prefix    String // "MM"
-  year      String // "26"
-  lastValue Int    @default(0)
-
-  @@id([prefix, year])
-}
-
 enum AdminRole {
   admin
   staff

@@ -1,13 +1,6 @@
 import { z } from 'zod';
 import { STOREFRONT_COPY_DEFAULTS, STOREFRONT_COPY_LIMITS } from './storefront-copy';
 
-// Robust email check that doesn't depend on Zod version specifics.
-const email = z
-  .string()
-  .trim()
-  .max(254)
-  .refine((v) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v), 'Enter a valid email');
-
 // Phone-number-safe characters only (digits, spaces, +, -, parens) — rejects
 // list-separator characters like `,`/`;` and letters. Not a strict national
 // format check; the goal is closing off a possible multi-recipient injection
@@ -21,7 +14,7 @@ export const optionalMobile = z.string().trim().max(40).refine((v) => v === '' |
 
 const contact = {
   name: z.string().trim().min(1, 'Name is required').max(120),
-  email,
+  email: z.string().trim().max(254).optional().default(''),
   mobile: requiredMobile,
 };
 

@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { nextRef } from '@/lib/ref';
+import { createOrderWithRef } from '@/lib/ref';
 import { posOrderSchema } from '@/lib/validation';
 import { ok, fail, handleError, displayDate } from '@/lib/http';
 import { requirePermission, audit } from '@/lib/admin-guard';
@@ -138,8 +138,7 @@ export async function POST(request: Request) {
     const paid = (data.paidCash + data.paidTransfer) >= total;
     const summary = lineItems.map((i) => `${i.name} ×${i.qty}`).join(', ');
 
-    const order = await prisma.$transaction(async (tx) => {
-      const ref = await nextRef('DC', tx);
+    const order = await createOrderWithRef(async (tx, ref) => {
       const created = await tx.order.create({
         data: {
           id: ref,
