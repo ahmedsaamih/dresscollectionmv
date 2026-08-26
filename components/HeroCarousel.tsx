@@ -25,77 +25,109 @@ export function HeroCarousel({ images }: { images: string[] }) {
 
   useEffect(() => {
     if (n < 2) return;
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    let intervalId: number | undefined;
-    let introIntervalId: number | undefined;
-    let lockTimeout: number | undefined;
+    // Nothing here may run before the window `load` event — only the first
+    // image is fetch-priority/preloaded (see the `priority={i === 0}` prop
+    // below), and this cross-fade advances `active` on a fixed timer with no
+    // regard for whether that image has actually finished loading. Starting
+    // it at mount raced the real network fetch on slow connections: the
+    // carousel could advance past index 0 before its image ever painted, so
+    // the element actually visible (and painted) when LCP was measured was
+    // a later, non-prioritized image — silently defeating the `priority`
+    // prop entirely. Gating everything on `load` guarantees the first image
+    // has already had its chance to be the LCP element before anything else
+    // is touched; on a fast connection `load` fires almost immediately, so
+    // the intro still plays right away.
+    let started = false;
+    let cleanupIntervals = () => {};
 
-    // Briefly capture page scroll so the intro gets to finish before the
-    // user scrolls past the hero. Only engages if the page is already at
-    // the top (nothing to jack if they've scrolled down into the site),
-    // never traps scrolling back up, and always releases itself — either
-    // when the intro finishes or after a fixed safety timeout. Real
-    // reaction time to actually attempt a scroll after the page loads
-    // easily exceeds a couple seconds, so the timeout here is generous on
-    // purpose — too short and the lock has usually already released before
-    // anyone tries to scroll, making it look like it never worked.
-    let scrollLocked = !reduced && window.scrollY < 40;
-    let touchStartY = 0;
-    const onWheel = (e: WheelEvent) => { if (scrollLocked && e.deltaY > 0) e.preventDefault(); };
-    const onTouchStart = (e: TouchEvent) => { touchStartY = e.touches[0]?.clientY ?? 0; };
-    const onTouchMove = (e: TouchEvent) => {
-      if (!scrollLocked) return;
-      const dy = touchStartY - (e.touches[0]?.clientY ?? touchStartY);
-      if (dy > 0) e.preventDefault();
+    const begin = () => {
+      if (started) return;
+      started = true;
+
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      let intervalId: number | undefined;
+      let introIntervalId: number | undefined;
+      let lockTimeout: number | undefined;
+
+      // Briefly capture page scroll so the intro gets to finish before the
+      // user scrolls past the hero. Only engages if the page is already at
+      // the top (nothing to jack if they've scrolled down into the site),
+      // never traps scrolling back up, and always releases itself — either
+      // when the intro finishes or after a fixed safety timeout. Real
+      // reaction time to actually attempt a scroll after the page loads
+      // easily exceeds a couple seconds, so the timeout here is generous on
+      // purpose — too short and the lock has usually already released before
+      // anyone tries to scroll, making it look like it never worked.
+      let scrollLocked = !reduced && window.scrollY < 40;
+      let touchStartY = 0;
+      const onWheel = (e: WheelEvent) => { if (scrollLocked && e.deltaY > 0) e.preventDefault(); };
+      const onTouchStart = (e: TouchEvent) => { touchStartY = e.touches[0]?.clientY ?? 0; };
+      const onTouchMove = (e: TouchEvent) => {
+        if (!scrollLocked) return;
+        const dy = touchStartY - (e.touches[0]?.clientY ?? touchStartY);
+        if (dy > 0) e.preventDefault();
+      };
+      const releaseScrollLock = () => {
+        if (!scrollLocked) return;
+        scrollLocked = false;
+        window.removeEventListener('wheel', onWheel);
+        window.removeEventListener('touchstart', onTouchStart);
+        window.removeEventListener('touchmove', onTouchMove);
+        if (lockTimeout) window.clearTimeout(lockTimeout);
+      };
+      if (scrollLocked) {
+        window.addEventListener('wheel', onWheel, { passive: false });
+        window.addEventListener('touchstart', onTouchStart, { passive: true });
+        window.addEventListener('touchmove', onTouchMove, { passive: false });
+        lockTimeout = window.setTimeout(releaseScrollLock, 5000);
+      }
+
+      const startAutoAdvance = () => {
+        releaseScrollLock();
+        if (autoAdvanceStartedRef.current) return;
+        autoAdvanceStartedRef.current = true;
+        intervalId = window.setInterval(() => {
+          setActive((i) => (i + 1) % n);
+        }, 4000);
+      };
+
+      if (reduced) {
+        startAutoAdvance();
+      } else {
+        // Fast intro: cross-fade through every image once in quick
+        // succession, landing back on the first, then the interval above
+        // picks up the normal 4s cadence right where the intro left off.
+        let step = 0;
+        introIntervalId = window.setInterval(() => {
+          step++;
+          setActive(step % n);
+          if (step >= n) {
+            if (introIntervalId) window.clearInterval(introIntervalId);
+            introIntervalId = undefined;
+            startAutoAdvance();
+          }
+        }, 260);
+      }
+
+      cleanupIntervals = () => {
+        releaseScrollLock();
+        autoAdvanceStartedRef.current = false;
+        if (intervalId) window.clearInterval(intervalId);
+        if (introIntervalId) window.clearInterval(introIntervalId);
+      };
     };
-    const releaseScrollLock = () => {
-      if (!scrollLocked) return;
-      scrollLocked = false;
-      window.removeEventListener('wheel', onWheel);
-      window.removeEventListener('touchstart', onTouchStart);
-      window.removeEventListener('touchmove', onTouchMove);
-      if (lockTimeout) window.clearTimeout(lockTimeout);
-    };
-    if (scrollLocked) {
-      window.addEventListener('wheel', onWheel, { passive: false });
-      window.addEventListener('touchstart', onTouchStart, { passive: true });
-      window.addEventListener('touchmove', onTouchMove, { passive: false });
-      lockTimeout = window.setTimeout(releaseScrollLock, 5000);
-    }
 
-    const startAutoAdvance = () => {
-      releaseScrollLock();
-      if (autoAdvanceStartedRef.current) return;
-      autoAdvanceStartedRef.current = true;
-      intervalId = window.setInterval(() => {
-        setActive((i) => (i + 1) % n);
-      }, 4000);
-    };
-
-    if (reduced) {
-      startAutoAdvance();
+    if (document.readyState === 'complete') {
+      begin();
     } else {
-      // Fast intro: cross-fade through every image once in quick
-      // succession, landing back on the first, then the interval above
-      // picks up the normal 4s cadence right where the intro left off.
-      let step = 0;
-      introIntervalId = window.setInterval(() => {
-        step++;
-        setActive(step % n);
-        if (step >= n) {
-          if (introIntervalId) window.clearInterval(introIntervalId);
-          introIntervalId = undefined;
-          startAutoAdvance();
-        }
-      }, 260);
+      window.addEventListener('load', begin, { once: true });
     }
 
     return () => {
-      releaseScrollLock();
-      autoAdvanceStartedRef.current = false;
-      if (intervalId) window.clearInterval(intervalId);
-      if (introIntervalId) window.clearInterval(introIntervalId);
+      window.removeEventListener('load', begin);
+      cleanupIntervals();
     };
   }, [n]);
 
