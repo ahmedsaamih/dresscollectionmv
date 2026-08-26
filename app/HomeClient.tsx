@@ -1,6 +1,7 @@
 'use client';
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { HeroCarousel } from '@/components/HeroCarousel';
@@ -97,10 +98,12 @@ export function HomeClient({ settings, collections, featured, accessories, testi
             const hasImg = !!c.img;
             return (
               <Link key={c.href} href={c.href} data-reveal
-                className={`no-underline rounded-[18px] p-6 flex flex-col gap-[14px] aspect-[3/4] min-[380px]:aspect-[4/5] relative overflow-hidden hover:-translate-y-1 transition-all group ${hasImg ? 'bg-cover bg-center' : 'bg-[#f5f1f3]'}`}
-                style={hasImg ? { backgroundImage: `url(${c.img})` } : undefined}>
+                className={`no-underline rounded-[18px] p-6 flex flex-col gap-[14px] aspect-[3/4] min-[380px]:aspect-[4/5] relative overflow-hidden hover:-translate-y-1 transition-all group ${hasImg ? '' : 'bg-[#f5f1f3]'}`}>
                 {hasImg ? (
-                  <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg,rgba(6,32,27,0) 0%,rgba(6,32,27,.1) 50%,rgba(6,32,27,.78) 100%)' }} />
+                  <>
+                    <Image src={c.img!} alt="" fill sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 280px" style={{ objectFit: 'cover' }} />
+                    <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg,rgba(6,32,27,0) 0%,rgba(6,32,27,.1) 50%,rgba(6,32,27,.78) 100%)' }} />
+                  </>
                 ) : (
                   <div className="relative z-10 w-[46px] h-[46px] rounded-xl flex items-center justify-center bg-[rgba(219,87,149,.1)] text-rose-700"><c.icon size={22} /></div>
                 )}
@@ -185,7 +188,7 @@ export function HomeClient({ settings, collections, featured, accessories, testi
             style={!settings.workshopImage ? { background: 'linear-gradient(150deg,#600a32,#36021a)' } : undefined}
           >
             {settings.workshopImage ? (
-              <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${settings.workshopImage})` }} />
+              <Image src={settings.workshopImage} alt="" fill sizes="(max-width: 1024px) 100vw, 540px" style={{ objectFit: 'cover' }} />
             ) : (
               <span className="absolute left-[22px] bottom-5 text-[11px] tracking-[.16em] uppercase text-white/55">Studio image · admin-set</span>
             )}
