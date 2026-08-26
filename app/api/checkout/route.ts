@@ -14,6 +14,7 @@ import { rateLimitResponse } from '@/lib/rate-limit';
 import { decrementStock, InsufficientStockError } from '@/lib/inventory';
 import { RECEIPT_TTL_MS } from '@/lib/receipts';
 import { ocrSlipImage } from '@/lib/slip-ocr';
+import { autoVerifyReceiptPayment } from '@/lib/payment-verification';
 import { computeEffectivePrice } from '@/lib/utils';
 
 export const maxDuration = 60;
@@ -208,6 +209,7 @@ export async function POST(request: Request) {
         const ocr = await ocrSlipImage(buffer, contentType);
         if (!ocr) return;
         await prisma.receiptOcrData.create({ data: { receiptId: paymentSlipReceiptId, ...ocr } });
+        await autoVerifyReceiptPayment(paymentSlipReceiptId, request);
       } catch (e) {
         console.error('slip OCR failed', e);
       }

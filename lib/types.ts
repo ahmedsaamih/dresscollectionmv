@@ -180,6 +180,7 @@ export interface ReceiptOcr {
   status: string | null;
   referenceNumber: string | null;
   transactionDate: string | null;
+  transactionDateParsed: string | null;
   fromName: string | null;
   toName: string | null;
   toAccount: string | null;
@@ -232,11 +233,19 @@ export interface Order {
   readyForDeliveryAt?: string | null;
   date: string;
   paid: boolean; // for a pre-order (depositRequired>0), means "deposit confirmed"
+  paidAuto: boolean; // true iff `paid` was most recently set by the OCR auto-verify pass, not an admin action
+  paidVerified: boolean; // admin explicitly reviewed and trusts this payment — independent of paid/paidAuto
+  paidVerifiedAt?: string | null;
+  paidVerifiedBy?: string | null;
   paidCash: number;
   paidTransfer: number;
   depositRequired: number; // amount required at checkout; equals `total` for a non-pre-order order
   balanceDue: number; // total − depositRequired; 0 unless the order contained pre-order items
   balancePaid: boolean;
+  balancePaidAuto: boolean;
+  balancePaidVerified: boolean;
+  balancePaidVerifiedAt?: string | null;
+  balancePaidVerifiedBy?: string | null;
   source: 'web' | 'pos';
   origin: 'web_checkout' | 'pos_sale' | 'manual_order';
   locationId?: string | null;

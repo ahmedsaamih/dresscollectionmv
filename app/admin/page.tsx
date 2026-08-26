@@ -1047,6 +1047,19 @@ export default function AdminPage() {
     } catch (e) { onError(e); }
     finally { setMarkBalancePaidSaving(false); }
   };
+  // Distinct from togglePaid/confirmMarkPaid above: this is the admin's own manual
+  // confirmation that they trust the payment, independent of whether `paid`/`balancePaid`
+  // got set automatically (OCR auto-verify) or by the mark-paid modal.
+  const togglePaidVerified = async (id: string, which: 'paid' | 'balance') => {
+    const cur = orderDrawer?.id === id ? orderDrawer : orders.find(o => o.id === id);
+    if (!cur) return;
+    const body = which === 'paid' ? { paidVerified: !cur.paidVerified } : { balancePaidVerified: !cur.balancePaidVerified };
+    try {
+      const { order } = await adminApi.updateOrder(id, body);
+      setOrders(os => os.map(o => o.id === id ? { ...order, receipts: order.receipts ?? o.receipts } : o));
+      setOrderDrawer(o => o && o.id === id ? { ...order, receipts: order.receipts ?? o.receipts } : o);
+    } catch (e) { onError(e); }
+  };
   const generateOrderReceipt = async (id: string) => {
     try {
       await adminApi.generateOrderReceipt(id);
@@ -2234,7 +2247,7 @@ export default function AdminPage() {
                       <div className="flex flex-col items-start gap-2">
                         <button onClick={() => togglePaid(o.id)} className={`justify-self-start font-bold cursor-pointer border transition-colors ${BTN_FULL}`}
                           style={{ background: o.paid ? '#db5795' : 'rgba(255,61,77,.12)', color: o.paid ? '#200612' : '#e81a2b', border: o.paid ? 'none' : '1px solid rgba(255,61,77,.35)' }}>
-                          {o.paid ? <><Check size={11} className="inline mr-1" /> {preOrder ? (o.balancePaid ? 'Paid in full' : 'Deposit paid') : 'Paid'}</> : 'Unpaid'}
+                          {o.paid ? <><Check size={11} className="inline mr-1" /> {preOrder ? (o.balancePaid ? 'Paid in full' : 'Deposit paid') : 'Paid'}{o.paidAuto && <span className="ml-1 opacity-70 normal-case font-semibold">· auto</span>}</> : 'Unpaid'}
                         </button>
                         {o.paid && preOrder && !o.balancePaid && (
                           <button onClick={() => openMarkBalancePaid(o.id)}
@@ -2338,7 +2351,7 @@ export default function AdminPage() {
                       <div className="flex items-center gap-2 mb-3 flex-wrap">
                         <button onClick={() => togglePaid(o.id)} className={`font-bold cursor-pointer border transition-colors ${BTN_FULL}`}
                           style={{ background: o.paid ? '#db5795' : 'rgba(255,61,77,.12)', color: o.paid ? '#200612' : '#e81a2b', border: o.paid ? 'none' : '1px solid rgba(255,61,77,.35)' }}>
-                          {o.paid ? <><Check size={12} className="inline mr-1" /> {preOrder ? (o.balancePaid ? 'Paid in full' : 'Deposit paid') : 'Paid'}</> : 'Unpaid'}
+                          {o.paid ? <><Check size={12} className="inline mr-1" /> {preOrder ? (o.balancePaid ? 'Paid in full' : 'Deposit paid') : 'Paid'}{o.paidAuto && <span className="ml-1 opacity-70 normal-case font-semibold">· auto</span>}</> : 'Unpaid'}
                         </button>
                         {o.paid && preOrder && !o.balancePaid && (
                           <button onClick={() => openMarkBalancePaid(o.id)}
@@ -4852,6 +4865,14 @@ export default function AdminPage() {
                   <span className="text-[9px] font-extrabold uppercase border px-[7px] py-[2px] rounded-full" style={{ color: origin.tone, background: origin.bg, borderColor: origin.border }}>{origin.label}</span>
                   <span className="text-[9px] font-extrabold uppercase px-[7px] py-[2px] rounded-full" style={{ color: STAGE_META[Math.min(orderDrawer.stage, STAGE_META.length - 1)].fg, background: STAGE_META[Math.min(orderDrawer.stage, STAGE_META.length - 1)].bg }}>{ORDER_STAGES[orderDrawer.stage] ?? 'Unknown'}</span>
                   <span className="text-[9px] font-extrabold uppercase px-[7px] py-[2px] rounded-full" style={{ background: orderDrawer.paid ? 'rgba(219,87,149,.1)' : 'rgba(255,61,77,.1)', color: orderDrawer.paid ? '#600a32' : '#e81a2b' }}>{orderDrawer.paid ? 'Paid' : 'Unpaid'}</span>
+                  {orderDrawer.paid && orderDrawer.paidAuto && (
+                    <span title="Auto-marked paid — OCR-read slip matched the amount due, not yet reviewed by an admin"
+                      className="text-[9px] font-extrabold uppercase px-[7px] py-[2px] rounded-full border border-[rgba(245,200,66,.4)] bg-[rgba(245,200,66,.12)] text-[#8a6205]">Auto</span>
+                  )}
+                  {orderDrawer.paid && orderDrawer.paidVerified && (
+                    <span title={`Verified${orderDrawer.paidVerifiedBy ? ' by ' + orderDrawer.paidVerifiedBy : ''}`}
+                      className="text-[9px] font-extrabold uppercase px-[7px] py-[2px] rounded-full border border-[rgba(219,87,149,.4)] bg-[rgba(219,87,149,.12)] text-[#600a32] inline-flex items-center gap-1"><CheckCircle2 size={9} /> Verified</span>
+                  )}
                 </div>
               </div>
               <button onClick={() => setOrderDrawer(null)} className="border-none bg-transparent text-muted text-[22px] cursor-pointer flex-none"><X size={22} /></button>
@@ -4917,8 +4938,8 @@ export default function AdminPage() {
                   {isPreOrder(orderDrawer) && (
                     <>
                       <div className="h-px bg-[rgba(0,0,0,.08)] mb-3" />
-                      <div className="flex justify-between text-[12.5px] mb-2"><span className="text-sub">Deposit (50%)</span><span className="tabular">{orderDrawer.paid ? <><Check size={11} className="inline mr-1 text-rose-600" />Confirmed</> : 'Awaiting'} · MVR {orderDrawer.depositRequired.toLocaleString()}</span></div>
-                      <div className="flex justify-between text-[12.5px] mb-3"><span className="text-sub">Balance</span><span className="tabular">{orderDrawer.balancePaid ? <><Check size={11} className="inline mr-1 text-rose-600" />Confirmed</> : 'Due'} · MVR {orderDrawer.balanceDue.toLocaleString()}</span></div>
+                      <div className="flex justify-between text-[12.5px] mb-2"><span className="text-sub">Deposit (50%)</span><span className="tabular">{orderDrawer.paid ? <><Check size={11} className="inline mr-1 text-rose-600" />Confirmed{orderDrawer.paidAuto && <span className="ml-1 text-[9px] font-extrabold uppercase text-[#8a6205]">· auto</span>}</> : 'Awaiting'} · MVR {orderDrawer.depositRequired.toLocaleString()}</span></div>
+                      <div className="flex justify-between text-[12.5px] mb-3"><span className="text-sub">Balance</span><span className="tabular">{orderDrawer.balancePaid ? <><Check size={11} className="inline mr-1 text-rose-600" />Confirmed{orderDrawer.balancePaidAuto && <span className="ml-1 text-[9px] font-extrabold uppercase text-[#8a6205]">· auto</span>}</> : 'Due'} · MVR {orderDrawer.balanceDue.toLocaleString()}</span></div>
                     </>
                   )}
                   <div className="h-px bg-[rgba(0,0,0,.08)] mb-3" />
@@ -4998,10 +5019,26 @@ export default function AdminPage() {
                   style={{ background: orderDrawer.paid ? '#db5795' : 'rgba(255,61,77,.12)', color: orderDrawer.paid ? '#200612' : '#ff6370', border: orderDrawer.paid ? 'none' : '1px solid rgba(255,61,77,.35)' }}>
                   {orderDrawer.paid ? <><Check size={12} className="inline mr-1" /> Mark Unpaid</> : 'Mark Paid'}
                 </button>
+                <button onClick={() => togglePaidVerified(orderDrawer.id, 'paid')}
+                  disabled={!orderDrawer.paid}
+                  title={!orderDrawer.paid ? 'Verify available once this is marked paid' : orderDrawer.paidVerified ? `Verified by ${orderDrawer.paidVerifiedBy ?? 'admin'} — click to unverify` : 'Mark this payment as reviewed and verified'}
+                  className={`w-[38px] h-[38px] rounded-full border flex items-center justify-center flex-none transition-colors ${orderDrawer.paid ? 'cursor-pointer' : 'cursor-not-allowed opacity-40'}`}
+                  style={{ borderColor: orderDrawer.paidVerified ? '#db5795' : 'rgba(0,0,0,.16)', background: orderDrawer.paidVerified ? 'rgba(219,87,149,.12)' : 'transparent', color: orderDrawer.paidVerified ? '#db5795' : '#907481' }}>
+                  <CheckCircle2 size={17} strokeWidth={orderDrawer.paidVerified ? 2.5 : 2} />
+                </button>
                 {orderDrawer.paid && orderDrawer.balanceDue > 0 && !orderDrawer.balancePaid && (
                   <button onClick={() => openMarkBalancePaid(orderDrawer.id)}
                     className={`font-bold cursor-pointer border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.08)] text-rose-700 transition-colors ${BTN_FULL}`}>
                     Record balance payment
+                  </button>
+                )}
+                {orderDrawer.balanceDue > 0 && (
+                  <button onClick={() => togglePaidVerified(orderDrawer.id, 'balance')}
+                    disabled={!orderDrawer.balancePaid}
+                    title={!orderDrawer.balancePaid ? 'Verify available once the balance is marked paid' : orderDrawer.balancePaidVerified ? `Verified by ${orderDrawer.balancePaidVerifiedBy ?? 'admin'} — click to unverify` : 'Mark this balance payment as reviewed and verified'}
+                    className={`w-[38px] h-[38px] rounded-full border flex items-center justify-center flex-none transition-colors ${orderDrawer.balancePaid ? 'cursor-pointer' : 'cursor-not-allowed opacity-40'}`}
+                    style={{ borderColor: orderDrawer.balancePaidVerified ? '#db5795' : 'rgba(0,0,0,.16)', background: orderDrawer.balancePaidVerified ? 'rgba(219,87,149,.12)' : 'transparent', color: orderDrawer.balancePaidVerified ? '#db5795' : '#907481' }}>
+                    <CheckCircle2 size={17} strokeWidth={orderDrawer.balancePaidVerified ? 2.5 : 2} />
                   </button>
                 )}
                 {orderDrawer.origin === 'pos_sale' ? (

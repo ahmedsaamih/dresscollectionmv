@@ -73,7 +73,16 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       if (data.stage === 4 && !before.readyForDeliveryAt) update.readyForDeliveryAt = new Date();
       if (data.stage < 4) update.readyForDeliveryAt = null;
     }
-    if (data.paid !== undefined) update.paid = data.paid;
+    if (data.paid !== undefined) {
+      update.paid = data.paid;
+      update.paidAuto = false; // current paid state was just set manually — auto flag no longer describes it
+      if (data.paid === false) {
+        // Reversing a paid mark invalidates whatever verification applied to it.
+        update.paidVerified = false;
+        update.paidVerifiedAt = null;
+        update.paidVerifiedBy = null;
+      }
+    }
     if (data.paidCash !== undefined) update.paidCash = data.paidCash;
     if (data.paidTransfer !== undefined) update.paidTransfer = data.paidTransfer;
     if (data.balancePaid !== undefined) {
@@ -81,6 +90,26 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
         return fail('This order has no balance due.', 400);
       }
       update.balancePaid = data.balancePaid;
+      update.balancePaidAuto = false;
+      if (data.balancePaid === false) {
+        update.balancePaidVerified = false;
+        update.balancePaidVerifiedAt = null;
+        update.balancePaidVerifiedBy = null;
+      }
+    }
+    if (data.paidVerified !== undefined) {
+      const paidAfter = data.paid ?? before.paid;
+      if (data.paidVerified && !paidAfter) return fail('Cannot verify a payment before it is marked paid.', 400);
+      update.paidVerified = data.paidVerified;
+      update.paidVerifiedAt = data.paidVerified ? new Date() : null;
+      update.paidVerifiedBy = data.paidVerified ? session.email : null;
+    }
+    if (data.balancePaidVerified !== undefined) {
+      const balancePaidAfter = data.balancePaid ?? before.balancePaid;
+      if (data.balancePaidVerified && !balancePaidAfter) return fail('Cannot verify a balance payment before it is marked paid.', 400);
+      update.balancePaidVerified = data.balancePaidVerified;
+      update.balancePaidVerifiedAt = data.balancePaidVerified ? new Date() : null;
+      update.balancePaidVerifiedBy = data.balancePaidVerified ? session.email : null;
     }
 
     const updated = await prisma.$transaction(async (tx) => {

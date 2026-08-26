@@ -20,6 +20,7 @@ export interface ParsedSlip {
   status: string | null;
   referenceNumber: string | null;
   transactionDate: string | null;
+  transactionDateParsed: Date | null;
   fromName: string | null;
   toName: string | null;
   toAccount: string | null;
@@ -35,6 +36,40 @@ const KNOWN_BANKS: [RegExp, string][] = [
 const STATUS_WORDS = '(SUCCESS|SUCCESSFUL|FAILED|PENDING|COMPLETED|DECLINED)';
 const DATE_PATTERN = '\\d{1,2}[/\\-]\\d{1,2}[/\\-]\\d{2,4}(?:[ ,]+\\d{1,2}:\\d{2}(?::\\d{2})?)?';
 
+/**
+ * Best-effort parse of a raw slip date/time string into a real Date. Bank
+ * slip formats vary a lot and this is read off a customer-submitted image,
+ * so it's deliberately conservative: any ambiguity, out-of-range value, or
+ * silent rollover (e.g. 31 Feb) returns null rather than guess. Day-first
+ * (DD/MM/YYYY) is assumed — the regional convention here — unless the first
+ * group is 4 digits, which is treated as YYYY-MM-DD. Never throws.
+ */
+function parseTransactionDate(raw: string | null): Date | null {
+  if (!raw) return null;
+  const m = raw.match(/^(\d{1,4})[/\-](\d{1,2})[/\-](\d{1,4})(?:[ ,]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (!m) return null;
+
+  const [, g1, g2, g3, hh, mi, ss] = m;
+  let year: number, month: number, day: number;
+  if (g1.length === 4) {
+    year = Number(g1); month = Number(g2); day = Number(g3);
+  } else {
+    day = Number(g1); month = Number(g2);
+    year = Number(g3);
+    if (g3.length <= 2) year += year < 70 ? 2000 : 1900;
+  }
+  const hours = hh ? Number(hh) : 0;
+  const minutes = mi ? Number(mi) : 0;
+  const seconds = ss ? Number(ss) : 0;
+
+  if (month < 1 || month > 12 || day < 1 || day > 31 || hours > 23 || minutes > 59 || seconds > 59) return null;
+
+  const date = new Date(Date.UTC(year, month - 1, day, hours, minutes, seconds));
+  // Reject silent rollovers (e.g. 31 Feb -> 3 Mar) by re-checking the components.
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+  return date;
+}
+
 export function parseSlipOcr(rawText: string): ParsedSlip {
   let bankName: string | null = null;
   for (const [pattern, canonical] of KNOWN_BANKS) {
@@ -49,6 +84,7 @@ export function parseSlipOcr(rawText: string): ParsedSlip {
 
   const dateMatch = rawText.match(new RegExp(`\\bTransaction\\s*date\\b\\s*[:\\-]?\\s*(${DATE_PATTERN})`, 'i')) ?? rawText.match(new RegExp(DATE_PATTERN));
   const transactionDate = dateMatch ? dateMatch[1] ?? dateMatch[0] : null;
+  const transactionDateParsed = parseTransactionDate(transactionDate);
 
   const fromMatch = rawText.match(/\bFrom\b\s*[:\-]?\s*([^\n]+)/i);
   const fromName = fromMatch ? fromMatch[1].trim() || null : null;
@@ -74,5 +110,5 @@ export function parseSlipOcr(rawText: string): ParsedSlip {
     amount = Number(amountMatch[2].replace(/,/g, ''));
   }
 
-  return { bankName, status, referenceNumber, transactionDate, fromName, toName, toAccount, amount, currency };
+  return { bankName, status, referenceNumber, transactionDate, transactionDateParsed, fromName, toName, toAccount, amount, currency };
 }

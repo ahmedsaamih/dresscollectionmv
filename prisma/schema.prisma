@@ -295,11 +295,19 @@ model Order {
   stage        Int         @default(0) // 0=Placed 1=Payment Confirmed 2=Arrived at Facility (pre-order only) 3=Ready for Pickup 4=Ready for Delivery 5=Out for Delivery 6=Completed 7=Cancelled (restocks Inventory on transition in; irreversible)
   readyForDeliveryAt DateTime?
   paid         Boolean     @default(false) // for a pre-order (depositRequired>0), means "deposit confirmed"
+  paidAuto     Boolean     @default(false) // true iff `paid` was most recently set by the OCR auto-verify pass, not an admin action
+  paidVerified Boolean     @default(false) // admin explicitly reviewed and trusts this payment — independent of paid/paidAuto
+  paidVerifiedAt DateTime?
+  paidVerifiedBy String? // admin email
   paidCash     Int         @default(0) // MVR collected in cash at POS — cumulative across deposit + balance
   paidTransfer Int         @default(0) // MVR received by bank transfer (admin marks) — cumulative across deposit + balance
   depositRequired Int      @default(0) // amount required at checkout; equals `total` for a non-pre-order order
   balanceDue   Int         @default(0) // total − depositRequired; 0 unless the order contains pre-order items
   balancePaid  Boolean     @default(false) // remaining balance confirmed (deposit + balance = fully settled)
+  balancePaidAuto     Boolean   @default(false)
+  balancePaidVerified Boolean   @default(false)
+  balancePaidVerifiedAt DateTime?
+  balancePaidVerifiedBy String?
   source       String      @default("web") // "web" | "pos"
   origin       String      @default("web_checkout") // "web_checkout" | "pos_sale" | "manual_order"
   locationId   String?
@@ -447,6 +455,7 @@ model ReceiptOcrData {
   status          String?  // e.g. "SUCCESS" as read off the slip, not an app-level status
   referenceNumber String?
   transactionDate String?  // kept as raw OCR text; slip date formats aren't reliably parseable
+  transactionDateParsed DateTime? // best-effort parse of transactionDate's raw text; null when unparseable (common) or ambiguous
   fromName        String?
   toName          String?
   toAccount       String?
@@ -455,6 +464,8 @@ model ReceiptOcrData {
   rawText         String   @db.Text // full OCR text, fallback for anything the parser missed
   createdAt       DateTime @default(now())
   receipt         Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+
+  @@index([referenceNumber])
 }
 
 // ─── Customers (derived/deduped from Order contact info) ────────────────────

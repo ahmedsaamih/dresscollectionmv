@@ -6,6 +6,7 @@ import { rateLimitResponse } from '@/lib/rate-limit';
 import { storageUrl } from '@/lib/validation';
 import { RECEIPT_TTL_MS, ATTACH_WINDOW_MS } from '@/lib/receipts';
 import { ocrSlipImage } from '@/lib/slip-ocr';
+import { autoVerifyReceiptPayment } from '@/lib/payment-verification';
 import { contactMatches } from '@/lib/order-contact';
 
 export const dynamic = 'force-dynamic';
@@ -65,6 +66,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
         const ocr = await ocrSlipImage(buffer, contentType);
         if (!ocr) return;
         await prisma.receiptOcrData.create({ data: { receiptId: receipt.id, ...ocr } });
+        await autoVerifyReceiptPayment(receipt.id, request);
       } catch (e) {
         console.error('slip OCR failed', e);
       }

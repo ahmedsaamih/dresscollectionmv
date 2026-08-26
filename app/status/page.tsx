@@ -152,9 +152,6 @@ export default function StatusPage() {
                 <span style={{ color }}><Info size={15} /></span>
                 <div className="text-[12.5px] text-sub leading-[1.55]">{r.note}</div>
               </div>
-              {r.canUploadSlip && (
-                <SlipUpload uploadUrl={`/api/orders/${displayedRef}/receipts`} />
-              )}
               {r.canUploadBalanceSlip && (
                 <SlipUpload uploadUrl={`/api/orders/${displayedRef}/receipts`} kind="balance_slip" contact={contact} />
               )}

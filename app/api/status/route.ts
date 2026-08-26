@@ -3,7 +3,6 @@ import { prisma } from '@/lib/prisma';
 import { ok, fail, handleError } from '@/lib/http';
 import { formatMVR, stageIdsFor, isPreOrder, CUSTOMER_STAGE_COPY } from '@/lib/utils';
 import { rateLimitResponse } from '@/lib/rate-limit';
-import { ATTACH_WINDOW_MS } from '@/lib/receipts';
 import { contactMatches } from '@/lib/order-contact';
 
 export const dynamic = 'force-dynamic';
@@ -77,7 +76,6 @@ function orderStatus(o: OrderRow) {
     method: o.method,
     paid: o.paid,
     deliveryFee: o.deliveryFee,
-    canUploadSlip: !o.paid && !o.receipts.some((r) => r.kind === 'payment_slip') && (Date.now() - o.createdAt.getTime() <= ATTACH_WINDOW_MS),
     depositRequired: o.depositRequired,
     balanceDue: o.balanceDue,
     balancePaid: o.balancePaid,
