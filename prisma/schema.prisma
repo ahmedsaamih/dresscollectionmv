@@ -177,6 +177,10 @@ model Product {
 
   @@index([collection])
   @@index([showInWebStore])
+  @@index([status, showInWebStore])
+  @@index([category])
+  @@index([name])
+  @@index([collection, status])
 }
 
 // ─── Inventory & Locations ────────────────────────────────────────────────────
