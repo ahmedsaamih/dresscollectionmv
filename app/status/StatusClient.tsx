@@ -6,7 +6,7 @@ import { SlipUpload } from '@/components/SlipUpload';
 import { Check, Circle, Info } from 'lucide-react';
 import type { StorefrontCopy } from '@/lib/types';
 
-export function StatusClient({ copy }: { copy: StorefrontCopy['cartQuoteStatus'] }) {
+export function StatusClient({ copy, slipCopy }: { copy: StorefrontCopy['cartQuoteStatus']; slipCopy: StorefrontCopy['paymentCheckout'] }) {
   const [ref, setRef]       = useState('');
   const [contact, setContact] = useState('');
   const [searched, setSearched] = useState('');
@@ -147,7 +147,7 @@ export function StatusClient({ copy }: { copy: StorefrontCopy['cartQuoteStatus']
               <div className="text-[12.5px] text-sub leading-[1.55]">{r.note}</div>
             </div>
             {r.canUploadBalanceSlip && (
-              <SlipUpload uploadUrl={`/api/orders/${displayedRef}/receipts`} kind="balance_slip" contact={contact} />
+              <SlipUpload uploadUrl={`/api/orders/${displayedRef}/receipts`} kind="balance_slip" contact={contact} copy={slipCopy} />
             )}
           </div>
         </div>

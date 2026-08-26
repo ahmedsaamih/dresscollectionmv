@@ -1,7 +1,8 @@
 'use client';
 import React, { useState, useRef } from 'react';
-import { useStore } from '@/contexts/StoreContext';
 import { Check, Upload } from 'lucide-react';
+import { STOREFRONT_COPY_DEFAULTS } from '@/lib/storefront-copy';
+import type { StorefrontCopy } from '@/lib/types';
 
 interface SlipUploadProps {
   /** Post-order mode: POSTs the uploaded file's storage URL to this endpoint (e.g. `/api/orders/{ref}/receipts`). */
@@ -16,6 +17,8 @@ interface SlipUploadProps {
   /** uploadUrl mode only, required when kind is 'balance_slip': the contact (email/mobile) the customer looked
    *  up their order with — the balance-upload endpoint verifies it against the order on file. */
   contact?: string;
+  /** Copy strings — defaults to the static seed copy so callers that don't have live settings handy still render correctly. */
+  copy?: Pick<StorefrontCopy['paymentCheckout'], 'slipUploadTitle' | 'slipUploadHelp' | 'slipReceived' | 'receiptFileHint'>;
 }
 
 const MAX_DIMENSION = 1800;
@@ -52,9 +55,7 @@ async function compressImage(file: File): Promise<File> {
  * see lib/slip-ocr.ts and the two receipt-creation API routes. Nothing here
  * waits on it.
  */
-export function SlipUpload({ uploadUrl, onUploaded, required = false, kind = 'payment_slip', contact }: SlipUploadProps) {
-  const { data } = useStore();
-  const copy = data.settings.storefrontCopy.paymentCheckout;
+export function SlipUpload({ uploadUrl, onUploaded, required = false, kind = 'payment_slip', contact, copy = STOREFRONT_COPY_DEFAULTS.paymentCheckout }: SlipUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [done, setDone] = useState(false);
   const [err, setErr] = useState('');

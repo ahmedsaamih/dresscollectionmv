@@ -13,7 +13,7 @@ export default async function StatusPage() {
   return (
     <div className="min-h-screen bg-page text-body font-archivo">
       <Header tagline={settings.tagline} collections={collections} navCopy={navCopy} />
-      <StatusClient copy={settings.storefrontCopy.cartQuoteStatus} />
+      <StatusClient copy={settings.storefrontCopy.cartQuoteStatus} slipCopy={settings.storefrontCopy.paymentCheckout} />
       <Footer tagline={settings.tagline} collections={collections} navCopy={navCopy} paymentCopy={settings.storefrontCopy.paymentCheckout} />
     </div>
   );

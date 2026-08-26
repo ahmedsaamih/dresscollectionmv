@@ -271,6 +271,7 @@ export function CheckoutClient({ settings, collections, deliveryAreas, products 
               <div className="mt-[16px]">
                 <SlipUpload
                   required
+                  copy={copy}
                   onUploaded={(url) => { setPaymentSlipUrl(url); setErrors(er => { const { paymentSlipUrl: _drop, ...rest } = er; return rest; }); }}
                 />
                 {errors.paymentSlipUrl && <div className="text-[11.5px] text-[#e81a2b] mt-[8px]">Upload your payment slip to place the order.</div>}
