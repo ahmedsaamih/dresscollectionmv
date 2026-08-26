@@ -93,14 +93,11 @@ export interface StoreSetting {
   storeName: string;
   tagline: string;
   email: string;
-  adminEmail: string;
   phone: string;
   address: string;
   bank: string;
   bankAccounts: BankAccount[];
   currency: string;
-  pickupEnabled: boolean;
-  deliveryFee: number;
   heroTitle: string;
   heroSub: string;
   heroImage: string;
@@ -154,8 +151,11 @@ export interface Product {
   collection: string;   // → StoreCollection.key
   category: string;     // → StoreCategory.name
   sub: string;
-  price: number;        // integer MVR
+  price: number;        // integer MVR — the raw regular price, always what admin edits
   was: number | null;   // compare-at or null
+  discountType: 'percent' | 'fixed' | null; // automatic per-product discount, distinct from PromoCode
+  discountValue: number; // percent (0-100) or fixed MVR off, per discountType
+  effectivePrice: number; // price after discountType/discountValue — the real charged/displayed price
   stock: number;
   status: ProductStatus;
   badge: ProductBadge;
@@ -171,7 +171,22 @@ export interface Product {
   preOrder: boolean; // true = orderable with zero real stock, at a 50% deposit (public reads synthesize availability)
 }
 
-export type OrderStage = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+export type OrderStage = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+
+// Best-effort, client-submitted (in-browser OCR) fields read off a payment-slip image.
+// Informational only — never proof of payment; the receipt's own image is the source of truth.
+export interface ReceiptOcr {
+  bankName: string | null;
+  status: string | null;
+  referenceNumber: string | null;
+  transactionDate: string | null;
+  transactionDateParsed: string | null;
+  fromName: string | null;
+  toName: string | null;
+  toAccount: string | null;
+  amount: number | null;
+  currency: string | null;
+}
 
 export interface OrderReceipt {
   id: string;
@@ -180,6 +195,7 @@ export interface OrderReceipt {
   createdAt: string;
   expiresAt: string | null;
   expired: boolean;
+  ocr: ReceiptOcr | null;
 }
 
 export interface OrderLineItem {
@@ -188,6 +204,8 @@ export interface OrderLineItem {
   name: string;
   meta: string;
   price: number;
+  costPrice: number; // snapshot of Product.costPrice at order time
+  discount: number; // snapshot of per-unit product discount applied (regular price − effective price)
   img: string;
   size: string;
   color: string;
@@ -203,7 +221,8 @@ export interface Order {
   notes?: string | null;
   items: string;
   subtotal?: number;
-  discount?: number;
+  discount?: number; // promo/manual cart-level discount
+  productDiscount: number; // Σ(OrderItem.discount × qty) — automatic per-product discounts
   deliveryFee?: number;
   deliveryAreaId?: string | null;
   deliveryAreaName?: string | null;
@@ -214,18 +233,26 @@ export interface Order {
   readyForDeliveryAt?: string | null;
   date: string;
   paid: boolean; // for a pre-order (depositRequired>0), means "deposit confirmed"
+  paidAuto: boolean; // true iff `paid` was most recently set by the OCR auto-verify pass, not an admin action
+  paidVerified: boolean; // admin explicitly reviewed and trusts this payment — independent of paid/paidAuto
+  paidVerifiedAt?: string | null;
+  paidVerifiedBy?: string | null;
   paidCash: number;
-  paidCard: number;
   paidTransfer: number;
   depositRequired: number; // amount required at checkout; equals `total` for a non-pre-order order
   balanceDue: number; // total − depositRequired; 0 unless the order contained pre-order items
   balancePaid: boolean;
+  balancePaidAuto: boolean;
+  balancePaidVerified: boolean;
+  balancePaidVerifiedAt?: string | null;
+  balancePaidVerifiedBy?: string | null;
   source: 'web' | 'pos';
-  origin: 'web_checkout' | 'pos_sale' | 'manual_order' | 'quote_conversion';
+  origin: 'web_checkout' | 'pos_sale' | 'manual_order';
   locationId?: string | null;
   locationName?: string | null;
-  quoteRef?: string | null;
   pdfUrl?: string | null;
+  pdfExpiresAt?: string | null;
+  pdfExpired?: boolean;
   lineItems?: OrderLineItem[];
   receipts?: OrderReceipt[];
 }

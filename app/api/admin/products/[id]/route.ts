@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { mapProduct } from '@/lib/catalog';
 import { productUpdateSchema } from '@/lib/validation';
@@ -48,6 +49,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       return tx.product.findUniqueOrThrow({ where: { id: params.id }, include: { inventory: { include: { location: true } } } });
     });
     await audit(session.email, 'product.update', params.id, data);
+    revalidateTag('catalog', { expire: 0 });
     const product = session.role === 'admin' ? { ...mapProduct(updated), costPrice: updated.costPrice } : mapProduct(updated);
     return ok({ product });
   } catch (err) {
@@ -65,6 +67,7 @@ export async function DELETE(_request: Request, props: { params: Promise<{ id: s
     const session = await requirePermission('products', 'edit');
     await prisma.product.delete({ where: { id: params.id } });
     await audit(session.email, 'product.delete', params.id);
+    revalidateTag('catalog', { expire: 0 });
     return ok({ deleted: true });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {

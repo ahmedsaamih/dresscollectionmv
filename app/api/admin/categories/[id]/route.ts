@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { categoryUpdateSchema } from '@/lib/validation';
 import { requirePermission, audit } from '@/lib/admin-guard';
@@ -26,6 +27,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
     const updated = await prisma.category.update({ where: { id: params.id }, data: update });
     await audit(session.email, 'category.update', params.id, data);
+    revalidateTag('catalog', { expire: 0 });
     return ok({ category: { id: updated.id, name: updated.name, collection: updated.collectionKey, count: updated.count } });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
@@ -42,6 +44,7 @@ export async function DELETE(_request: Request, props: { params: Promise<{ id: s
     const session = await requirePermission('categories', 'edit');
     await prisma.category.delete({ where: { id: params.id } });
     await audit(session.email, 'category.delete', params.id);
+    revalidateTag('catalog', { expire: 0 });
     return ok({ deleted: true });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {

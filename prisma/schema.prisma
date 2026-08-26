@@ -20,14 +20,11 @@ model Setting {
   storeName        String
   tagline          String
   email            String
-  adminEmail       String  @default("") // general admin-alert email destination; falls back to ADMIN_EMAIL env var when empty
   phone            String
   address          String
   bank             String
   bankAccounts     Json?   // [{ name: string, accountNumber: string }]
   currency         String  @default("MVR")
-  pickupEnabled    Boolean @default(true)
-  deliveryFee      Int     @default(75)
   heroTitle        String
   heroSub          String
   heroImage        String  @default("")
@@ -158,6 +155,8 @@ model Product {
   sub          String
   price        Int
   was          Int? // compare-at
+  discountType  String? // "percent" | "fixed" | null — automatic per-product discount, distinct from PromoCode
+  discountValue Int           @default(0) // percent (0-100) or fixed MVR off, per discountType
   costPrice    Int           @default(0) // super-admin-only; hidden from staff and the public catalog
   stock        Int           @default(0)   // kept for migration period; computed from Inventory
   status       ProductStatus @default(active)
@@ -178,6 +177,10 @@ model Product {
 
   @@index([collection])
   @@index([showInWebStore])
+  @@index([status, showInWebStore])
+  @@index([category])
+  @@index([name])
+  @@index([collection, status])
 }
 
 // ─── Inventory & Locations ────────────────────────────────────────────────────
@@ -283,29 +286,37 @@ model Order {
   items        String // human-readable summary (UI reads this)
   subtotal     Int         @default(0) // product subtotal before discount
   discountCode String? // applied promo/referral code (snapshot)
-  discount     Int         @default(0) // discount amount applied (MVR)
+  discount     Int         @default(0) // promo/manual cart-level discount amount applied (MVR)
+  productDiscount Int      @default(0) // Σ(OrderItem.discount × qty) — automatic per-product discounts, distinct from `discount` above
   deliveryFee  Int         @default(0) // delivery fee snapshot charged for this order
   deliveryAreaId String? // → DeliveryArea.id; set when method = Delivery
   total        Int // subtotal + fee − discount
   method       OrderMethod
-  stage        Int         @default(0) // 0=Placed 1=Payment Confirmed 2=Ready for Pickup 3=Ready for Delivery 4=Out for Delivery 5=Completed 6=Cancelled (restocks Inventory on transition in; irreversible)
+  stage        Int         @default(0) // 0=Placed 1=Payment Confirmed 2=Arrived at Facility (pre-order only) 3=Ready for Pickup 4=Ready for Delivery 5=Out for Delivery 6=Completed 7=Cancelled (restocks Inventory on transition in; irreversible)
   readyForDeliveryAt DateTime?
   paid         Boolean     @default(false) // for a pre-order (depositRequired>0), means "deposit confirmed"
+  paidAuto     Boolean     @default(false) // true iff `paid` was most recently set by the OCR auto-verify pass, not an admin action
+  paidVerified Boolean     @default(false) // admin explicitly reviewed and trusts this payment — independent of paid/paidAuto
+  paidVerifiedAt DateTime?
+  paidVerifiedBy String? // admin email
   paidCash     Int         @default(0) // MVR collected in cash at POS — cumulative across deposit + balance
-  paidCard     Int         @default(0) // MVR collected via card terminal — cumulative across deposit + balance
   paidTransfer Int         @default(0) // MVR received by bank transfer (admin marks) — cumulative across deposit + balance
   depositRequired Int      @default(0) // amount required at checkout; equals `total` for a non-pre-order order
   balanceDue   Int         @default(0) // total − depositRequired; 0 unless the order contains pre-order items
   balancePaid  Boolean     @default(false) // remaining balance confirmed (deposit + balance = fully settled)
+  balancePaidAuto     Boolean   @default(false)
+  balancePaidVerified Boolean   @default(false)
+  balancePaidVerifiedAt DateTime?
+  balancePaidVerifiedBy String?
   source       String      @default("web") // "web" | "pos"
-  origin       String      @default("web_checkout") // "web_checkout" | "pos_sale" | "manual_order" | "quote_conversion"
+  origin       String      @default("web_checkout") // "web_checkout" | "pos_sale" | "manual_order"
   locationId   String?
   discountNote String?     // free-text reason for manual POS discounts
   address      String?
   notes        String?
   date         String // display date, e.g. "12 Jun 2026"
   pdfUrl       String?
-  quoteRef     String? // set when order was converted from a quote (→ Quote.id)
+  pdfExpiresAt DateTime? // order confirmation PDF auto-deleted from R2 at this time via a bucket lifecycle rule, same as Receipt.expiresAt
   createdAt    DateTime    @default(now())
   lineItems    OrderItem[]
   receipts     Receipt[]
@@ -321,8 +332,7 @@ model Order {
   @@index([deliveryAreaId])
 }
 
-// Named delivery zones with their own rate (e.g. Male City, Hulhumale, Ferry and Boats),
-// replacing the old flat Setting.deliveryFee.
+// Named delivery zones with their own rate (e.g. Male City, Hulhumale, Ferry and Boats).
 model DeliveryArea {
   id        String   @id @default(cuid())
   name      String
@@ -407,6 +417,8 @@ model OrderItem {
   name    String
   meta    String
   price   Int
+  costPrice Int  @default(0) // snapshot of Product.costPrice at order time
+  discount  Int  @default(0) // snapshot of per-unit discount applied (regular price − effective price)
   img     String
   size    String
   color   String
@@ -425,11 +437,35 @@ model Receipt {
   url       String
   kind      String    @default("payment_slip") // "payment_slip" | "payment_receipt" | "balance_slip" | "balance_receipt"
   createdAt DateTime  @default(now())
-  expiresAt DateTime? // set for payment_slip/balance_slip (R2 lifecycle rule deletes the object at this time); null for payment_receipt/balance_receipt, kept indefinitely
+  expiresAt DateTime? // R2 lifecycle rule deletes the object at this time — set on every kind now, all documents expire after 90 days
   order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  ocr       ReceiptOcrData?
 
   @@index([orderId])
   @@index([kind])
+}
+
+// Client-extracted (Tesseract.js, in-browser) structured fields read off a payment_slip/
+// balance_slip image. Informational only — never trusted as proof of payment, since it's
+// client-submitted; the linked Receipt.url image stays the source of truth an admin verifies.
+model ReceiptOcrData {
+  id              String   @id @default(cuid())
+  receiptId       String   @unique
+  bankName        String?
+  status          String?  // e.g. "SUCCESS" as read off the slip, not an app-level status
+  referenceNumber String?
+  transactionDate String?  // kept as raw OCR text; slip date formats aren't reliably parseable
+  transactionDateParsed DateTime? // best-effort parse of transactionDate's raw text; null when unparseable (common) or ambiguous
+  fromName        String?
+  toName          String?
+  toAccount       String?
+  amount          Float?
+  currency        String?
+  rawText         String   @db.Text // full OCR text, fallback for anything the parser missed
+  createdAt       DateTime @default(now())
+  receipt         Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+
+  @@index([referenceNumber])
 }
 
 // ─── Customers (derived/deduped from Order contact info) ────────────────────
@@ -479,18 +515,6 @@ model Review {
 
   @@index([status])
   @@index([featured])
-}
-
-// ─── Infrastructure ──────────────────────────────────────────────────────────
-
-// Atomic sequential reference generation (replaces random genRef()).
-// One row per (prefix, year): "MM"+"26", ...
-model RefSequence {
-  prefix    String // "MM"
-  year      String // "26"
-  lastValue Int    @default(0)
-
-  @@id([prefix, year])
 }
 
 enum AdminRole {

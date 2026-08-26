@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { settingsUpdateSchema } from '@/lib/validation';
 import { requirePermission, audit } from '@/lib/admin-guard';
@@ -9,9 +10,8 @@ export const dynamic = 'force-dynamic';
 
 function toSettings(s: NonNullable<Awaited<ReturnType<typeof prisma.setting.findUnique>>>) {
   return {
-    storeName: s.storeName, tagline: s.tagline, email: s.email, adminEmail: s.adminEmail, phone: s.phone, address: s.address,
+    storeName: s.storeName, tagline: s.tagline, email: s.email, phone: s.phone, address: s.address,
     bank: s.bank, bankAccounts: s.bankAccounts ?? [], currency: s.currency,
-    pickupEnabled: s.pickupEnabled, deliveryFee: s.deliveryFee,
     heroTitle: s.heroTitle, heroSub: s.heroSub, heroImage: s.heroImage, heroImages: (s.heroImages as string[] | null) ?? [], workshopImage: s.workshopImage, categoryReadyImage: s.categoryReadyImage, categoryCustomImage: s.categoryCustomImage, categoryCasualImage: s.categoryCasualImage, categoryAccessoriesImage: s.categoryAccessoriesImage,
     storefrontCopy: normalizeStorefrontCopy(s.storefrontCopy),
     taxId: s.taxId, taxRate: s.taxRate, taxLabel: s.taxLabel, termsConditions: s.termsConditions,
@@ -71,6 +71,7 @@ export async function PATCH(request: Request) {
 
     const updated = await prisma.setting.update({ where: { id: 'singleton' }, data: data as Prisma.SettingUpdateInput });
     await audit(session.email, 'settings.update', 'singleton', { keys: Object.keys(data) });
+    revalidateTag('catalog', { expire: 0 });
     return ok({ settings: toSettings(updated) });
   } catch (err) {
     return handleError(err);

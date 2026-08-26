@@ -3,8 +3,8 @@ import React from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'tertiary';
-export type ButtonSize = 'xs' | 'sm' | 'md';
+type ButtonVariant = 'primary' | 'secondary' | 'tertiary';
+type ButtonSize = 'xs' | 'sm' | 'md';
 
 type CommonProps = {
   variant?: ButtonVariant;
@@ -24,7 +24,7 @@ type ButtonAsLink = CommonProps &
     href: string;
   };
 
-export type ButtonProps = ButtonAsButton | ButtonAsLink;
+type ButtonProps = ButtonAsButton | ButtonAsLink;
 
 const BASE =
   'inline-flex items-center justify-center gap-1.5 rounded-xl transition-all cursor-pointer select-none no-underline ' +

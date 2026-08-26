@@ -116,8 +116,6 @@ export const storage: StorageDriver = {
     return driverInstance(driverKindFor(opts.bucket)).put(opts);
   },
 };
-export const STORAGE_ROOT = ROOT;
-
 /** Read a stored file for the dev file-server. Guards against path traversal. */
 export async function readStored(bucket: string, name: string): Promise<Buffer | null> {
   const buckets: Bucket[] = ['site', 'product', 'receipt', 'pdf'];

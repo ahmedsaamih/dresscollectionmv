@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { Archivo, Archivo_Narrow, Fraunces } from 'next/font/google';
 import './globals.css';
 import { CartProvider } from '@/contexts/CartContext';
-import { StoreProvider } from '@/contexts/StoreContext';
 
 // `font-archivo` / `font-archivo-narrow` are used throughout the app (this
 // file's CSS variable names must match app/globals.css's --font-archivo /
@@ -54,11 +53,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${archivo.variable} ${archivoNarrow.variable} ${fraunces.variable}`}>
       <body className="min-h-screen bg-page text-body font-archivo antialiased">
-        <StoreProvider>
-          <CartProvider>
-            {children}
-          </CartProvider>
-        </StoreProvider>
+        <CartProvider>
+          {children}
+        </CartProvider>
       </body>
     </html>
   );

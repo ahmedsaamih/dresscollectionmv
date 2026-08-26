@@ -128,5 +128,5 @@ export function adminOrderStageAlertText(e: AdminOrderStageAlertEvent): string {
 }
 
 export function adminOrderPaymentAlertText(e: AdminOrderPaymentAlertEvent): string {
-  return `Order payment confirmed\nReference: ${e.ref}\nCustomer: ${e.customer}\nTotal: ${formatMVR(e.total)}\nAdmin: ${APP_URL}/admin`;
+  return `Order payment confirmed${e.auto ? ' (auto-detected via OCR — please review)' : ''}\nReference: ${e.ref}\nCustomer: ${e.customer}\nTotal: ${formatMVR(e.total)}\nAdmin: ${APP_URL}/admin`;
 }

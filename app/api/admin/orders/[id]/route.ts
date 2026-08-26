@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { orderUpdateSchema } from '@/lib/validation';
 import { requirePermission, audit } from '@/lib/admin-guard';
@@ -7,7 +8,7 @@ import { canSendSms } from '@/lib/notify/sms-guard';
 import { requestReview } from '@/lib/reviews';
 import { ok, fail, handleError } from '@/lib/http';
 import { orderInclude, serializeOrder } from '@/lib/order-serializer';
-import { PICKUP_STAGE_IDS, DELIVERY_STAGE_IDS } from '@/lib/utils';
+import { stageIdsFor, isPreOrder } from '@/lib/utils';
 import { ensurePaymentReceipt, ensureBalanceReceipt } from '@/lib/order-documents';
 import { incrementStock } from '@/lib/inventory';
 
@@ -47,22 +48,21 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     if (data.stage !== undefined && before.origin === 'pos_sale') {
       return fail('POS sale fulfilment status is locked', 403);
     }
-    if (data.stage !== undefined && before.stage === 6 && data.stage !== 6) {
+    if (data.stage !== undefined && before.stage === 7 && data.stage !== 7) {
       return fail('Cancelled orders cannot be un-cancelled', 400);
     }
     if (data.stage !== undefined) {
-      const validStages = before.method === 'Delivery' ? DELIVERY_STAGE_IDS : PICKUP_STAGE_IDS;
+      const validStages = stageIdsFor(before.method as 'Pickup' | 'Delivery', isPreOrder(before));
       if (!validStages.includes(data.stage)) {
         return fail(`Invalid stage for a ${before.method} order`, 400);
       }
     }
 
-    const touchesPaidAmounts = data.paidCash !== undefined || data.paidCard !== undefined || data.paidTransfer !== undefined;
+    const touchesPaidAmounts = data.paidCash !== undefined || data.paidTransfer !== undefined;
     if (touchesPaidAmounts) {
       const paidCash = data.paidCash ?? before.paidCash;
-      const paidCard = data.paidCard ?? before.paidCard;
       const paidTransfer = data.paidTransfer ?? before.paidTransfer;
-      if (paidCash + paidCard + paidTransfer > before.total) {
+      if (paidCash + paidTransfer > before.total) {
         return fail(`Payment received cannot exceed MVR ${before.total.toLocaleString()}.`, 400);
       }
     }
@@ -70,23 +70,51 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     const update: Prisma.OrderUpdateInput = {};
     if (data.stage !== undefined) update.stage = data.stage;
     if (data.stage !== undefined) {
-      if (data.stage === 3 && !before.readyForDeliveryAt) update.readyForDeliveryAt = new Date();
-      if (data.stage < 3) update.readyForDeliveryAt = null;
+      if (data.stage === 4 && !before.readyForDeliveryAt) update.readyForDeliveryAt = new Date();
+      if (data.stage < 4) update.readyForDeliveryAt = null;
     }
-    if (data.paid !== undefined) update.paid = data.paid;
+    if (data.paid !== undefined) {
+      update.paid = data.paid;
+      update.paidAuto = false; // current paid state was just set manually — auto flag no longer describes it
+      if (data.paid === false) {
+        // Reversing a paid mark invalidates whatever verification applied to it.
+        update.paidVerified = false;
+        update.paidVerifiedAt = null;
+        update.paidVerifiedBy = null;
+      }
+    }
     if (data.paidCash !== undefined) update.paidCash = data.paidCash;
-    if (data.paidCard !== undefined) update.paidCard = data.paidCard;
     if (data.paidTransfer !== undefined) update.paidTransfer = data.paidTransfer;
     if (data.balancePaid !== undefined) {
       if (data.balancePaid && before.balanceDue <= 0) {
         return fail('This order has no balance due.', 400);
       }
       update.balancePaid = data.balancePaid;
+      update.balancePaidAuto = false;
+      if (data.balancePaid === false) {
+        update.balancePaidVerified = false;
+        update.balancePaidVerifiedAt = null;
+        update.balancePaidVerifiedBy = null;
+      }
+    }
+    if (data.paidVerified !== undefined) {
+      const paidAfter = data.paid ?? before.paid;
+      if (data.paidVerified && !paidAfter) return fail('Cannot verify a payment before it is marked paid.', 400);
+      update.paidVerified = data.paidVerified;
+      update.paidVerifiedAt = data.paidVerified ? new Date() : null;
+      update.paidVerifiedBy = data.paidVerified ? session.email : null;
+    }
+    if (data.balancePaidVerified !== undefined) {
+      const balancePaidAfter = data.balancePaid ?? before.balancePaid;
+      if (data.balancePaidVerified && !balancePaidAfter) return fail('Cannot verify a balance payment before it is marked paid.', 400);
+      update.balancePaidVerified = data.balancePaidVerified;
+      update.balancePaidVerifiedAt = data.balancePaidVerified ? new Date() : null;
+      update.balancePaidVerifiedBy = data.balancePaidVerified ? session.email : null;
     }
 
     const updated = await prisma.$transaction(async (tx) => {
-      // Cancelling (stage -> 6) restocks whatever this order actually decremented, atomically with the stage change.
-      if (data.stage === 6 && before.stage !== 6) {
+      // Cancelling (stage -> 7) restocks whatever this order actually decremented, atomically with the stage change.
+      if (data.stage === 7 && before.stage !== 7) {
         await restockOrderItems(tx, before.locationId, before.lineItems);
       }
       return tx.order.update({
@@ -95,6 +123,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
         include: orderInclude,
       });
     });
+    if (data.stage === 7 && before.stage !== 7) revalidateTag('catalog', { expire: 0 });
     await audit(session.email, 'order.update', params.id, data);
 
     // Email the customer when the fulfilment stage actually changes.
@@ -107,7 +136,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       // this branch (stage changes are blocked for them above) — they get
       // their review request at sale creation instead, since a POS sale is
       // "completed" the moment it's paid in full.
-      if (updated.stage === 5 && (updated.origin === 'web_checkout' || updated.origin === 'quote_conversion' || updated.origin === 'manual_order')) {
+      if (updated.stage === 6 && (updated.origin === 'web_checkout' || updated.origin === 'manual_order')) {
         await requestReview({ id: updated.id, email: updated.email, customer: updated.customer, mobile: updated.mobile }, { smsAllowed: stageSmsAllowed });
       }
     }
@@ -182,6 +211,7 @@ export async function DELETE(_request: Request, props: { params: Promise<{ id: s
       return o;
     });
     if (!order) return fail('Order not found', 404);
+    revalidateTag('catalog', { expire: 0 });
     await audit(session.email, 'order.delete', params.id);
     return ok({ deleted: true });
   } catch (err) {

@@ -42,7 +42,7 @@ export interface OrderBalanceConfirmedEvent {
 }
 
 export interface AdminOrderStageAlertEvent { ref: string; customer: string; fromStage: number; toStage: number }
-export interface AdminOrderPaymentAlertEvent { ref: string; customer: string; total: number }
+export interface AdminOrderPaymentAlertEvent { ref: string; customer: string; total: number; auto?: boolean }
 
 export interface Notifier {
   orderPlaced(o: OrderPlacedEvent): Promise<void>;

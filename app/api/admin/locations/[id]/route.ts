@@ -1,3 +1,4 @@
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { locationUpdateSchema } from '@/lib/validation';
 import { requirePermission, audit } from '@/lib/admin-guard';
@@ -22,6 +23,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     });
 
     await audit(session.email, 'location.update', params.id, data as Record<string, unknown>);
+    revalidateTag('catalog', { expire: 0 });
     return ok({ location });
   } catch (err) {
     return handleError(err);
@@ -44,6 +46,7 @@ export async function DELETE(_: Request, props: { params: Promise<{ id: string }
     await prisma.inventory.deleteMany({ where: { locationId: params.id } });
     await prisma.location.delete({ where: { id: params.id } });
     await audit(session.email, 'location.delete', params.id);
+    revalidateTag('catalog', { expire: 0 });
     return ok({ deleted: true });
   } catch (err) {
     return handleError(err);

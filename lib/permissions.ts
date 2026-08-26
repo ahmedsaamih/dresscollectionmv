@@ -61,24 +61,3 @@ export const MODULES: ModuleDef[] = [
   { key: 'posTransfers', label: 'Transfers', group: 'Point of Sale' },
 ];
 
-export const MODULE_KEYS: ModuleKey[] = MODULES.map(m => m.key);
-
-/** One-time migration mapping from the legacy roles to their equivalent permission grid. */
-export const LEGACY_ROLE_PERMISSIONS: Record<'manager' | 'pos_user' | 'quotation_approver', Permissions> = {
-  manager: {
-    dashboard: 'edit', products: 'edit', categories: 'edit',
-    orders: 'edit', promos: 'edit', sizechart: 'edit', customers: 'edit',
-    posSales: 'edit', posOrders: 'edit', posDeliveries: 'edit', posReturns: 'edit', posInventory: 'edit', posTransfers: 'edit',
-  },
-  pos_user: {
-    dashboard: 'edit', customers: 'edit',
-    orders: 'read', posInventory: 'read',
-    posSales: 'edit', posOrders: 'edit', posDeliveries: 'edit', posReturns: 'edit', posTransfers: 'edit',
-  },
-  quotation_approver: {
-    dashboard: 'edit', products: 'edit', categories: 'edit',
-    orders: 'edit', promos: 'edit', sizechart: 'edit', customers: 'edit',
-    posSales: 'edit', posOrders: 'edit', posDeliveries: 'edit', posReturns: 'edit', posInventory: 'edit', posTransfers: 'edit',
-    settingsGeneral: 'edit',
-  },
-};

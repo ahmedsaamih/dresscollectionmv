@@ -1,7 +1,8 @@
 'use client';
 import React, { useState, useRef } from 'react';
-import { useStore } from '@/contexts/StoreContext';
 import { Check, Upload } from 'lucide-react';
+import { STOREFRONT_COPY_DEFAULTS } from '@/lib/storefront-copy';
+import type { StorefrontCopy } from '@/lib/types';
 
 interface SlipUploadProps {
   /** Post-order mode: POSTs the uploaded file's storage URL to this endpoint (e.g. `/api/orders/{ref}/receipts`). */
@@ -16,6 +17,32 @@ interface SlipUploadProps {
   /** uploadUrl mode only, required when kind is 'balance_slip': the contact (email/mobile) the customer looked
    *  up their order with — the balance-upload endpoint verifies it against the order on file. */
   contact?: string;
+  /** Copy strings — defaults to the static seed copy so callers that don't have live settings handy still render correctly. */
+  copy?: Pick<StorefrontCopy['paymentCheckout'], 'slipUploadTitle' | 'slipUploadHelp' | 'slipReceived' | 'receiptFileHint'>;
+}
+
+const MAX_DIMENSION = 1800;
+const JPEG_QUALITY = 0.82;
+
+/** Downscale + re-encode an uploaded slip image in-browser so R2 storage and admin viewing get a smaller file. Best-effort — falls back to the original file (HEIC in particular won't decode via createImageBitmap in most browsers, which is fine: the server still converts it). */
+async function compressImage(file: File): Promise<File> {
+  if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_DIMENSION / Math.max(bitmap.width, bitmap.height));
+    const w = Math.round(bitmap.width * scale);
+    const h = Math.round(bitmap.height * scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    const blob: Blob | null = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY));
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' });
+  } catch {
+    return file;
+  }
 }
 
 /**
@@ -23,10 +50,12 @@ interface SlipUploadProps {
  * `uploadUrl` (existing post-checkout confirmation / status-page use: an
  * order already exists) or `onUploaded` (pre-order use, from the checkout
  * form itself, before an order/ref exists).
+ *
+ * OCR of the slip runs server-side, after the upload, off the request path —
+ * see lib/slip-ocr.ts and the two receipt-creation API routes. Nothing here
+ * waits on it.
  */
-export function SlipUpload({ uploadUrl, onUploaded, required = false, kind = 'payment_slip', contact }: SlipUploadProps) {
-  const { data } = useStore();
-  const copy = data.settings.storefrontCopy.paymentCheckout;
+export function SlipUpload({ uploadUrl, onUploaded, required = false, kind = 'payment_slip', contact, copy = STOREFRONT_COPY_DEFAULTS.paymentCheckout }: SlipUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [done, setDone] = useState(false);
   const [err, setErr] = useState('');
@@ -35,10 +64,11 @@ export function SlipUpload({ uploadUrl, onUploaded, required = false, kind = 'pa
   const upload = async (file: File) => {
     if (!file) return;
     if (file.size > 8 * 1024 * 1024) { setErr('File too large (max 8 MB).'); return; }
-    setUploading(true); setErr('');
+    setErr(''); setUploading(true);
     try {
+      const compressed = await compressImage(file);
       const form = new FormData();
-      form.append('file', file);
+      form.append('file', compressed);
       form.append('kind', 'receipt');
       const up = await fetch('/api/upload', { method: 'POST', body: form });
       const { url } = await up.json();

@@ -3,14 +3,11 @@ import type { StoreData, Product } from './types';
 import { SEED_SIZE_CHARTS } from './sizeChart';
 import { normalizeStorefrontCopy } from './storefront-copy';
 
-const KEY = 'mm_store_v1'; // unused — see STORE_KEY below
-
 const SEED: StoreData = {
   settings: {
     storeName: 'Dress Collection',
     tagline: 'Womenswear, delivered',
     email: 'hello@dresscollectionmv.com',
-    adminEmail: '',
     phone: '+960 777 0123',
     address: 'Malé, Maldives',
     bank: 'BML · Dress Collection · 7730000012345',
@@ -19,8 +16,6 @@ const SEED: StoreData = {
       { name: 'MIB (Maldives Islamic Bank)', accountNumber: '9910000067890' },
     ],
     currency: 'MVR',
-    pickupEnabled: false,
-    deliveryFee: 75,
     heroTitle: 'Dresses, delivered to your door.',
     heroSub: 'Shop new arrivals, casual dresses and occasion wear — delivered across the Maldives. No showroom, just great dresses.',
     heroImage: '',
@@ -103,10 +98,10 @@ const SEED: StoreData = {
   // per-color here, so every configured colour is given the same per-size totals as a stand-in.
   ].map(p => ({ ...p, colorSizeStock: Object.fromEntries(p.colors.map(c => [c, p.sizeStock])) })) as unknown as Product[],
   orders: [
-    { id: 'DC-26-48213', customer: 'Amina Shareef',    email: 'amina@email.mv',   items: 'Amara Wrap Midi ×1, Silk Scarf ×1', subtotal: 760, discount: 0, deliveryFee: 75, total: 835,  method: 'Delivery' as const, stage: 2 as const, readyForDeliveryAt: null, date: '12 Jun 2026', paid: true,  paidCash: 835, paidCard: 0, paidTransfer: 0, depositRequired: 835, balanceDue: 0, balancePaid: false, source: 'web' as const, origin: 'web_checkout' as const, locationId: null, locationName: null },
-    { id: 'DC-26-47980', customer: 'Aishath Rasheed',  email: 'aishath@email.mv', items: 'Horizon Maxi Dress ×1',              subtotal: 780, discount: 0, deliveryFee: 75, total: 855,  method: 'Delivery' as const, stage: 3 as const, readyForDeliveryAt: '2026-06-11T00:00:00.000Z', date: '11 Jun 2026', paid: true,  paidCash: 855, paidCard: 0, paidTransfer: 0, depositRequired: 855, balanceDue: 0, balancePaid: false, source: 'web' as const, origin: 'web_checkout' as const, locationId: null, locationName: null },
-    { id: 'DC-26-47655', customer: 'Fathimath Nazly',  email: 'fathimath@email.mv', items: 'Everyday Linen Dress ×2',          subtotal: 840, discount: 0, deliveryFee: 75, total: 915,  method: 'Delivery' as const, stage: 1 as const, readyForDeliveryAt: null, date: '10 Jun 2026', paid: false, paidCash: 0,   paidCard: 0, paidTransfer: 0, depositRequired: 915, balanceDue: 0, balancePaid: false, source: 'web' as const, origin: 'web_checkout' as const, locationId: null, locationName: null },
-    { id: 'DC-26-47502', customer: 'Mariyam Zoona',    email: 'mariyam@email.mv', items: 'Champagne Cocktail Dress ×1, Layered Chain Necklace ×1', subtotal: 1170, discount: 0, deliveryFee: 75, total: 1245, method: 'Delivery' as const, stage: 0 as const, readyForDeliveryAt: null, date: '09 Jun 2026', paid: false, paidCash: 0, paidCard: 0, paidTransfer: 0, depositRequired: 1245, balanceDue: 0, balancePaid: false, source: 'web' as const, origin: 'web_checkout' as const, locationId: null, locationName: null },
+    { id: 'K7B4X', customer: 'Amina Shareef',    email: 'amina@email.mv',   items: 'Amara Wrap Midi ×1, Silk Scarf ×1', subtotal: 760, discount: 0, productDiscount: 0, deliveryFee: 75, total: 835,  method: 'Delivery' as const, stage: 3 as const, readyForDeliveryAt: null, date: '12 Jun 2026', paid: true, paidAuto: false, paidVerified: false, paidCash: 835, paidTransfer: 0, depositRequired: 835, balanceDue: 0, balancePaid: false, balancePaidAuto: false, balancePaidVerified: false, source: 'web' as const, origin: 'web_checkout' as const, locationId: null, locationName: null },
+    { id: 'M3Q8Z', customer: 'Aishath Rasheed',  email: 'aishath@email.mv', items: 'Horizon Maxi Dress ×1',              subtotal: 780, discount: 0, productDiscount: 0, deliveryFee: 75, total: 855,  method: 'Delivery' as const, stage: 4 as const, readyForDeliveryAt: '2026-06-11T00:00:00.000Z', date: '11 Jun 2026', paid: true, paidAuto: false, paidVerified: false, paidCash: 855, paidTransfer: 0, depositRequired: 855, balanceDue: 0, balancePaid: false, balancePaidAuto: false, balancePaidVerified: false, source: 'web' as const, origin: 'web_checkout' as const, locationId: null, locationName: null },
+    { id: 'T5W2C', customer: 'Fathimath Nazly',  email: 'fathimath@email.mv', items: 'Everyday Linen Dress ×2',          subtotal: 840, discount: 0, productDiscount: 0, deliveryFee: 75, total: 915,  method: 'Delivery' as const, stage: 1 as const, readyForDeliveryAt: null, date: '10 Jun 2026', paid: false, paidAuto: false, paidVerified: false, paidCash: 0,   paidTransfer: 0, depositRequired: 915, balanceDue: 0, balancePaid: false, balancePaidAuto: false, balancePaidVerified: false, source: 'web' as const, origin: 'web_checkout' as const, locationId: null, locationName: null },
+    { id: 'R9F6H', customer: 'Mariyam Zoona',    email: 'mariyam@email.mv', items: 'Champagne Cocktail Dress ×1, Layered Chain Necklace ×1', subtotal: 1170, discount: 0, productDiscount: 0, deliveryFee: 75, total: 1245, method: 'Delivery' as const, stage: 0 as const, readyForDeliveryAt: null, date: '09 Jun 2026', paid: false, paidAuto: false, paidVerified: false, paidCash: 0, paidTransfer: 0, depositRequired: 1245, balanceDue: 0, balancePaid: false, balancePaidAuto: false, balancePaidVerified: false, source: 'web' as const, origin: 'web_checkout' as const, locationId: null, locationName: null },
   ],
   locations: [
     { id: 'loc-online',    name: 'Online Store', showOnWeb: true,  isWebDefault: true,  sortOrder: 0 },
@@ -146,27 +141,8 @@ function writeStore(d: StoreData): StoreData {
   return d;
 }
 
-function slugify(label: string, existing: string[]): string {
-  const base = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'collection';
-  let key = base, i = 2;
-  while (existing.includes(key)) { key = base + '-' + i; i++; }
-  return key;
-}
-
-function uid(prefix = 'id'): string {
-  return prefix + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-}
-
-function format(n: number, currency = 'MVR'): string {
-  return currency + ' ' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-}
-
 export const MMStore = {
   get: readStore,
   save: writeStore,
-  reset(): StoreData { localStorage.removeItem(STORE_KEY); window.dispatchEvent(new CustomEvent('mm-store-change')); return readStore(); },
   seed(): StoreData { return structuredClone(SEED); },
-  slugify,
-  uid,
-  format,
 };

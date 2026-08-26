@@ -1,13 +1,32 @@
-'use client';
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useStore } from '@/contexts/StoreContext';
+import { STOREFRONT_COPY_DEFAULTS } from '@/lib/storefront-copy';
+import type { StorefrontCopy, StoreCollection } from '@/lib/types';
 
-export function Footer() {
-  const { data } = useStore();
-  const copy = data.settings.storefrontCopy.homepageNavigation;
-  const paymentCopy = data.settings.storefrontCopy.paymentCheckout;
+// Matches Header.tsx's fallback — used by the handful of static pages not yet
+// converted to server-fetched props.
+const DEFAULT_COLLECTIONS: StoreCollection[] = [
+  { id: 'cl-ready', key: 'ready', label: 'New Arrivals', sizeChartId: null },
+  { id: 'cl-casual', key: 'casual', label: 'Casual Dresses', sizeChartId: null },
+  { id: 'cl-occasion', key: 'occasion', label: 'Party & Occasion', sizeChartId: null },
+  { id: 'cl-accessories', key: 'accessories', label: 'Accessories', sizeChartId: null },
+];
+
+interface FooterProps {
+  tagline?: string;
+  collections?: StoreCollection[];
+  navCopy?: StorefrontCopy['homepageNavigation'];
+  paymentCopy?: StorefrontCopy['paymentCheckout'];
+}
+
+export function Footer({
+  tagline = '',
+  collections = DEFAULT_COLLECTIONS,
+  navCopy = STOREFRONT_COPY_DEFAULTS.homepageNavigation,
+  paymentCopy = STOREFRONT_COPY_DEFAULTS.paymentCheckout,
+}: FooterProps) {
+  const copy = navCopy;
 
   const colHref = (key: string) =>
     key === 'ready' ? '/ready-made' : key === 'casual' ? '/casual-wear' : key === 'accessories' ? '/accessories' : `/${key}`;
@@ -15,7 +34,7 @@ export function Footer() {
   const columns = [
     {
       title: copy.footerShopTitle,
-      items: data.collections.map(c => ({ label: c.label, href: colHref(c.key) })),
+      items: collections.map(c => ({ label: c.label, href: colHref(c.key) })),
     },
     {
       title: copy.footerSupportTitle,
@@ -48,7 +67,7 @@ export function Footer() {
             <span className="font-archivo-narrow font-semibold text-[17px] tracking-[.24em] uppercase text-body">Dress Collection</span>
           </div>
           <p className="text-[13px] leading-[1.65] mt-5 max-w-[280px] text-sub">
-            {data.settings.tagline}. {copy.footerIntro}
+            {tagline}. {copy.footerIntro}
           </p>
           <div className="flex gap-[9px] mt-[20px]">
             {['Ig', 'Fb', 'Wa'].map((s) => (

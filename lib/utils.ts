@@ -9,11 +9,22 @@ export function formatMVR(n: number): string {
   return 'MVR ' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
-export function genRef(prefix: 'DC'): string {
-  const yy = new Date().getFullYear().toString().slice(2);
-  const n = Math.floor(10000 + Math.random() * 89999);
-  return `${prefix}-${yy}-${n}`;
+/**
+ * The price a customer actually pays after a product's own automatic discount
+ * (distinct from PromoCode/Order.discount, the cart-level code system). Clamps
+ * defensively rather than rejecting stale/edited data — money math should never
+ * produce a negative price even if discountValue is larger than price.
+ */
+export function computeEffectivePrice(price: number, discountType: string | null | undefined, discountValue: number): number {
+  if (!discountType) return price;
+  if (discountType === 'fixed') return Math.max(0, price - discountValue);
+  if (discountType === 'percent') {
+    const pct = Math.max(0, Math.min(100, discountValue));
+    return Math.max(0, Math.round(price * (1 - pct / 100)));
+  }
+  return price;
 }
+
 
 export const LOW_STOCK_THRESHOLD = 5; // customer-facing "running low" cutoff
 export const STOCK_BAR_MAX = 20; // visual reference: bar reads "full" at this many units — not a business rule
@@ -42,26 +53,58 @@ export function productColorHex(colorHex: Record<string, string> | undefined | n
 }
 
 export const ORDER_STAGES = [
-  'Placed',            // 0
-  'Payment Confirmed', // 1
-  'Ready for Pickup',  // 2
-  'Ready for Delivery',// 3
-  'Out for Delivery',  // 4
-  'Completed',         // 5
-  'Cancelled',         // 6
+  'Placed',              // 0
+  'Payment Confirmed',   // 1
+  'Arrived at Facility', // 2 — pre-order only
+  'Ready for Pickup',    // 3
+  'Ready for Delivery',  // 4
+  'Out for Delivery',    // 5
+  'Completed',           // 6
+  'Cancelled',           // 7
 ];
-// Which ORDER_STAGES indices are reachable for each fulfilment method — used
-// both to build the admin UI's stage dropdown and to server-side validate a
-// stage change against the order's method (see app/api/admin/orders/[id]/route.ts).
-export const PICKUP_STAGE_IDS = [0, 1, 2, 5, 6];
-export const DELIVERY_STAGE_IDS = [0, 1, 3, 4, 5, 6];
 
 export const STAGE_META = [
-  { fg: '#ff6370', bg: 'rgba(255,61,77,.12)'   },  // 0 Placed
-  { fg: '#f5c842', bg: 'rgba(245,200,66,.12)'   },  // 1 Payment Confirmed
-  { fg: '#c13978', bg: 'rgba(193,57,120,.14)'   },  // 2 Ready for Pickup
-  { fg: '#e63387', bg: 'rgba(51,230,198,.13)'   },  // 3 Ready for Delivery
-  { fg: '#600a32', bg: 'rgba(219,87,149,.12)'    },  // 4 Out for Delivery
-  { fg: '#705260', bg: 'rgba(0,0,0,.06)'        },  // 5 Completed
-  { fg: '#ff3d4d', bg: 'rgba(255,61,77,.1)'    },  // 6 Cancelled
+  { fg: '#ff6370', bg: 'rgba(255,61,77,.12)'  },  // 0 Placed
+  { fg: '#f5c842', bg: 'rgba(245,200,66,.12)' },  // 1 Payment Confirmed
+  { fg: '#c9a227', bg: 'rgba(201,162,39,.14)' },  // 2 Arrived at Facility
+  { fg: '#c13978', bg: 'rgba(193,57,120,.14)' },  // 3 Ready for Pickup
+  { fg: '#e63387', bg: 'rgba(51,230,198,.13)' },  // 4 Ready for Delivery
+  { fg: '#600a32', bg: 'rgba(219,87,149,.12)' },  // 5 Out for Delivery
+  { fg: '#705260', bg: 'rgba(0,0,0,.06)'      },  // 6 Completed
+  { fg: '#ff3d4d', bg: 'rgba(255,61,77,.1)'   },  // 7 Cancelled
 ];
+
+/** True once a deposit was required and a balance still remains — stable for
+ * an order's whole life (depositRequired/balanceDue are creation-time
+ * snapshots). Single source of truth for "is this a pre-order order". */
+export function isPreOrder(o: { depositRequired: number; balanceDue: number }): boolean {
+  return o.depositRequired > 0 && o.balanceDue > 0;
+}
+
+/**
+ * Which ORDER_STAGES ids are reachable for a given fulfilment method and
+ * pre-order-ness — used to build the admin UI's stage dropdown, to
+ * server-side validate a stage change (app/api/admin/orders/[id]/route.ts),
+ * and to build the customer-facing tracking page's step list
+ * (app/api/status/route.ts) — this single shared function is what keeps
+ * admin and the customer tracking page in sync.
+ */
+export function stageIdsFor(method: 'Pickup' | 'Delivery', preOrder: boolean): number[] {
+  if (method === 'Pickup') return preOrder ? [0, 1, 2, 3, 6, 7] : [0, 1, 3, 6, 7];
+  return preOrder ? [0, 1, 2, 4, 5, 6, 7] : [0, 1, 4, 5, 6, 7];
+}
+
+/** Customer-facing copy per stage id — friendlier/longer than ORDER_STAGES'
+ * short admin labels, but keyed by the same id so the STRUCTURE (which ids
+ * exist, in what order) stays driven by stageIdsFor() alone; see
+ * app/api/status/route.ts. */
+export const CUSTOMER_STAGE_COPY: Record<number, { title: string; desc: string }> = {
+  0: { title: 'Order placed', desc: 'We received your order.' },
+  1: { title: 'Payment confirmed', desc: "We've confirmed your payment." },
+  2: { title: 'Item arrived', desc: 'Your pre-ordered piece has arrived at our facility and is being prepared.' },
+  3: { title: 'Ready for pickup', desc: 'Collect at our Malé store.' },
+  4: { title: 'Ready for delivery', desc: 'Your order is packed and queued for delivery.' },
+  5: { title: 'Out for delivery', desc: 'On its way to your address.' },
+  6: { title: 'Completed', desc: '' },
+  7: { title: 'Cancelled', desc: 'This order was cancelled.' },
+};

@@ -1,7 +1,8 @@
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requirePermission, audit } from '@/lib/admin-guard';
 import { ok, fail, handleError, displayDate } from '@/lib/http';
-import { nextRef } from '@/lib/ref';
+import { createOrderWithRef } from '@/lib/ref';
 import { orderInclude, serializeOrder } from '@/lib/order-serializer';
 import { upsertCustomerFromContact } from '@/lib/customers';
 import { orderConfirmationPdf } from '@/lib/pdf';
@@ -9,6 +10,8 @@ import { storage } from '@/lib/storage';
 import { ensurePaymentReceipt } from '@/lib/order-documents';
 import { decrementStock, InsufficientStockError } from '@/lib/inventory';
 import { optionalMobile } from '@/lib/validation';
+import { computeEffectivePrice } from '@/lib/utils';
+import { RECEIPT_TTL_MS } from '@/lib/receipts';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
@@ -46,7 +49,6 @@ const manualOrderSchema = z.object({
   discountNote: z.string().trim().nullish(),
   method: z.enum(['Pickup', 'Delivery']).default('Pickup'),
   paidCash: z.coerce.number().int().nonnegative().default(0),
-  paidCard: z.coerce.number().int().nonnegative().default(0),
   paidTransfer: z.coerce.number().int().nonnegative().default(0),
 }).refine((d) => d.method !== 'Delivery' || !!d.deliveryAreaId?.trim(), {
   message: 'Delivery area is required',
@@ -96,7 +98,7 @@ export async function POST(request: Request) {
     let preOrderSubtotal = 0; // portion of subtotal from pre-order lines — only 50% of this is due now
     const lineItems = data.items.map((item) => {
       const p = byId.get(item.sku)!;
-      const unitPrice = p.price;
+      const unitPrice = computeEffectivePrice(p.price, p.discountType, p.discountValue);
       const lineTotal = unitPrice * item.qty;
       subtotal += lineTotal;
       if (p.preOrder) preOrderSubtotal += lineTotal;
@@ -105,6 +107,8 @@ export async function POST(request: Request) {
         name: p.name,
         meta: p.sub,
         price: unitPrice,
+        costPrice: p.costPrice,
+        discount: p.price - unitPrice,
         img: p.img,
         size: item.size,
         color: item.color,
@@ -112,6 +116,7 @@ export async function POST(request: Request) {
         stockDecremented: !p.preOrder,
       };
     });
+    const productDiscount = lineItems.reduce((sum, i) => sum + i.discount * i.qty, 0);
 
     const deliveryFee = data.method === 'Delivery' ? deliveryArea!.rate : 0;
     const discount = Math.min(data.discount, subtotal + deliveryFee);
@@ -124,15 +129,14 @@ export async function POST(request: Request) {
     const depositRequired = Math.max(0, Math.round(regularSubtotal + preOrderSubtotal * 0.5) + deliveryFee - discount);
     const balanceDue = total - depositRequired;
 
-    const paidTotal = data.paidCash + data.paidCard + data.paidTransfer;
+    const paidTotal = data.paidCash + data.paidTransfer;
     if (paidTotal > total) return fail(`Payment total (${paidTotal}) cannot exceed order total (${total})`, 400);
     // For a pre-order sale, collecting the deposit is enough to mark it paid — the
     // balance is confirmed later via the same admin/self-service flow web checkout uses.
     const paid = paidTotal >= (depositRequired || total);
     const summary = lineItems.map((i) => `${i.name} ×${i.qty}`).join(', ');
 
-    const order = await prisma.$transaction(async (tx) => {
-      const ref = await nextRef('DC', tx);
+    const order = await createOrderWithRef(async (tx, ref) => {
       const created = await tx.order.create({
         data: {
           id: ref,
@@ -146,6 +150,7 @@ export async function POST(request: Request) {
           deliveryFee,
           deliveryAreaId: deliveryArea?.id ?? null,
           discount,
+          productDiscount,
           discountNote: data.discountNote || null,
           total,
           method: data.method,
@@ -154,7 +159,6 @@ export async function POST(request: Request) {
           depositRequired,
           balanceDue,
           paidCash: data.paidCash,
-          paidCard: data.paidCard,
           paidTransfer: data.paidTransfer,
           source: 'web',
           origin: 'manual_order',
@@ -170,6 +174,7 @@ export async function POST(request: Request) {
       }
       return created;
     });
+    revalidateTag('catalog', { expire: 0 });
 
     await upsertCustomerFromContact({ name: data.customer, phone: data.mobile, email: data.email });
 
@@ -187,7 +192,7 @@ export async function POST(request: Request) {
         termsConditions: settings.termsConditions,
       });
       const stored = await storage.put({ bucket: 'pdf', filename: `${order.id}.pdf`, data: pdf, contentType: 'application/pdf' });
-      await prisma.order.update({ where: { id: order.id }, data: { pdfUrl: stored.url } });
+      await prisma.order.update({ where: { id: order.id }, data: { pdfUrl: stored.url, pdfExpiresAt: new Date(Date.now() + RECEIPT_TTL_MS) } });
     } catch (e) {
       console.error('manual order PDF generation failed', e);
     }

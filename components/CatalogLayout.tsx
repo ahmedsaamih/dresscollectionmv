@@ -1,13 +1,13 @@
 'use client';
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { useStore } from '@/contexts/StoreContext';
 import { ProductGridSkeleton } from '@/components/ProductSkeleton';
 import { Button } from '@/components/Button';
 import { SizeChartTrigger } from '@/components/SizeChart';
 import { Check } from 'lucide-react';
 import { productColorHex, PRODUCT_SIZES } from '@/lib/utils';
-import type { Product, SizeChart } from '@/lib/types';
+import { STOREFRONT_COPY_DEFAULTS } from '@/lib/storefront-copy';
+import type { Product, SizeChart, StorefrontCopy } from '@/lib/types';
 
 const SORT_OPTIONS = [
   { k: 'new', label: 'Newest' },
@@ -16,7 +16,7 @@ const SORT_OPTIONS = [
 ] as const;
 type SortKey = (typeof SORT_OPTIONS)[number]['k'];
 
-export interface CatalogLayoutProps {
+interface CatalogLayoutProps {
   breadcrumb: string;
   title: string;
   subtitle?: React.ReactNode;
@@ -34,6 +34,7 @@ export interface CatalogLayoutProps {
   pageSize?: number;    // initial visible count (default 9)
   /** Effective size chart for this catalog's collection (assigned, or the store default). */
   sizeChart?: SizeChart | null;
+  copy?: Pick<StorefrontCopy['productCatalog'], 'loadMoreLabel' | 'noItemsTitle' | 'noItemsBody' | 'clearFiltersLabel'>;
 }
 
 /**
@@ -46,9 +47,8 @@ export interface CatalogLayoutProps {
 export function CatalogLayout({
   breadcrumb, title, subtitle, categoryLabel = 'Category',
   products, loading = false, renderCard, intro, headerAction, noun = 'items', pageSize = 9, sizeChart = null,
+  copy = STOREFRONT_COPY_DEFAULTS.productCatalog,
 }: CatalogLayoutProps) {
-  const { data } = useStore();
-  const copy = data.settings.storefrontCopy.productCatalog;
   const [cats, setCats] = useState<string[]>([]);
   const [colors, setColors] = useState<string[]>([]);
   const [sizes, setSizes] = useState<string[]>([]);

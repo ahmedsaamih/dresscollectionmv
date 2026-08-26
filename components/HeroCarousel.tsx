@@ -1,5 +1,6 @@
 'use client';
 import React, { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 
 /**
  * Homepage hero visual. With 0-1 images it renders the original static panel
@@ -109,7 +110,7 @@ export function HeroCarousel({ images }: { images: string[] }) {
   if (images.length === 1) {
     return (
       <div className="relative isolate h-full rounded-[18px] overflow-hidden border border-[rgba(219,87,149,.2)]">
-        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${images[0]})` }} />
+        <Image src={images[0]} alt="" fill sizes="(max-width: 1024px) 100vw, 50vw" style={{ objectFit: 'cover' }} priority />
         <StreakAndBadge />
       </div>
     );
@@ -131,7 +132,7 @@ export function HeroCarousel({ images }: { images: string[] }) {
             className="absolute inset-0 transition-opacity duration-700 ease-out"
             style={{ opacity: isActive ? 1 : 0, zIndex: isActive ? 1 : 0 }}
           >
-            <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${src})` }} />
+            <Image src={src} alt="" fill sizes="(max-width: 1024px) 100vw, 50vw" style={{ objectFit: 'cover' }} priority={i === 0} />
             {/* glass sheen */}
             <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(135deg,rgba(255,255,255,.18),rgba(255,255,255,0) 42%,rgba(255,255,255,.05) 100%)' }} />
             {isActive && (

@@ -10,7 +10,7 @@ const DATA = [
     items: [
       { q: 'How do I pay? Do you take cards?', a: 'We use manual payment only — bank transfer. No online card payment. After checkout you get a reference number to pay against.' },
       { q: 'Do I need an account?', a: 'No. Checkout is guest-only — just your name, email and mobile so we can confirm and send updates.' },
-      { q: 'How do I track my order?', a: 'Use the Order Status page and enter the reference from your confirmation (DC-…). No login needed.' },
+      { q: 'How do I track my order?', a: 'Use the Order Status page and enter the reference from your confirmation. No login needed.' },
     ],
   },
   {

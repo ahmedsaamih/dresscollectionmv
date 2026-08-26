@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { categoryCreateSchema } from '@/lib/validation';
 import { requirePermission, audit, genId } from '@/lib/admin-guard';
@@ -16,6 +17,7 @@ export async function POST(request: Request) {
       data: { id: genId('c'), name, collectionKey: collection, count: 0 },
     });
     await audit(session.email, 'category.create', created.id, { name, collection });
+    revalidateTag('catalog', { expire: 0 });
     return ok({ category: { id: created.id, name: created.name, collection: created.collectionKey, count: 0 } }, 201);
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {

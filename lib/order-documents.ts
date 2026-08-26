@@ -1,13 +1,13 @@
 import { prisma } from '@/lib/prisma';
 import { displayDate } from '@/lib/http';
-import { paymentReceiptPdf } from '@/lib/pdf';
+import { paymentReceiptImage } from '@/lib/receipt-image';
 import { storage } from '@/lib/storage';
+import { RECEIPT_TTL_MS } from '@/lib/receipts';
 
-function paymentMode(paidCash: number, paidCard: number, paidTransfer: number): string {
-  if (paidCash === 0 && paidCard === 0 && paidTransfer === 0) return 'Not recorded';
-  if (paidCash > 0 && paidCard === 0 && paidTransfer === 0) return 'Cash';
-  if (paidCard > 0 && paidCash === 0 && paidTransfer === 0) return 'Card';
-  if (paidTransfer > 0 && paidCash === 0 && paidCard === 0) return 'Bank Transfer';
+function paymentMode(paidCash: number, paidTransfer: number): string {
+  if (paidCash === 0 && paidTransfer === 0) return 'Not recorded';
+  if (paidCash > 0 && paidTransfer === 0) return 'Cash';
+  if (paidTransfer > 0 && paidCash === 0) return 'Bank Transfer';
   return 'Split Payment';
 }
 
@@ -28,8 +28,8 @@ export async function ensurePaymentReceipt(orderId: string): Promise<string | nu
   // depositRequired is 0 on orders created before this field existed — falling back to
   // `total` preserves the exact receipt amount those orders always showed.
   const amount = order.depositRequired || order.total;
-  const stored = await generateReceiptPdf(order, settings, amount, 'receipt');
-  await prisma.receipt.create({ data: { orderId: order.id, url: stored.url, kind: 'payment_receipt' } });
+  const stored = await generateReceiptImage(order, settings, amount, 'receipt', false);
+  await prisma.receipt.create({ data: { orderId: order.id, url: stored.url, kind: 'payment_receipt', expiresAt: new Date(Date.now() + RECEIPT_TTL_MS) } });
   return stored.url;
 }
 
@@ -47,26 +47,31 @@ export async function ensureBalanceReceipt(orderId: string): Promise<string | nu
   ]);
   if (!order || !settings || !order.balancePaid || order.balanceDue <= 0) return null;
 
-  const stored = await generateReceiptPdf(order, settings, order.balanceDue, 'balance-receipt');
-  await prisma.receipt.create({ data: { orderId: order.id, url: stored.url, kind: 'balance_receipt' } });
+  const stored = await generateReceiptImage(order, settings, order.balanceDue, 'balance-receipt', true);
+  await prisma.receipt.create({ data: { orderId: order.id, url: stored.url, kind: 'balance_receipt', expiresAt: new Date(Date.now() + RECEIPT_TTL_MS) } });
   return stored.url;
 }
 
 type OrderRow = NonNullable<Awaited<ReturnType<typeof prisma.order.findUnique>>>;
 type SettingRow = NonNullable<Awaited<ReturnType<typeof prisma.setting.findUnique>>>;
 
-async function generateReceiptPdf(order: OrderRow, settings: SettingRow, amount: number, filenameSuffix: string) {
-  const pdf = await paymentReceiptPdf({
+async function generateReceiptImage(order: OrderRow, settings: SettingRow, amount: number, filenameSuffix: string, isBalancePayment: boolean) {
+  const png = await paymentReceiptImage({
     orderRef: order.id,
     customer: order.customer,
     paymentDate: displayDate(),
-    paymentMode: paymentMode(order.paidCash, order.paidCard, order.paidTransfer),
+    paymentMode: paymentMode(order.paidCash, order.paidTransfer),
     referenceNumber: order.id,
     subtotal: order.subtotal,
     deliveryFee: order.deliveryFee,
     discount: order.discount,
+    productDiscount: order.productDiscount,
+    total: order.total,
+    depositRequired: order.depositRequired,
+    balanceDue: order.balanceDue,
+    isBalancePayment,
     amount,
-    invoiceDate: order.date,
+    orderDate: order.date,
     storeName: settings.storeName,
     storeAddress: settings.address,
     storePhone: settings.phone,
@@ -75,8 +80,8 @@ async function generateReceiptPdf(order: OrderRow, settings: SettingRow, amount:
   });
   return storage.put({
     bucket: 'pdf',
-    filename: `${order.id}-${filenameSuffix}.pdf`,
-    data: pdf,
-    contentType: 'application/pdf',
+    filename: `${order.id}-${filenameSuffix}.png`,
+    data: png,
+    contentType: 'image/png',
   });
 }

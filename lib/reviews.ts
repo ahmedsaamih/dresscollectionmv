@@ -9,15 +9,15 @@ const REVIEW_TOKEN_TTL_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
  * Creates a review request (token + 3-day expiry) for a completed order and
  * notifies the customer (email and/or SMS, per Admin → Settings → Notification
  * preferences) with a link to leave a review. No-op if the order has no email
- * on file, or a review row already exists for it (idempotent — this can be
- * called from more than one completion trigger, or stage can be toggled back
- * to Completed more than once).
+ * or mobile on file, or a review row already exists for it (idempotent — this
+ * can be called from more than one completion trigger, or stage can be
+ * toggled back to Completed more than once).
  */
 export async function requestReview(
   order: { id: string; email: string; customer: string; mobile: string | null },
   ctx: { smsAllowed: boolean },
 ): Promise<void> {
-  if (!order.email) return;
+  if (!order.email && !order.mobile) return;
 
   const existing = await prisma.review.findUnique({ where: { orderId: order.id } });
   if (existing) return;

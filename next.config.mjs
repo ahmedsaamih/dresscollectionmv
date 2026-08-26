@@ -18,6 +18,34 @@ const nextConfig = {
     // "ENOENT: lstat '.next/lock'" to fail every deploy.
     lockDistDir: false,
   },
+  // tesseract.js spawns its Node worker via `path.join(__dirname, ...)` computed inside its own
+  // package — webpack (this project's `next build --webpack`) bundles route code into a single
+  // chunk and rewrites `__dirname` to reflect that bundle's location instead of the package's
+  // real one, so the computed worker-script path is wrong at runtime ("Cannot find module
+  // '/var/task/.next/worker-script/node/index.js'", confirmed via a live Vercel deployment's
+  // runtime logs). Excluding it from bundling leaves its own require()/__dirname logic intact,
+  // resolved normally against the real node_modules at runtime.
+  serverExternalPackages: ['tesseract.js', 'tesseract.js-core', 'wasm-feature-detect'],
+  // The two slip-receiving routes run Tesseract.js server-side (lib/slip-ocr.ts). Even as an
+  // external package, its worker-thread script path and self-hosted trained-data file are still
+  // runtime-constructed strings, not `require()`/`import` — Next's build-time file tracer can't
+  // follow those, so everything they need (core/wasm files, wasm-feature-detect, the trained
+  // data) has to be listed explicitly or it silently goes missing from the deployed bundle.
+  // Confirmed by inspecting the actual .next/server/**/*.nft.json trace after a build.
+  outputFileTracingIncludes: {
+    '/api/checkout': [
+      './public/tesseract/lang-data/**',
+      './node_modules/tesseract.js/**',
+      './node_modules/tesseract.js-core/**',
+      './node_modules/wasm-feature-detect/**',
+    ],
+    '/api/orders/[id]/receipts': [
+      './public/tesseract/lang-data/**',
+      './node_modules/tesseract.js/**',
+      './node_modules/tesseract.js-core/**',
+      './node_modules/wasm-feature-detect/**',
+    ],
+  },
   images: {
     remotePatterns: [
       // Vercel Blob — still the active storage backend in production until
@@ -46,10 +74,10 @@ const nextConfig = {
               // blocks them outright and the app never hydrates — the whole
               // client-side app (admin menu, client-fetched content) goes
               // dead while server-rendered HTML still looks fine over curl.
-              // style-src also needs 'unsafe-inline': Radix's Dialog/Toast
-              // components pull in react-remove-scroll-bar, which injects a
-              // <style> tag at runtime to lock body scroll. Same nonce
-              // trade-off as script-src above.
+              // style-src also needs 'unsafe-inline' for the same reason —
+              // several client components apply inline style attributes at
+              // runtime (e.g. dynamic product colours), which would
+              // otherwise be blocked without per-request nonce wiring.
               "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; " +
               // Vercel Blob (*.public.blob.vercel-storage.com) is kept
               // unconditionally alongside R2 — it's still production's
@@ -58,7 +86,7 @@ const nextConfig = {
               // existing product/hero/workshop image on deploy.
               `img-src 'self' data: blob: https://*.public.blob.vercel-storage.com${r2Hostname ? ` https://${r2Hostname}` : ''}; ` +
               `connect-src 'self' blob:${r2Hostname ? ` https://${r2Hostname}` : ''}; ` +
-              `frame-src 'self' https://*.public.blob.vercel-storage.com${r2Hostname ? ` https://${r2Hostname}` : ''} https://www.openstreetmap.org; ` +
+              `frame-src 'self' https://*.public.blob.vercel-storage.com${r2Hostname ? ` https://${r2Hostname}` : ''}; ` +
               "frame-ancestors 'none'",
           },
         ],

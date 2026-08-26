@@ -1,15 +1,14 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { ok, fail, handleError } from '@/lib/http';
-import { formatMVR } from '@/lib/utils';
+import { formatMVR, stageIdsFor, isPreOrder, CUSTOMER_STAGE_COPY } from '@/lib/utils';
 import { rateLimitResponse } from '@/lib/rate-limit';
-import { ATTACH_WINDOW_MS } from '@/lib/receipts';
 import { contactMatches } from '@/lib/order-contact';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * GET /api/status?ref=DC-26-48213&contact=customer@email.mv
+ * GET /api/status?ref=K7B4X&contact=customer@email.mv
  *
  * Public order lookup. No login — verified by reference + the contact
  * (email or mobile) on file. A wrong/missing contact returns the same
@@ -26,7 +25,9 @@ export async function GET(request: Request) {
 
     if (!ref) return fail('Enter a reference number.', 400);
     if (ref.length > 40) return fail('Reference is too long.', 400);
-    if (!/^DC-/.test(ref)) return fail('References start with DC-.', 400);
+    // Accepts both the new short codes (e.g. "K7B4X") and pre-existing
+    // DC-YY-NNNNN references from before the format changed.
+    if (!/^[A-Z0-9-]{3,40}$/.test(ref)) return fail('Enter a valid reference.', 400);
     if (!contact) return fail('Enter the email or mobile on your confirmation.', 400);
     if (contact.length > 254) return fail('Contact is too long.', 400);
 
@@ -44,22 +45,28 @@ type OrderRow = Prisma.OrderGetPayload<{ include: { receipts: true } }>;
 
 function orderStatus(o: OrderRow) {
   const delivery = o.method === 'Delivery';
-  const cancelled = o.stage === 6;
-  const steps = delivery
-    ? [
-        { title: 'Order placed', desc: 'We received your order.', date: o.date },
-        { title: 'Payment confirmed', desc: "We've confirmed your payment.", date: null },
-        { title: 'Ready for delivery', desc: 'Your order is packed and queued for delivery.', date: o.readyForDeliveryAt?.toISOString() ?? null },
-        { title: 'Out for delivery', desc: 'On its way to your address.', date: null },
-        { title: cancelled ? 'Cancelled' : 'Completed', desc: cancelled ? 'This order was cancelled.' : 'Delivery completed.', date: null },
-      ]
-    : [
-        { title: 'Order placed', desc: 'We received your order.', date: o.date },
-        { title: 'Payment confirmed', desc: "We've confirmed your payment.", date: null },
-        { title: 'Ready for pickup', desc: 'Collect at our Malé store.', date: null },
-        { title: cancelled ? 'Cancelled' : 'Completed', desc: cancelled ? 'This order was cancelled.' : 'Order collected.', date: null },
-      ];
-  const stage = cancelled ? steps.length - 1 : delivery ? deliveryStep(o.stage) : pickupStep(o.stage);
+  const cancelled = o.stage === 7;
+  const preOrder = isPreOrder(o);
+  // Same stageIdsFor() the admin dropdown and the PATCH validator use — this
+  // is what keeps the step list here in sync with admin's status control.
+  // Cancelled (7) substitutes into the terminal slot rather than adding a step.
+  const stageIds = stageIdsFor(o.method as 'Pickup' | 'Delivery', preOrder).filter((id) => id !== 7);
+  const steps = stageIds.map((id) => {
+    const copy = CUSTOMER_STAGE_COPY[id];
+    let date: string | null = null;
+    if (id === 0) date = o.date;
+    if (id === 4) date = o.readyForDeliveryAt?.toISOString() ?? null;
+    let desc = copy.desc;
+    if (id === 6) desc = delivery ? 'Delivery completed.' : 'Order collected.';
+    return { title: copy.title, desc, date };
+  });
+  if (cancelled) {
+    const last = steps[steps.length - 1];
+    last.title = 'Cancelled';
+    last.desc = 'This order was cancelled.';
+  }
+  const idx = stageIds.indexOf(o.stage);
+  const stage = cancelled ? steps.length - 1 : idx === -1 ? 0 : idx;
   return {
     type: 'order' as const,
     ref: o.id,
@@ -69,7 +76,6 @@ function orderStatus(o: OrderRow) {
     method: o.method,
     paid: o.paid,
     deliveryFee: o.deliveryFee,
-    canUploadSlip: !o.paid && !o.receipts.some((r) => r.kind === 'payment_slip') && (Date.now() - o.createdAt.getTime() <= ATTACH_WINDOW_MS),
     depositRequired: o.depositRequired,
     balanceDue: o.balanceDue,
     balancePaid: o.balancePaid,
@@ -88,18 +94,5 @@ function orderStatus(o: OrderRow) {
           : "We'll SMS you the moment it's ready to collect."
         : "We'll SMS you after payment is confirmed.",
   };
-}
-
-function pickupStep(stage: number): number {
-  if (stage >= 5) return 3;
-  if (stage >= 2) return 2;
-  return Math.min(stage, 1);
-}
-
-function deliveryStep(stage: number): number {
-  if (stage >= 5) return 4;
-  if (stage >= 4) return 3;
-  if (stage >= 3) return 2;
-  return Math.min(stage, 1);
 }
 

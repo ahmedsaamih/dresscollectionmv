@@ -1,20 +1,34 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from './prisma';
-import type { Prisma } from '@prisma/client';
 
-type Db = Prisma.TransactionClient | typeof prisma;
+// Excludes 0/O and 1/I/L — visually ambiguous characters that cause
+// transcription errors when a customer reads/types the code (e.g. into a
+// bank transfer note).
+const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+
+function randomOrderCode(len = 5): string {
+  let s = '';
+  for (let i = 0; i < len; i++) s += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+  return s;
+}
 
 /**
- * Atomically generate the next sequential reference, e.g. "DC-26-48214".
- * Uses a single Postgres INSERT … ON CONFLICT DO UPDATE so concurrent
- * requests can never collide. Pass a transaction client when inside one.
+ * Runs `work` inside a transaction, generating a fresh random 5-character
+ * order code on each attempt. A random code (unlike the old sequential
+ * counter) needs explicit collision handling: if the code collides with an
+ * existing Order id (P2002 on the primary key), the whole transaction is
+ * retried with a new code, up to 5 attempts.
  */
-export async function nextRef(prefix: 'DC' | 'QT', db: Db = prisma): Promise<string> {
-  const year = new Date().getFullYear().toString().slice(2);
-  const rows = await db.$queryRaw<{ lastValue: number }[]>`
-    INSERT INTO "RefSequence" ("prefix", "year", "lastValue")
-    VALUES (${prefix}, ${year}, 10001)
-    ON CONFLICT ("prefix", "year")
-    DO UPDATE SET "lastValue" = "RefSequence"."lastValue" + 1
-    RETURNING "lastValue"`;
-  return `${prefix}-${year}-${rows[0].lastValue}`;
+export async function createOrderWithRef<T>(
+  work: (tx: Prisma.TransactionClient, ref: string) => Promise<T>,
+): Promise<T> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      return await prisma.$transaction((tx) => work(tx, randomOrderCode()));
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002' && attempt < 4) continue;
+      throw e;
+    }
+  }
+  throw new Error('unreachable');
 }

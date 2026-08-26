@@ -32,7 +32,7 @@ export function SizeChartTrigger({ chart, className = '', label = 'Size chart' }
   );
 }
 
-export function SizeChartModal({ chart, onClose }: { chart: SizeChart; onClose: () => void }) {
+function SizeChartModal({ chart, onClose }: { chart: SizeChart; onClose: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);

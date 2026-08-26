@@ -56,10 +56,6 @@ export const MMCart = {
     return { fixed, total: fixed };
   },
 
-  subtotal(): number {
-    return read().fixed.reduce((a, i) => a + i.price * (i.qty || 1), 0);
-  },
-
   addFixed(item: Omit<FixedLineItem, 'id'>): Cart {
     const c = read();
     const existing = c.fixed.find(
@@ -86,11 +82,4 @@ export const MMCart = {
     return write(c);
   },
 
-  clear(): void {
-    write({ fixed: [] });
-  },
-
-  format(n: number, currency = 'MVR'): string {
-    return currency + ' ' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-  },
 };

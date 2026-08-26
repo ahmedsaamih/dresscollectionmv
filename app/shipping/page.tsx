@@ -1,13 +1,15 @@
-'use client';
 import React from 'react';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
-import { useStore } from '@/contexts/StoreContext';
+import { getCatalog } from '@/lib/catalog';
 import { Home, Truck } from 'lucide-react';
 
-export default function ShippingPage() {
-  const { data } = useStore();
-  const copy = data.settings.storefrontCopy.shippingPickup;
+export const dynamic = 'force-dynamic';
+
+export default async function ShippingPage() {
+  const { settings, collections } = await getCatalog();
+  const navCopy = settings.storefrontCopy.homepageNavigation;
+  const copy = settings.storefrontCopy.shippingPickup;
   const cards = [
     { icon: Home, title: copy.pickupCardTitle, body: copy.pickupCardBody, meta: copy.pickupCardMeta },
     { icon: Truck, title: copy.deliveryCardTitle, body: copy.deliveryCardBody, meta: copy.deliveryCardMeta },
@@ -20,7 +22,7 @@ export default function ShippingPage() {
 
   return (
     <div className="min-h-screen bg-page text-body font-archivo">
-      <Header />
+      <Header tagline={settings.tagline} collections={collections} navCopy={navCopy} />
       <div className="max-w-[760px] mx-auto px-5 sm:px-8 py-[52px] pb-[90px]">
         <h1 className="font-archivo-narrow font-bold text-[28px] sm:text-[40px] tracking-[.01em]">{copy.shippingPageTitle}</h1>
         <p className="text-[14.5px] text-sub mt-[9px] mb-[30px]">{copy.shippingPageIntro}</p>
@@ -41,7 +43,7 @@ export default function ShippingPage() {
           </div>
         ))}
       </div>
-      <Footer />
+      <Footer tagline={settings.tagline} collections={collections} navCopy={navCopy} paymentCopy={settings.storefrontCopy.paymentCheckout} />
     </div>
   );
 }

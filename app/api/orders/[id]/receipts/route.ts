@@ -1,12 +1,16 @@
 import { z } from 'zod';
+import { after } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ok, fail, handleError } from '@/lib/http';
 import { rateLimitResponse } from '@/lib/rate-limit';
 import { storageUrl } from '@/lib/validation';
 import { RECEIPT_TTL_MS, ATTACH_WINDOW_MS } from '@/lib/receipts';
+import { ocrSlipImage } from '@/lib/slip-ocr';
+import { autoVerifyReceiptPayment } from '@/lib/payment-verification';
 import { contactMatches } from '@/lib/order-contact';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 const body = z.object({
   url: storageUrl(),
@@ -50,6 +54,24 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
 
     const expiresAt = new Date(Date.now() + RECEIPT_TTL_MS);
     const receipt = await prisma.receipt.create({ data: { orderId: order.id, url, kind, expiresAt } });
+
+    // Best-effort server-side OCR of the slip — runs after the response is sent so it never
+    // delays the upload; see lib/slip-ocr.ts. Never trusted as proof of payment.
+    after(async () => {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const contentType = res.headers.get('content-type') || '';
+        const buffer = Buffer.from(await res.arrayBuffer());
+        const ocr = await ocrSlipImage(buffer, contentType);
+        if (!ocr) return;
+        await prisma.receiptOcrData.create({ data: { receiptId: receipt.id, ...ocr } });
+        await autoVerifyReceiptPayment(receipt.id, request);
+      } catch (e) {
+        console.error('slip OCR failed', e);
+      }
+    });
+
     return ok({ receipt: { id: receipt.id, url: receipt.url } }, 201);
   } catch (err) {
     return handleError(err);

@@ -1,13 +1,6 @@
 import { z } from 'zod';
 import { STOREFRONT_COPY_DEFAULTS, STOREFRONT_COPY_LIMITS } from './storefront-copy';
 
-// Robust email check that doesn't depend on Zod version specifics.
-const email = z
-  .string()
-  .trim()
-  .max(254)
-  .refine((v) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v), 'Enter a valid email');
-
 // Phone-number-safe characters only (digits, spaces, +, -, parens) — rejects
 // list-separator characters like `,`/`;` and letters. Not a strict national
 // format check; the goal is closing off a possible multi-recipient injection
@@ -21,7 +14,7 @@ export const optionalMobile = z.string().trim().max(40).refine((v) => v === '' |
 
 const contact = {
   name: z.string().trim().min(1, 'Name is required').max(120),
-  email,
+  email: z.string().trim().max(254).optional().default(''),
   mobile: requiredMobile,
 };
 
@@ -94,8 +87,6 @@ export const checkoutSchema = z
     path: ['deliveryAreaId'],
   });
 
-export type CheckoutInput = z.infer<typeof checkoutSchema>;
-
 // ─── Admin: products ─────────────────────────────────────────────────────────
 
 const badge = z.preprocess(
@@ -110,6 +101,8 @@ const productFields = {
   sub: z.string().trim(),
   price: z.coerce.number().int().nonnegative(),
   was: z.coerce.number().int().positive().nullable(),
+  discountType: z.preprocess((v) => (v === '' || v == null ? null : v), z.enum(['percent', 'fixed']).nullable()),
+  discountValue: z.coerce.number().int().nonnegative(),
   costPrice: z.coerce.number().int().nonnegative(),
   stock: z.coerce.number().int().nonnegative(),
   status: z.enum(['active', 'soldout', 'draft']),
@@ -138,6 +131,8 @@ export const productCreateSchema = z.object({
   sub: productFields.sub.optional().default(''),
   price: productFields.price,
   was: productFields.was.optional().default(null),
+  discountType: productFields.discountType.optional().default(null),
+  discountValue: productFields.discountValue.optional().default(0),
   costPrice: productFields.costPrice.optional().default(0),
   stock: productFields.stock.optional().default(0),
   status: productFields.status.optional().default('active'),
@@ -188,15 +183,16 @@ export const categoryUpdateSchema = z
 
 export const orderUpdateSchema = z
   .object({
-    stage: z.coerce.number().int().min(0).max(6),
+    stage: z.coerce.number().int().min(0).max(7),
     paid: z.boolean(),
     paidCash: z.coerce.number().int().nonnegative(),
-    paidCard: z.coerce.number().int().nonnegative(),
     paidTransfer: z.coerce.number().int().nonnegative(),
     balancePaid: z.boolean(),
+    paidVerified: z.boolean(),
+    balancePaidVerified: z.boolean(),
   })
   .partial()
-  .refine((d) => d.stage !== undefined || d.paid !== undefined || d.paidCash !== undefined || d.paidCard !== undefined || d.paidTransfer !== undefined || d.balancePaid !== undefined, 'Nothing to update');
+  .refine((d) => Object.values(d).some((v) => v !== undefined), 'Nothing to update');
 
 // Shared by the review rejection endpoint.
 export const rejectNoteSchema = z.object({
@@ -353,7 +349,6 @@ export const posOrderSchema = z.object({
   discountNote: z.string().trim().nullish(),
   promoCode: z.string().trim().nullish(),
   paidCash: z.coerce.number().int().nonnegative().default(0),
-  paidCard: z.coerce.number().int().nonnegative().default(0),
   paidTransfer: z.coerce.number().int().nonnegative().default(0),
   notes: z.string().trim().nullish(),
 }).refine((d) => d.method !== 'Delivery' || !!d.address?.trim(), {
@@ -399,14 +394,11 @@ export const settingsUpdateSchema = z
     storeName: z.string().trim().min(1),
     tagline: z.string().trim(),
     email: z.string().trim(),
-    adminEmail: z.string().trim(),
     phone: z.string().trim(),
     address: z.string().trim(),
     bank: z.string().trim(),
     bankAccounts: z.array(z.object({ name: z.string().trim().min(1), accountNumber: z.string().trim().min(1) })).optional(),
     currency: z.string().trim().min(1),
-    pickupEnabled: z.boolean(),
-    deliveryFee: z.coerce.number().int().nonnegative(),
     heroTitle: z.string().trim(),
     heroSub: z.string().trim(),
     heroImage: z.string().trim(),

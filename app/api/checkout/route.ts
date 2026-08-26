@@ -1,16 +1,23 @@
+import { after } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/prisma';
-import { nextRef } from '@/lib/ref';
+import { createOrderWithRef } from '@/lib/ref';
 import { checkoutSchema } from '@/lib/validation';
 import { ok, fail, handleError, displayDate } from '@/lib/http';
 import { notifier } from '@/lib/notify';
 import { canSendSms } from '@/lib/notify/sms-guard';
 import { storage } from '@/lib/storage';
 import { orderConfirmationPdf } from '@/lib/pdf';
-import { evaluatePromo, computeCommission } from '@/lib/promo';
+import { evaluatePromo, computeCommission, type PromoProductInfo } from '@/lib/promo';
 import { upsertCustomerFromContact } from '@/lib/customers';
 import { rateLimitResponse } from '@/lib/rate-limit';
 import { decrementStock, InsufficientStockError } from '@/lib/inventory';
 import { RECEIPT_TTL_MS } from '@/lib/receipts';
+import { ocrSlipImage } from '@/lib/slip-ocr';
+import { autoVerifyReceiptPayment } from '@/lib/payment-verification';
+import { computeEffectivePrice } from '@/lib/utils';
+
+export const maxDuration = 60;
 
 /**
  * POST /api/checkout
@@ -30,7 +37,7 @@ export async function POST(request: Request) {
       scope: 'checkout:contact',
       limit: 10,
       windowMs: 60 * 60 * 1000,
-      identifiers: [data.email.toLowerCase(), data.mobile],
+      identifiers: [data.mobile],
     });
     if (contactLimit) return contactLimit;
 
@@ -71,12 +78,12 @@ export async function POST(request: Request) {
 
     let subtotal = 0;
     let preOrderSubtotal = 0; // portion of subtotal from pre-order lines — only 50% of this is due now
-    const lineItems: { sku: string; name: string; meta: string; price: number; img: string; size: string; color: string; qty: number; stockDecremented: boolean }[] = [];
+    const lineItems: { sku: string; name: string; meta: string; price: number; costPrice: number; discount: number; img: string; size: string; color: string; qty: number; stockDecremented: boolean }[] = [];
     for (const item of data.items) {
       const p = byId.get(item.sku);
       if (!p) return fail(`Product not found: ${item.sku}`, 400);
       if (p.status !== 'active') return fail(`${p.name} is not available`, 409);
-      const unitPrice = p.price;
+      const unitPrice = computeEffectivePrice(p.price, p.discountType, p.discountValue);
       const lineTotal = unitPrice * item.qty;
       subtotal += lineTotal;
       if (p.preOrder) preOrderSubtotal += lineTotal;
@@ -84,7 +91,9 @@ export async function POST(request: Request) {
         sku: p.id,
         name: p.name,
         meta: item.meta || p.sub,
-        price: unitPrice, // server price wins
+        price: unitPrice, // server price (after any product discount) wins
+        costPrice: p.costPrice,
+        discount: p.price - unitPrice, // per-unit product discount actually applied
         img: p.img,
         size: item.size,
         color: item.color,
@@ -92,6 +101,7 @@ export async function POST(request: Request) {
         stockDecremented: !p.preOrder,
       });
     }
+    const productDiscount = lineItems.reduce((sum, i) => sum + i.discount * i.qty, 0);
 
     const deliveryFee = data.method === 'delivery' ? deliveryArea!.rate : 0;
 
@@ -107,7 +117,13 @@ export async function POST(request: Request) {
     if (data.promoCode && data.promoCode.trim()) {
       const promo = await prisma.promoCode.findUnique({ where: { code: data.promoCode.trim().toUpperCase() } });
       if (!promo) return fail('That promo code was not found.', 400);
-      const result = evaluatePromo(promo, data.items.map((i) => ({ sku: i.sku, qty: i.qty })), byId);
+      // Promo math must run against each product's *effective* (already product-discounted)
+      // price — otherwise a promo code would discount on top of an already-reduced line.
+      const promoProductsById = new Map<string, PromoProductInfo>(products.map((p) => [p.id, {
+        price: computeEffectivePrice(p.price, p.discountType, p.discountValue),
+        collection: p.collection, category: p.category,
+      }]));
+      const result = evaluatePromo(promo, data.items.map((i) => ({ sku: i.sku, qty: i.qty })), promoProductsById);
       if (!result.ok) return fail(result.reason || 'This promo code is not valid.', 400);
       discount = result.discount;
       eligible = result.eligible;
@@ -131,8 +147,8 @@ export async function POST(request: Request) {
     const balanceDue = total - depositRequired;
 
     // Atomic: ref + order + line items + stock decrement + promo redemption.
-    const order = await prisma.$transaction(async (tx) => {
-      const ref = await nextRef('DC', tx);
+    let paymentSlipReceiptId = '';
+    const order = await createOrderWithRef(async (tx, ref) => {
       const created = await tx.order.create({
         data: {
           id: ref,
@@ -145,6 +161,7 @@ export async function POST(request: Request) {
           deliveryAreaId: deliveryArea?.id ?? null,
           discountCode: appliedCode,
           discount,
+          productDiscount,
           total,
           method: data.method === 'delivery' ? 'Delivery' : 'Pickup',
           stage: 0,
@@ -173,10 +190,29 @@ export async function POST(request: Request) {
         });
         await tx.promoCode.update({ where: { id: promoId }, data: { timesUsed: { increment: 1 } } });
       }
-      await tx.receipt.create({
+      const receipt = await tx.receipt.create({
         data: { orderId: ref, url: data.paymentSlipUrl, kind: 'payment_slip', expiresAt: new Date(Date.now() + RECEIPT_TTL_MS) },
       });
+      paymentSlipReceiptId = receipt.id;
       return created;
+    });
+    revalidateTag('catalog', { expire: 0 });
+
+    // Best-effort server-side OCR of the slip — runs after the response is sent so it never
+    // delays checkout; see lib/slip-ocr.ts. Never trusted as proof of payment.
+    after(async () => {
+      try {
+        const res = await fetch(data.paymentSlipUrl);
+        if (!res.ok) return;
+        const contentType = res.headers.get('content-type') || '';
+        const buffer = Buffer.from(await res.arrayBuffer());
+        const ocr = await ocrSlipImage(buffer, contentType);
+        if (!ocr) return;
+        await prisma.receiptOcrData.create({ data: { receiptId: paymentSlipReceiptId, ...ocr } });
+        await autoVerifyReceiptPayment(paymentSlipReceiptId, request);
+      } catch (e) {
+        console.error('slip OCR failed', e);
+      }
     });
 
     await upsertCustomerFromContact({ name: data.name, phone: data.mobile, email: data.email });
@@ -199,7 +235,7 @@ export async function POST(request: Request) {
       });
       const stored = await storage.put({ bucket: 'pdf', filename: `${order.id}.pdf`, data: pdf, contentType: 'application/pdf' });
       pdfUrl = stored.url;
-      await prisma.order.update({ where: { id: order.id }, data: { pdfUrl } });
+      await prisma.order.update({ where: { id: order.id }, data: { pdfUrl, pdfExpiresAt: new Date(Date.now() + RECEIPT_TTL_MS) } });
     } catch (e) {
       console.error('order PDF generation failed', e);
     }

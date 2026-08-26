@@ -1,3 +1,4 @@
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { sizeChartCreateSchema } from '@/lib/validation';
 import { requirePermission, audit, genId } from '@/lib/admin-guard';
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
       : await prisma.sizeChart.create({ data: { id, ...body } });
 
     await audit(session.email, 'sizechart.create', id, { name: body.name });
+    revalidateTag('catalog', { expire: 0 });
     return ok({ sizeChart: created }, 201);
   } catch (err) {
     return handleError(err);
