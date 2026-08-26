@@ -38,7 +38,7 @@ export function ProductCard({ product: p, variant = 'default', viewOptionsLabel 
         href={href}
         className="no-underline group block"
       >
-        <ProductImage img={p.img} className="block aspect-square rounded-[14px] relative overflow-hidden">
+        <ProductImage img={p.img} alt={p.name} className="block aspect-square rounded-[14px] relative overflow-hidden">
           {p.badge && (
             <span className={`absolute top-2 left-2 text-[8.5px] font-extrabold tracking-[.05em] uppercase px-[7px] py-[3px] rounded-[5px] ${BADGE_CLASS[p.badge]}`}>
               {p.badge}
@@ -73,7 +73,7 @@ export function ProductCard({ product: p, variant = 'default', viewOptionsLabel 
   return (
     <div className="group">
       <Link href={href} className="no-underline block relative">
-        <ProductImage img={p.img} className="block aspect-[4/5] rounded-[16px] relative overflow-hidden">
+        <ProductImage img={p.img} alt={p.name} className="block aspect-[4/5] rounded-[16px] relative overflow-hidden">
           {p.badge && (
             <span className={`absolute top-3 left-3 z-10 text-[10px] font-extrabold tracking-[.07em] uppercase px-[10px] py-[5px] rounded-[6px] ${BADGE_CLASS[p.badge]}`}>
               {p.badge}
