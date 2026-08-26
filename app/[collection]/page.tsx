@@ -1,9 +1,26 @@
 import React from 'react';
+import type { Metadata } from 'next';
 import { getCatalog } from '@/lib/catalog';
 import { resolveSizeChart } from '@/lib/sizeChart';
 import { CollectionPageClient } from '@/components/CollectionPageClient';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata({ params }: { params: Promise<{ collection: string }> }): Promise<Metadata> {
+  const { collection: colKey } = await params;
+  const { collections } = await getCatalog();
+  const colMeta = collections.find(c => c.key === colKey);
+  const colLabel = colMeta?.label ?? colKey;
+  return {
+    title: colLabel,
+    description: `Shop our ${colLabel.toLowerCase()} collection, delivered across the Maldives.`,
+    alternates: { canonical: `/${colKey}` },
+    openGraph: { url: `/${colKey}` },
+    // An unrecognized collection slug still renders (no 404), but it's not a
+    // real page worth a search result — keep it out of the index.
+    robots: colMeta ? undefined : { index: false, follow: false },
+  };
+}
 
 export default async function CollectionPage({ params }: { params: Promise<{ collection: string }> }) {
   const { collection: colKey } = await params;

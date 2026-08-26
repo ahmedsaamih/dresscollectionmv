@@ -1,9 +1,16 @@
-'use client';
 import React from 'react';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { Store, ShieldCheck, Tag } from 'lucide-react';
+
+export const metadata: Metadata = {
+  title: 'About Us',
+  description: 'Dress Collection is a Maldives-based womenswear boutique with no physical store — a tightly curated collection of dresses, delivered to your door.',
+  alternates: { canonical: '/about' },
+  openGraph: { url: '/about' },
+};
 
 const stats = [
   { value: '5k+',  label: 'Dresses shipped' },

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Archivo, Archivo_Narrow, Fraunces } from 'next/font/google';
 import './globals.css';
 import { CartProvider } from '@/contexts/CartContext';
+import { SITE_URL } from '@/lib/site';
 
 // `font-archivo` / `font-archivo-narrow` are used throughout the app (this
 // file's CSS variable names must match app/globals.css's --font-archivo /
@@ -31,10 +32,17 @@ const fraunces = Fraunces({
   display: 'swap',
 });
 
+const SITE_NAME = 'Dress Collection';
+const SITE_DESCRIPTION =
+  'Dress Collection is an online-only womenswear boutique. Browse new arrivals, casual dresses, occasion wear and accessories — delivered to your door across the Maldives.';
+
 export const metadata: Metadata = {
-  title: 'Dress Collection — Womenswear, Delivered',
-  description:
-    'Dress Collection is an online-only womenswear boutique. Browse new arrivals, casual dresses, occasion wear and accessories — delivered to your door across the Maldives.',
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: `${SITE_NAME} — Womenswear, Delivered`,
+    template: `%s | ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
   keywords: ['dresses', 'womenswear', 'online boutique', 'Maldives', 'occasion wear', 'delivery'],
   icons: {
     icon: [
@@ -43,6 +51,29 @@ export const metadata: Metadata = {
     ],
     apple: '/favicon-192.png',
   },
+  openGraph: {
+    type: 'website',
+    siteName: SITE_NAME,
+    title: `${SITE_NAME} — Womenswear, Delivered`,
+    description: SITE_DESCRIPTION,
+    url: '/',
+    images: [{ url: '/logo-full.png' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: `${SITE_NAME} — Womenswear, Delivered`,
+    description: SITE_DESCRIPTION,
+    images: ['/logo-full.png'],
+  },
+};
+
+const organizationJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: SITE_NAME,
+  url: SITE_URL,
+  logo: `${SITE_URL}/logo-full.png`,
+  description: SITE_DESCRIPTION,
 };
 
 export default function RootLayout({
@@ -53,6 +84,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${archivo.variable} ${archivoNarrow.variable} ${fraunces.variable}`}>
       <body className="min-h-screen bg-page text-body font-archivo antialiased">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+        />
         <CartProvider>
           {children}
         </CartProvider>

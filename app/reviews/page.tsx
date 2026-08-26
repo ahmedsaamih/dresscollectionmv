@@ -1,33 +1,32 @@
-'use client';
-import React, { useEffect, useState } from 'react';
+import React from 'react';
+import type { Metadata } from 'next';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { StarRating } from '@/components/StarRating';
+import { prisma } from '@/lib/prisma';
 
-interface PublicReview {
-  id: string;
-  rating: number | null;
-  quote: string;
-  name: string;
-  role: string;
-}
+export const dynamic = 'force-dynamic';
 
-export default function ReviewsPage() {
-  const [loading, setLoading] = useState(true);
-  const [reviews, setReviews] = useState<PublicReview[]>([]);
+export const metadata: Metadata = {
+  title: 'Customer Reviews',
+  description: 'What customers say about their orders from Dress Collection.',
+  alternates: { canonical: '/reviews' },
+  openGraph: { url: '/reviews' },
+};
 
-  useEffect(() => {
-    let active = true;
-    fetch('/api/reviews')
-      .then(async (r) => {
-        if (!active || !r.ok) return;
-        const j = await r.json();
-        setReviews(j.reviews || []);
-      })
-      .catch(() => {})
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, []);
+export default async function ReviewsPage() {
+  const rows = await prisma.review.findMany({
+    where: { status: 'approved' },
+    orderBy: { resolvedAt: 'desc' },
+    select: { id: true, rating: true, quote: true, authorName: true, authorRole: true },
+  });
+  const reviews = rows.map((r) => ({
+    id: r.id,
+    rating: r.rating,
+    quote: r.quote ?? '',
+    name: r.authorName ?? '',
+    role: r.authorRole ?? '',
+  }));
 
   return (
     <div className="min-h-screen bg-page text-body font-archivo">
@@ -38,9 +37,7 @@ export default function ReviewsPage() {
           <p className="text-[14px] text-sub mt-2">What customers say about their orders.</p>
         </div>
 
-        {loading ? (
-          <div className="text-center text-sub py-16">Loading…</div>
-        ) : reviews.length === 0 ? (
+        {reviews.length === 0 ? (
           <div className="text-center text-sub py-16">No reviews yet.</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-[18px]">

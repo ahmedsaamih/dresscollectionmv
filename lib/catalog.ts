@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { Prisma } from '@prisma/client';
 import { unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/prisma';
@@ -266,11 +267,16 @@ async function fetchCatalog(): Promise<CatalogData> {
  * the real freshness mechanism (called from every admin write that affects
  * catalog output), with a 5-minute TTL as a safety net in case a mutation
  * route is ever missed.
+ *
+ * Wrapped in React's `cache()` on top of `unstable_cache` so that a page's
+ * `generateMetadata` and its default export — which both call this — hit
+ * the DB at most once per request even when the outer Data Cache entry is
+ * cold (unstable_cache dedupes across requests, not within one).
  */
-export const getCatalog = unstable_cache(fetchCatalog, ['catalog'], {
+export const getCatalog = cache(unstable_cache(fetchCatalog, ['catalog'], {
   tags: ['catalog'],
   revalidate: 300,
-});
+}));
 
 const EMPTY_SETTINGS: StoreSetting = {
   storeName: 'Dress Collection',
