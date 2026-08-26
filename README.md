@@ -1,6 +1,6 @@
 # Dress Collection — Storefront
 
-> **Tech stack:** Next.js (App Router) · TypeScript · Tailwind CSS · Prisma (PostgreSQL) · shadcn/ui (Radix primitives) · GSAP
+> **Tech stack:** Next.js (App Router) · TypeScript · Tailwind CSS · Prisma (PostgreSQL) · GSAP
 
 Dress Collection is an online-only womenswear boutique — no physical store, delivery across the Maldives. Customers browse New Arrivals, Casual Dresses, Party & Occasion and Accessories, add to cart, and check out with guest checkout (manual bank-transfer payment). A full CMS admin panel manages catalog, inventory, orders and settings.
 
@@ -18,20 +18,6 @@ npm run dev
 ```
 
 > Requires **Node 22+**.
-
-### Google Drive artwork uploads
-
-Customer uploads (payment slips, etc.) can optionally be routed to a Google Drive folder. This uses **OAuth user delegation** (not a service account) — uploads are made as a real Google account you authorize, since service accounts have no storage quota of their own and can't write files into a personal (non-Workspace) Drive folder.
-
-1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials), create an **OAuth client ID** of type "Web application".
-2. Add an authorized redirect URI: `<APP_URL>/api/admin/settings/google-drive/oauth/callback` (e.g. `http://localhost:3000/api/admin/settings/google-drive/oauth/callback` in dev).
-3. Set these in deployment secrets:
-   ```bash
-   GOOGLE_OAUTH_CLIENT_ID="xxxx.apps.googleusercontent.com"
-   GOOGLE_OAUTH_CLIENT_SECRET="xxxx"
-   ```
-4. In Admin → Settings → Google Drive uploads, click **Connect Google Drive** and approve access with the Google account that owns the destination folder.
-5. Paste the destination folder's URL or ID and use the **Test** button to verify it's writable.
 
 ---
 
@@ -84,10 +70,10 @@ public/
 Checkout produces an **order reference** (a random 5-character code, e.g. `K7B4X`). Customers pay by bank transfer only — no payment gateway is wired, no card details are ever collected. The admin panel marks orders as paid once a transfer is verified.
 
 ### Delivery only
-Dress Collection has no physical storefront. `settings.pickupEnabled` is `false` and the checkout flow only offers delivery, priced per delivery area.
+Dress Collection has no physical storefront. The checkout flow only offers delivery, priced per delivery area (`DeliveryArea` rates, admin-managed). Pickup as a fulfillment method still exists for POS and admin-created manual orders.
 
 ### Admin panel — `/admin`
-Full CRUD for: Collections, Categories, Products, Inventory, Orders, Promo codes, Reviews, Settings. The admin panel also retains a legacy Builder/Quote back office (kept for internal flexibility) even though the customer-facing storefront no longer exposes a custom-order flow.
+Full CRUD for: Collections, Categories, Products, Inventory, Orders, Promo codes, Reviews, Settings.
 
 ---
 

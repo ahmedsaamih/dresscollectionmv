@@ -93,14 +93,11 @@ export interface StoreSetting {
   storeName: string;
   tagline: string;
   email: string;
-  adminEmail: string;
   phone: string;
   address: string;
   bank: string;
   bankAccounts: BankAccount[];
   currency: string;
-  pickupEnabled: boolean;
-  deliveryFee: number;
   heroTitle: string;
   heroSub: string;
   heroImage: string;

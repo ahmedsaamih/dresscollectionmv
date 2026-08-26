@@ -15,8 +15,6 @@ const settings = {
   address: 'Malé, Maldives',
   bank: 'BML · Dress Collection · 7730000012345',
   currency: 'MVR',
-  pickupEnabled: false,
-  deliveryFee: 75,
   heroTitle: 'Dresses, delivered to your door.',
   heroSub: 'Shop new arrivals, casual dresses and occasion wear — delivered across the Maldives. No showroom, just great dresses.',
   storefrontCopy: STOREFRONT_COPY_DEFAULTS as unknown as Prisma.InputJsonValue,

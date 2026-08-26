@@ -20,14 +20,11 @@ model Setting {
   storeName        String
   tagline          String
   email            String
-  adminEmail       String  @default("") // general admin-alert email destination; falls back to ADMIN_EMAIL env var when empty
   phone            String
   address          String
   bank             String
   bankAccounts     Json?   // [{ name: string, accountNumber: string }]
   currency         String  @default("MVR")
-  pickupEnabled    Boolean @default(true)
-  deliveryFee      Int     @default(75)
   heroTitle        String
   heroSub          String
   heroImage        String  @default("")
@@ -323,8 +320,7 @@ model Order {
   @@index([deliveryAreaId])
 }
 
-// Named delivery zones with their own rate (e.g. Male City, Hulhumale, Ferry and Boats),
-// replacing the old flat Setting.deliveryFee.
+// Named delivery zones with their own rate (e.g. Male City, Hulhumale, Ferry and Boats).
 model DeliveryArea {
   id        String   @id @default(cuid())
   name      String

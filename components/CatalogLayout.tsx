@@ -16,7 +16,7 @@ const SORT_OPTIONS = [
 ] as const;
 type SortKey = (typeof SORT_OPTIONS)[number]['k'];
 
-export interface CatalogLayoutProps {
+interface CatalogLayoutProps {
   breadcrumb: string;
   title: string;
   subtitle?: React.ReactNode;

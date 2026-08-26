@@ -142,7 +142,6 @@ export const adminApi = {
   deleteUser: (id: string) => req(`/api/admin/users/${id}`, 'DELETE'),
 
   // locations
-  listLocations: () => req<{ locations: Location[] }>('/api/admin/locations', 'GET'),
   createLocation: (body: Record<string, unknown>) => req<{ location: Location }>('/api/admin/locations', 'POST', body),
   updateLocation: (id: string, body: Record<string, unknown>) => req<{ location: Location }>(`/api/admin/locations/${id}`, 'PATCH', body),
   deleteLocation: (id: string) => req(`/api/admin/locations/${id}`, 'DELETE'),

@@ -94,7 +94,7 @@ export function synthesizePreOrderAvailability(p: Product): Product {
   };
 }
 
-export interface CatalogData {
+interface CatalogData {
   settings: StoreSetting;
   collections: StoreCollection[];
   categories: StoreCategory[];
@@ -154,14 +154,11 @@ export async function getCatalog(): Promise<CatalogData> {
         storeName: setting.storeName,
         tagline: setting.tagline,
         email: setting.email,
-        adminEmail: setting.adminEmail,
         phone: setting.phone,
         address: setting.address,
         bank: setting.bank,
         bankAccounts: (setting.bankAccounts as BankAccount[] | null) ?? [],
         currency: setting.currency,
-        pickupEnabled: setting.pickupEnabled,
-        deliveryFee: setting.deliveryFee,
         heroTitle: setting.heroTitle,
         heroSub: setting.heroSub,
         heroImage: setting.heroImage,
@@ -227,14 +224,11 @@ const EMPTY_SETTINGS: StoreSetting = {
   storeName: 'Dress Collection',
   tagline: '',
   email: '',
-  adminEmail: '',
   phone: '',
   address: '',
   bank: '',
   bankAccounts: [],
   currency: 'MVR',
-  pickupEnabled: true,
-  deliveryFee: 0,
   heroTitle: '',
   heroSub: '',
   heroImage: '',

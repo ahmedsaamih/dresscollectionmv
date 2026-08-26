@@ -3,14 +3,11 @@ import type { StoreData, Product } from './types';
 import { SEED_SIZE_CHARTS } from './sizeChart';
 import { normalizeStorefrontCopy } from './storefront-copy';
 
-const KEY = 'mm_store_v1'; // unused — see STORE_KEY below
-
 const SEED: StoreData = {
   settings: {
     storeName: 'Dress Collection',
     tagline: 'Womenswear, delivered',
     email: 'hello@dresscollectionmv.com',
-    adminEmail: '',
     phone: '+960 777 0123',
     address: 'Malé, Maldives',
     bank: 'BML · Dress Collection · 7730000012345',
@@ -19,8 +16,6 @@ const SEED: StoreData = {
       { name: 'MIB (Maldives Islamic Bank)', accountNumber: '9910000067890' },
     ],
     currency: 'MVR',
-    pickupEnabled: false,
-    deliveryFee: 75,
     heroTitle: 'Dresses, delivered to your door.',
     heroSub: 'Shop new arrivals, casual dresses and occasion wear — delivered across the Maldives. No showroom, just great dresses.',
     heroImage: '',
@@ -146,27 +141,8 @@ function writeStore(d: StoreData): StoreData {
   return d;
 }
 
-function slugify(label: string, existing: string[]): string {
-  const base = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'collection';
-  let key = base, i = 2;
-  while (existing.includes(key)) { key = base + '-' + i; i++; }
-  return key;
-}
-
-function uid(prefix = 'id'): string {
-  return prefix + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-}
-
-function format(n: number, currency = 'MVR'): string {
-  return currency + ' ' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-}
-
 export const MMStore = {
   get: readStore,
   save: writeStore,
-  reset(): StoreData { localStorage.removeItem(STORE_KEY); window.dispatchEvent(new CustomEvent('mm-store-change')); return readStore(); },
   seed(): StoreData { return structuredClone(SEED); },
-  slugify,
-  uid,
-  format,
 };

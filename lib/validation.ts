@@ -87,8 +87,6 @@ export const checkoutSchema = z
     path: ['deliveryAreaId'],
   });
 
-export type CheckoutInput = z.infer<typeof checkoutSchema>;
-
 // ─── Admin: products ─────────────────────────────────────────────────────────
 
 const badge = z.preprocess(
@@ -394,14 +392,11 @@ export const settingsUpdateSchema = z
     storeName: z.string().trim().min(1),
     tagline: z.string().trim(),
     email: z.string().trim(),
-    adminEmail: z.string().trim(),
     phone: z.string().trim(),
     address: z.string().trim(),
     bank: z.string().trim(),
     bankAccounts: z.array(z.object({ name: z.string().trim().min(1), accountNumber: z.string().trim().min(1) })).optional(),
     currency: z.string().trim().min(1),
-    pickupEnabled: z.boolean(),
-    deliveryFee: z.coerce.number().int().nonnegative(),
     heroTitle: z.string().trim(),
     heroSub: z.string().trim(),
     heroImage: z.string().trim(),

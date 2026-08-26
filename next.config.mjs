@@ -74,10 +74,10 @@ const nextConfig = {
               // blocks them outright and the app never hydrates — the whole
               // client-side app (admin menu, client-fetched content) goes
               // dead while server-rendered HTML still looks fine over curl.
-              // style-src also needs 'unsafe-inline': Radix's Dialog/Toast
-              // components pull in react-remove-scroll-bar, which injects a
-              // <style> tag at runtime to lock body scroll. Same nonce
-              // trade-off as script-src above.
+              // style-src also needs 'unsafe-inline' for the same reason —
+              // several client components apply inline style attributes at
+              // runtime (e.g. dynamic product colours), which would
+              // otherwise be blocked without per-request nonce wiring.
               "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; " +
               // Vercel Blob (*.public.blob.vercel-storage.com) is kept
               // unconditionally alongside R2 — it's still production's
@@ -86,7 +86,7 @@ const nextConfig = {
               // existing product/hero/workshop image on deploy.
               `img-src 'self' data: blob: https://*.public.blob.vercel-storage.com${r2Hostname ? ` https://${r2Hostname}` : ''}; ` +
               `connect-src 'self' blob:${r2Hostname ? ` https://${r2Hostname}` : ''}; ` +
-              `frame-src 'self' https://*.public.blob.vercel-storage.com${r2Hostname ? ` https://${r2Hostname}` : ''} https://www.openstreetmap.org; ` +
+              `frame-src 'self' https://*.public.blob.vercel-storage.com${r2Hostname ? ` https://${r2Hostname}` : ''}; ` +
               "frame-ancestors 'none'",
           },
         ],

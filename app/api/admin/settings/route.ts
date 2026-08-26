@@ -9,9 +9,8 @@ export const dynamic = 'force-dynamic';
 
 function toSettings(s: NonNullable<Awaited<ReturnType<typeof prisma.setting.findUnique>>>) {
   return {
-    storeName: s.storeName, tagline: s.tagline, email: s.email, adminEmail: s.adminEmail, phone: s.phone, address: s.address,
+    storeName: s.storeName, tagline: s.tagline, email: s.email, phone: s.phone, address: s.address,
     bank: s.bank, bankAccounts: s.bankAccounts ?? [], currency: s.currency,
-    pickupEnabled: s.pickupEnabled, deliveryFee: s.deliveryFee,
     heroTitle: s.heroTitle, heroSub: s.heroSub, heroImage: s.heroImage, heroImages: (s.heroImages as string[] | null) ?? [], workshopImage: s.workshopImage, categoryReadyImage: s.categoryReadyImage, categoryCustomImage: s.categoryCustomImage, categoryCasualImage: s.categoryCasualImage, categoryAccessoriesImage: s.categoryAccessoriesImage,
     storefrontCopy: normalizeStorefrontCopy(s.storefrontCopy),
     taxId: s.taxId, taxRate: s.taxRate, taxLabel: s.taxLabel, termsConditions: s.termsConditions,

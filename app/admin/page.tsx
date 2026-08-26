@@ -3436,10 +3436,9 @@ export default function AdminPage() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[15px] p-[22px]">
                   <div className="font-archivo-narrow font-bold text-[18px] mb-4">Store details</div>
-                  {(['storeName','tagline','email','adminEmail','phone','address'] as const).map(k => (
-                    <FieldInput key={k} label={{ storeName:'Store name', tagline:'Tagline', email:'Email', adminEmail:'Admin alert email', phone:'Phone / WhatsApp', address:'Address' }[k]} value={String(s[k])} onChange={v => setSetting(k, v)} />
+                  {(['storeName','tagline','email','phone','address'] as const).map(k => (
+                    <FieldInput key={k} label={{ storeName:'Store name', tagline:'Tagline', email:'Email', phone:'Phone / WhatsApp', address:'Address' }[k]} value={String(s[k])} onChange={v => setSetting(k, v)} />
                   ))}
-                  <div className="text-[11px] text-muted mt-[-10px]">Where "new order" alert emails are sent to staff — separate from the storefront contact email above.</div>
                 </div>
                 <div className="flex flex-col gap-4">
                   <div className="bg-surface border border-[rgba(0,0,0,.08)] rounded-[15px] p-[22px]">
@@ -3464,14 +3463,6 @@ export default function AdminPage() {
                         ))}
                         {(s.bankAccounts ?? []).length === 0 && <div className="text-[12px] text-muted py-1">No accounts added yet.</div>}
                       </div>
-                    </div>
-                    <div>
-                      <label className="text-[11.5px] font-semibold text-sub block mb-[6px]">Pickup</label>
-                      <button onClick={() => setSetting('pickupEnabled', !s.pickupEnabled)}
-                        className="w-full font-bold text-[13px] px-4 py-[10px] rounded-[9px] cursor-pointer transition-all"
-                        style={{ border: s.pickupEnabled ? 'none' : '1px solid rgba(0,0,0,.16)', background: s.pickupEnabled ? '#db5795' : 'transparent', color: s.pickupEnabled ? '#200612' : '#705260' }}>
-                        {s.pickupEnabled ? <><Check size={11} className="inline mr-1" /> Enabled</> : 'Disabled'}
-                      </button>
                     </div>
                     <div className="text-[11.5px] text-muted leading-[1.5] mt-3">Card payments are intentionally disabled — online checkout is delivery-only, bank transfer.</div>
                   </div>
