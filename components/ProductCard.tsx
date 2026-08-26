@@ -1,9 +1,8 @@
-'use client';
 import React from 'react';
 import Link from 'next/link';
 import { ProductImage } from '@/components/ProductImage';
-import { useStore } from '@/contexts/StoreContext';
 import { productColorHex } from '@/lib/utils';
+import { STOREFRONT_COPY_DEFAULTS } from '@/lib/storefront-copy';
 import type { Product } from '@/lib/types';
 
 const BADGE_CLASS: Record<NonNullable<Product['badge']>, string> = {
@@ -25,12 +24,11 @@ function discountLabel(p: Product): string | null {
  * identical across the whole storefront. `compact` is a smaller, CTA-less
  * variant for the homepage accessories strip.
  */
-export function ProductCard({ product: p, variant = 'default' }: {
+export function ProductCard({ product: p, variant = 'default', viewOptionsLabel = STOREFRONT_COPY_DEFAULTS.productCatalog.viewOptionsLabel }: {
   product: Product;
   variant?: 'default' | 'compact';
+  viewOptionsLabel?: string;
 }) {
-  const { data } = useStore();
-  const copy = data.settings.storefrontCopy.productCatalog;
   const soldOut = p.status === 'soldout' || p.stock === 0;
   const href = `/product/${p.id}`;
 
@@ -102,7 +100,7 @@ export function ProductCard({ product: p, variant = 'default' }: {
               from the reference boutiques; honest about what it does (goes
               to the product page, since size/colour must be chosen there). */}
           <div className={`absolute inset-x-0 bottom-0 py-[9px] text-center text-[10.5px] font-bold tracking-[.08em] uppercase transition-opacity ${soldOut ? 'bg-[rgba(0,0,0,.45)] text-white/70' : 'bg-[rgba(20,7,13,.82)] text-white group-hover:bg-[#200612]'}`}>
-            {soldOut ? 'Notify me' : copy.viewOptionsLabel}
+            {soldOut ? 'Notify me' : viewOptionsLabel}
           </div>
         </ProductImage>
       </Link>

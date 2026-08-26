@@ -4,17 +4,30 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCart } from '@/contexts/CartContext';
-import { useStore } from '@/contexts/StoreContext';
 import { Search, ShoppingCart, Menu, X } from 'lucide-react';
+import { STOREFRONT_COPY_DEFAULTS } from '@/lib/storefront-copy';
+import type { StorefrontCopy, StoreCollection } from '@/lib/types';
+
+// Fallback nav for the handful of static pages (about, contact, terms, privacy,
+// FAQ, reviews, search) not yet converted to server-fetched props — matches
+// the real catalog's collections, which change rarely.
+const DEFAULT_COLLECTIONS: StoreCollection[] = [
+  { id: 'cl-ready', key: 'ready', label: 'New Arrivals', sizeChartId: null },
+  { id: 'cl-casual', key: 'casual', label: 'Casual Dresses', sizeChartId: null },
+  { id: 'cl-occasion', key: 'occasion', label: 'Party & Occasion', sizeChartId: null },
+  { id: 'cl-accessories', key: 'accessories', label: 'Accessories', sizeChartId: null },
+];
 
 interface HeaderProps {
   active?: string;
+  tagline?: string;
+  collections?: StoreCollection[];
+  navCopy?: StorefrontCopy['homepageNavigation'];
 }
 
-export function Header({ active = '' }: HeaderProps) {
+export function Header({ active = '', tagline = '', collections = DEFAULT_COLLECTIONS, navCopy = STOREFRONT_COPY_DEFAULTS.homepageNavigation }: HeaderProps) {
   const { counts } = useCart();
-  const { data } = useStore();
-  const copy = data.settings.storefrontCopy.homepageNavigation;
+  const copy = navCopy;
   const router = useRouter();
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
@@ -61,7 +74,7 @@ export function Header({ active = '' }: HeaderProps) {
   };
 
   const navLinks = [
-    ...data.collections.map((cl) => ({
+    ...collections.map((cl) => ({
       key: cl.key,
       label: cl.label,
       href: cl.key === 'ready' ? '/ready-made' : cl.key === 'casual' ? '/casual-wear' : cl.key === 'accessories' ? '/accessories' : `/${cl.key}`,
@@ -100,10 +113,10 @@ export function Header({ active = '' }: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 font-archivo" aria-busy={navigating}>
       {/* Announcement strip */}
-      {data.settings.tagline && (
+      {tagline && (
         <div className="bg-[#200612] text-center py-[7px] px-3">
           <span className="text-[10.5px] font-bold tracking-[.16em] uppercase text-[#ffe9f3]">
-            {data.settings.tagline}
+            {tagline}
           </span>
         </div>
       )}
@@ -127,7 +140,7 @@ export function Header({ active = '' }: HeaderProps) {
 
         {/* Nav (desktop) */}
         <nav className="hidden lg:flex items-center gap-1 ml-2" aria-label="Primary navigation">
-          {data.collections.map((cl) => {
+          {collections.map((cl) => {
             const href = cl.key === 'ready' ? '/ready-made' : cl.key === 'casual' ? '/casual-wear' : cl.key === 'accessories' ? '/accessories' : `/${cl.key}`;
             const on = active === cl.key;
             return (
