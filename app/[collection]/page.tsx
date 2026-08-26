@@ -1,39 +1,34 @@
-'use client';
 import React from 'react';
-import { useParams } from 'next/navigation';
-import { Header } from '@/components/Header';
-import { Footer } from '@/components/Footer';
-import { CatalogLayout } from '@/components/CatalogLayout';
-import { ProductCard } from '@/components/ProductCard';
-import { useStore } from '@/contexts/StoreContext';
-import { useReveal } from '@/lib/useReveal';
+import { getCatalog } from '@/lib/catalog';
 import { resolveSizeChart } from '@/lib/sizeChart';
+import { CollectionPageClient } from '@/components/CollectionPageClient';
 
-export default function CollectionPage() {
-  const { collection: colKey } = useParams<{ collection: string }>();
-  const { data, loading } = useStore();
-  useReveal();
+export const dynamic = 'force-dynamic';
 
-  const colMeta = data.collections.find(c => c.key === colKey);
-  const products = data.products.filter(p => p.collection === colKey);
-  const chart = resolveSizeChart(data.sizeCharts, colMeta?.sizeChartId);
+export default async function CollectionPage({ params }: { params: Promise<{ collection: string }> }) {
+  const { collection: colKey } = await params;
+  const { settings, collections, products, sizeCharts } = await getCatalog();
+
+  const colMeta = collections.find(c => c.key === colKey);
+  const filtered = products.filter(p => p.collection === colKey);
+  const chart = resolveSizeChart(sizeCharts, colMeta?.sizeChartId);
   const colLabel = colMeta?.label ?? colKey;
 
   return (
-    <div className="min-h-screen bg-page text-body font-archivo">
-      <Header active={colKey} />
-      <CatalogLayout
-        breadcrumb={colLabel}
-        title={colLabel}
-        subtitle={`Shop our ${colLabel.toLowerCase()} collection.`}
-        categoryLabel="Type"
-        products={products}
-        loading={loading}
-        renderCard={(p) => <ProductCard product={p} />}
-        noun="items"
-        sizeChart={chart}
-      />
-      <Footer />
-    </div>
+    <CollectionPageClient
+      active={colKey}
+      tagline={settings.tagline}
+      collections={collections}
+      navCopy={settings.storefrontCopy.homepageNavigation}
+      paymentCopy={settings.storefrontCopy.paymentCheckout}
+      catalogCopy={settings.storefrontCopy.productCatalog}
+      breadcrumb={colLabel}
+      title={colLabel}
+      subtitle={`Shop our ${colLabel.toLowerCase()} collection.`}
+      categoryLabel="Type"
+      products={filtered}
+      noun="items"
+      sizeChart={chart}
+    />
   );
 }
