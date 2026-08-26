@@ -1,10 +1,22 @@
 import React from 'react';
+import type { Metadata } from 'next';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { getCatalog } from '@/lib/catalog';
 import { Home, Truck } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { settings } = await getCatalog();
+  const description = settings.storefrontCopy.shippingPickup.shippingPageIntro || undefined;
+  return {
+    title: 'Shipping & Delivery',
+    description,
+    alternates: { canonical: '/shipping' },
+    openGraph: { url: '/shipping', description },
+  };
+}
 
 export default async function ShippingPage() {
   const { settings, collections } = await getCatalog();

@@ -1,9 +1,17 @@
 import React from 'react';
+import type { Metadata } from 'next';
 import { getCatalog } from '@/lib/catalog';
 import { resolveSizeChart } from '@/lib/sizeChart';
 import { CollectionPageClient } from '@/components/CollectionPageClient';
 
 export const dynamic = 'force-dynamic';
+
+export const metadata: Metadata = {
+  title: 'New Arrivals',
+  description: 'Fresh styles, ready to ship. Shop new arrival dresses, delivered across the Maldives.',
+  alternates: { canonical: '/ready-made' },
+  openGraph: { url: '/ready-made' },
+};
 
 export default async function ReadyMadePage() {
   const { settings, collections, products, sizeCharts } = await getCatalog();

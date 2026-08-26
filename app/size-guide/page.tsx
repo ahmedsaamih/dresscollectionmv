@@ -1,10 +1,18 @@
 import React from 'react';
+import type { Metadata } from 'next';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { getCatalog } from '@/lib/catalog';
 import { SizeGuideClient } from './SizeGuideClient';
 
 export const dynamic = 'force-dynamic';
+
+export const metadata: Metadata = {
+  title: 'Size Guide',
+  description: 'Find your fit with our size charts — measurements in centimetres for every collection.',
+  alternates: { canonical: '/size-guide' },
+  openGraph: { url: '/size-guide' },
+};
 
 export default async function SizeGuidePage() {
   const { settings, collections, sizeCharts } = await getCatalog();

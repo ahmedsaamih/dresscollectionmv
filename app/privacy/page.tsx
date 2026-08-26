@@ -1,7 +1,14 @@
-'use client';
 import React from 'react';
+import type { Metadata } from 'next';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
+
+export const metadata: Metadata = {
+  title: 'Privacy Policy',
+  description: 'How Dress Collection collects, uses, and protects your personal information.',
+  alternates: { canonical: '/privacy' },
+  openGraph: { url: '/privacy' },
+};
 
 const SECTIONS = [
   { n: 1, title: 'What we collect', body: 'When you place an order or contact us, we collect your name, email, mobile number, delivery address (if applicable) and any notes you provide. We do not collect card or bank login details.' },

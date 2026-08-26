@@ -1,7 +1,14 @@
-'use client';
 import React from 'react';
+import type { Metadata } from 'next';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
+
+export const metadata: Metadata = {
+  title: 'Terms of Service',
+  description: 'The terms of service for ordering from Dress Collection — pricing, payment, made-to-order goods, shipping and liability.',
+  alternates: { canonical: '/terms' },
+  openGraph: { url: '/terms' },
+};
 
 const SECTIONS = [
   { n: 1, title: 'Orders & acceptance', body: 'Placing an order does not form a binding contract until we confirm it. We reserve the right to decline or cancel an order, in which case any payment received is refunded in full.' },
