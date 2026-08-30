@@ -131,19 +131,18 @@ export function HeroCarousel({ images }: { images: string[] }) {
     };
   }, [n]);
 
+  // No decorative chrome (badges, sheens, sweeps) — a bare photo is the
+  // whole point of the editorial-photography-led look this matches.
   if (images.length === 0) {
     return (
-      <div className="relative isolate h-full rounded-[18px] overflow-hidden border border-[rgba(163,113,62,.2)]" style={{ background: 'linear-gradient(150deg,#f8f3ea,#f2e6d3)' }}>
-        <StreakAndBadge />
-      </div>
+      <div className="relative isolate h-full rounded-[10px] overflow-hidden" style={{ background: 'linear-gradient(150deg,#f8f3ea,#f2e6d3)' }} />
     );
   }
 
   if (images.length === 1) {
     return (
-      <div className="relative isolate h-full rounded-[18px] overflow-hidden border border-[rgba(163,113,62,.2)]">
+      <div className="relative isolate h-full rounded-[10px] overflow-hidden">
         <Image src={images[0]} alt="" fill sizes="(max-width: 1024px) 100vw, 50vw" style={{ objectFit: 'cover' }} priority />
-        <StreakAndBadge />
       </div>
     );
   }
@@ -155,7 +154,7 @@ export function HeroCarousel({ images }: { images: string[] }) {
     // context that opacity<1 creates), the active slide's positive z-index
     // leaks out and paints over the parent's fade overlay, which sits right
     // next to this in the DOM with no z-index of its own.
-    <div className="relative isolate h-full rounded-[18px] overflow-hidden border border-[rgba(163,113,62,.2)]">
+    <div className="relative isolate h-full rounded-[10px] overflow-hidden">
       {images.map((src, i) => {
         const isActive = i === active;
         return (
@@ -165,38 +164,9 @@ export function HeroCarousel({ images }: { images: string[] }) {
             style={{ opacity: isActive ? 1 : 0, zIndex: isActive ? 1 : 0 }}
           >
             <Image src={src} alt="" fill sizes="(max-width: 1024px) 100vw, 50vw" style={{ objectFit: 'cover' }} priority={i === 0} />
-            {/* glass sheen */}
-            <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(135deg,rgba(255,255,255,.18),rgba(255,255,255,0) 42%,rgba(255,255,255,.05) 100%)' }} />
-            {isActive && (
-              <>
-                <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                  <div className="absolute inset-0 animate-streak bg-[linear-gradient(100deg,transparent,rgba(163,113,62,.08),transparent)]" />
-                </div>
-                <FeaturedBadge />
-              </>
-            )}
           </div>
         );
       })}
     </div>
-  );
-}
-
-function StreakAndBadge() {
-  return (
-    <>
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute inset-0 animate-streak bg-[linear-gradient(100deg,transparent,rgba(163,113,62,.08),transparent)]" />
-      </div>
-      <FeaturedBadge />
-    </>
-  );
-}
-
-function FeaturedBadge() {
-  return (
-    <span className="absolute top-5 right-5 text-[10.5px] font-bold tracking-[.14em] uppercase text-onPrimary bg-page/90 px-3 py-[7px] rounded-full">
-      Featured
-    </span>
   );
 }

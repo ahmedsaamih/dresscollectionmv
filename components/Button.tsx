@@ -35,9 +35,9 @@ const BASE =
 
 const VARIANTS: Record<ButtonVariant, string> = {
   primary:
-    'border-none bg-rose-500 text-onPrimary font-bold shadow-rose-lg ' +
+    'border-none bg-rose-500 text-onPrimary font-bold ' +
     'hover:brightness-105 ' +
-    'disabled:shadow-none disabled:hover:brightness-100 disabled:bg-rose-500/40',
+    'disabled:hover:brightness-100 disabled:bg-rose-500/40',
   secondary:
     'border border-rose-500/40 bg-transparent text-rose-700 font-bold ' +
     'hover:bg-rose-500/[.08] ' +

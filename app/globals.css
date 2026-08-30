@@ -102,10 +102,6 @@
   }
   /* Tabular numerics for prices */
   .tabular { font-variant-numeric: tabular-nums; }
-  /* Skewed accent bar */
-  .skew-accent {
-    transform: skewX(-24deg);
-  }
   body.size-chart-open .product-sticky-cta {
     display: none;
   }
