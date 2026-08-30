@@ -17,12 +17,12 @@ function discountLabel(p: Product): string | null {
 }
 
 /**
- * Shared editorial product tile — portrait image bleeding to the card edges
- * (no border), a persistent bottom CTA bar over the image, and minimal type
- * below. Used everywhere a product grid renders (homepage, ready-made,
- * casual-wear, [collection], accessories, search) so the look stays
- * identical across the whole storefront. `compact` is a smaller, CTA-less
- * variant for the homepage accessories strip.
+ * Shared editorial product tile — bare portrait photo at rest (a hover-only
+ * bottom CTA bar appears on interaction), minimal type below. Used
+ * everywhere a product grid renders (homepage, ready-made, casual-wear,
+ * [collection], accessories, search) so the look stays identical across the
+ * whole storefront. `compact` is a smaller, CTA-less variant for the
+ * homepage accessories strip.
  */
 export function ProductCard({ product: p, variant = 'default', viewOptionsLabel = STOREFRONT_COPY_DEFAULTS.productCatalog.viewOptionsLabel }: {
   product: Product;
@@ -38,7 +38,7 @@ export function ProductCard({ product: p, variant = 'default', viewOptionsLabel 
         href={href}
         className="no-underline group block"
       >
-        <ProductImage img={p.img} alt={p.name} className="block aspect-square rounded-[14px] relative overflow-hidden">
+        <ProductImage img={p.img} alt={p.name} className="block aspect-square rounded-[6px] relative overflow-hidden">
           {p.badge && (
             <span className={`absolute top-2 left-2 text-[8.5px] font-extrabold tracking-[.05em] uppercase px-[7px] py-[3px] rounded-[5px] ${BADGE_CLASS[p.badge]}`}>
               {p.badge}
@@ -73,7 +73,7 @@ export function ProductCard({ product: p, variant = 'default', viewOptionsLabel 
   return (
     <div className="group">
       <Link href={href} className="no-underline block relative">
-        <ProductImage img={p.img} alt={p.name} className="block aspect-[4/5] rounded-[16px] relative overflow-hidden">
+        <ProductImage img={p.img} alt={p.name} className="block aspect-[4/5] rounded-[6px] relative overflow-hidden">
           {p.badge && (
             <span className={`absolute top-3 left-3 z-10 text-[10px] font-extrabold tracking-[.07em] uppercase px-[10px] py-[5px] rounded-[6px] ${BADGE_CLASS[p.badge]}`}>
               {p.badge}
@@ -96,10 +96,12 @@ export function ProductCard({ product: p, variant = 'default', viewOptionsLabel 
               <span className="text-[11px] font-extrabold tracking-[.1em] uppercase text-rose-50 border border-[rgba(255,255,255,.3)] px-3 py-1.5 rounded-[8px]">Sold out</span>
             </div>
           )}
-          {/* Persistent bottom CTA bar — matches the "quick add" band pattern
-              from the reference boutiques; honest about what it does (goes
-              to the product page, since size/colour must be chosen there). */}
-          <div className={`absolute inset-x-0 bottom-0 py-[9px] text-center text-[10.5px] font-bold tracking-[.08em] uppercase transition-opacity ${soldOut ? 'bg-[rgba(36,26,16,.45)] text-white/70' : 'bg-[rgba(253,251,246,.88)] text-body group-hover:bg-page'}`}>
+          {/* Hover-only bottom CTA bar — the card is a bare photo at rest
+              (matching the reference boutique's minimal product tiles); the
+              "quick add" hint only appears on hover/tap-and-hold, not
+              persistently, since sold-out status is already communicated by
+              the centered overlay above. */}
+          <div className={`absolute inset-x-0 bottom-0 py-[9px] text-center text-[10.5px] font-bold tracking-[.08em] uppercase opacity-0 group-hover:opacity-100 transition-opacity duration-200 ${soldOut ? 'bg-[rgba(36,26,16,.55)] text-white/85' : 'bg-page/92 text-body'}`}>
             {soldOut ? 'Notify me' : viewOptionsLabel}
           </div>
         </ProductImage>
