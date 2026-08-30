@@ -6,9 +6,9 @@ import { STOREFRONT_COPY_DEFAULTS } from '@/lib/storefront-copy';
 import type { Product } from '@/lib/types';
 
 const BADGE_CLASS: Record<NonNullable<Product['badge']>, string> = {
-  New: 'bg-rose-500 text-[#200612]',
+  New: 'bg-rose-500 text-onPrimary',
   Sale: 'bg-[#ff3d4d] text-white',
-  'Pre-order': 'bg-[#c9a227] text-[#200612]',
+  'Pre-order': 'bg-[#c9a227] text-[#241608]',
 };
 
 function discountLabel(p: Product): string | null {
@@ -46,7 +46,7 @@ export function ProductCard({ product: p, variant = 'default', viewOptionsLabel 
           )}
           <div className="absolute top-2 right-2 z-10 flex flex-col gap-1 items-end">
             {p.preOrder && p.badge !== 'Pre-order' && (
-              <span className="text-[8.5px] font-extrabold tracking-[.05em] uppercase px-[7px] py-[3px] rounded-[5px] bg-[rgba(219,87,149,.92)] text-white">
+              <span className="text-[8.5px] font-extrabold tracking-[.05em] uppercase px-[7px] py-[3px] rounded-[5px] bg-[rgba(163,113,62,.92)] text-white">
                 Pre-order
               </span>
             )}
@@ -58,7 +58,7 @@ export function ProductCard({ product: p, variant = 'default', viewOptionsLabel 
           </div>
         </ProductImage>
         <div className="pt-[10px]">
-          <div className="text-[12.5px] font-semibold text-[#705260] whitespace-nowrap overflow-hidden text-ellipsis group-hover:text-rose-700 transition-colors">{p.name}</div>
+          <div className="text-[12.5px] font-semibold text-sub whitespace-nowrap overflow-hidden text-ellipsis group-hover:text-rose-700 transition-colors">{p.name}</div>
           <div className="flex items-baseline gap-[6px] mt-[3px]">
             <div className="text-[12px] font-extrabold text-rose-700 tabular">MVR {p.effectivePrice}</div>
             {(p.discountType ? p.price : p.was) && (
@@ -81,7 +81,7 @@ export function ProductCard({ product: p, variant = 'default', viewOptionsLabel 
           )}
           <div className="absolute top-3 right-3 z-10 flex flex-col gap-[6px] items-end">
             {p.preOrder && p.badge !== 'Pre-order' && (
-              <span className="text-[10px] font-extrabold tracking-[.07em] uppercase px-[10px] py-[5px] rounded-[6px] bg-[rgba(219,87,149,.92)] text-white">
+              <span className="text-[10px] font-extrabold tracking-[.07em] uppercase px-[10px] py-[5px] rounded-[6px] bg-[rgba(163,113,62,.92)] text-white">
                 Pre-order
               </span>
             )}
@@ -92,14 +92,14 @@ export function ProductCard({ product: p, variant = 'default', viewOptionsLabel 
             )}
           </div>
           {soldOut && (
-            <div className="absolute inset-0 bg-[rgba(8,8,8,.5)] flex items-center justify-center z-10">
-              <span className="text-[11px] font-extrabold tracking-[.1em] uppercase text-[#ffe9f3] border border-[rgba(255,255,255,.3)] px-3 py-1.5 rounded-[8px]">Sold out</span>
+            <div className="absolute inset-0 bg-[rgba(36,26,16,.5)] flex items-center justify-center z-10">
+              <span className="text-[11px] font-extrabold tracking-[.1em] uppercase text-rose-50 border border-[rgba(255,255,255,.3)] px-3 py-1.5 rounded-[8px]">Sold out</span>
             </div>
           )}
           {/* Persistent bottom CTA bar — matches the "quick add" band pattern
               from the reference boutiques; honest about what it does (goes
               to the product page, since size/colour must be chosen there). */}
-          <div className={`absolute inset-x-0 bottom-0 py-[9px] text-center text-[10.5px] font-bold tracking-[.08em] uppercase transition-opacity ${soldOut ? 'bg-[rgba(0,0,0,.45)] text-white/70' : 'bg-[rgba(20,7,13,.82)] text-white group-hover:bg-[#200612]'}`}>
+          <div className={`absolute inset-x-0 bottom-0 py-[9px] text-center text-[10.5px] font-bold tracking-[.08em] uppercase transition-opacity ${soldOut ? 'bg-[rgba(36,26,16,.45)] text-white/70' : 'bg-[rgba(253,251,246,.88)] text-body group-hover:bg-page'}`}>
             {soldOut ? 'Notify me' : viewOptionsLabel}
           </div>
         </ProductImage>
@@ -115,7 +115,7 @@ export function ProductCard({ product: p, variant = 'default', viewOptionsLabel 
           {p.colors.length > 0 && (
             <div className="flex gap-[5px]">
               {p.colors.slice(0, 5).map(c => (
-                <span key={c} title={c} className="w-[11px] h-[11px] rounded-full border border-[rgba(0,0,0,.14)]" style={{ background: productColorHex(p.colorHex, c) }} />
+                <span key={c} title={c} className="w-[11px] h-[11px] rounded-full border border-[rgba(43,28,18,.16)]" style={{ background: productColorHex(p.colorHex, c) }} />
               ))}
             </div>
           )}
