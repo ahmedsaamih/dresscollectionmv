@@ -133,6 +133,12 @@ export const STOREFRONT_COPY_DEFAULTS: StorefrontCopy = {
     statusNoMatchTitle: 'No match for that reference',
     statusNoMatchBody: 'Double-check the reference from your confirmation. Still stuck? Contact us.',
   },
+  trustBadges: {
+    badgeOneLabel: 'Delivery Available', badgeOneSub: 'Across the Maldives',
+    badgeTwoLabel: 'Free Delivery', badgeTwoSub: 'On qualifying orders',
+    badgeThreeLabel: 'Bank Transfer', badgeThreeSub: 'Verified before dispatch',
+    badgeFourLabel: 'Premium Quality', badgeFourSub: 'Carefully selected fabrics',
+  },
 };
 
 export const STOREFRONT_COPY_LIMITS: { [S in CopySection]: Record<CopyKey<S>, number> } = {
@@ -179,6 +185,12 @@ export const STOREFRONT_COPY_LIMITS: { [S in CopySection]: Record<CopyKey<S>, nu
     upsellTitle: 48, upsellBody: 120, upsellSkip: 36,
     statusEyebrow: 36, statusTitle: 56, statusIntro: 160, statusNoMatchTitle: 56, statusNoMatchBody: 160,
   },
+  trustBadges: {
+    badgeOneLabel: 32, badgeOneSub: 40,
+    badgeTwoLabel: 32, badgeTwoSub: 40,
+    badgeThreeLabel: 32, badgeThreeSub: 40,
+    badgeFourLabel: 32, badgeFourSub: 40,
+  },
 };
 
 export function normalizeStorefrontCopy(input: unknown): StorefrontCopy {
@@ -211,6 +223,7 @@ export const STOREFRONT_COPY_GROUPS: {
     shippingPickup: 'Shipping & Pickup',
     productCatalog: 'Product & Catalog',
     cartQuoteStatus: 'Cart & Status',
+    trustBadges: 'Homepage Trust Badges',
   })[section],
   description: ({
     homepageNavigation: 'Hero, homepage cards, navigation labels, footer and support phrases.',
@@ -218,6 +231,7 @@ export const STOREFRONT_COPY_GROUPS: {
     shippingPickup: 'Shipping promises, pickup address and delivery helper text.',
     productCatalog: 'Catalog actions, product fallback accordions, trust strip and size-guide copy.',
     cartQuoteStatus: 'Cart empty states, upsell modal and status page headings.',
+    trustBadges: 'The four icon+label badges shown below the homepage hero.',
   })[section],
   fields: (Object.keys(STOREFRONT_COPY_DEFAULTS[section]) as string[]).map((key) => ({
     key,

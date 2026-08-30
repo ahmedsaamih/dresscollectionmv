@@ -87,6 +87,12 @@ export interface StorefrontCopy {
     upsellTitle: string; upsellBody: string; upsellSkip: string;
     statusEyebrow: string; statusTitle: string; statusIntro: string; statusNoMatchTitle: string; statusNoMatchBody: string;
   };
+  trustBadges: {
+    badgeOneLabel: string; badgeOneSub: string;
+    badgeTwoLabel: string; badgeTwoSub: string;
+    badgeThreeLabel: string; badgeThreeSub: string;
+    badgeFourLabel: string; badgeFourSub: string;
+  };
 }
 
 export interface StoreSetting {

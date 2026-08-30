@@ -2,6 +2,7 @@ import {
   LayoutDashboard, Boxes, Layers, ShoppingCart,
   Tag, Ruler, Settings, Store, Users, Package, Shirt,
   Home, Truck, DollarSign, ArrowLeftRight, Sparkles,
+  Banknote, Award,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -37,3 +38,6 @@ export const PAYMENT_METHOD_ICONS: Record<'Cash' | 'Transfer', LucideIcon> = {
   Cash: DollarSign,
   Transfer: ArrowLeftRight,
 };
+
+/** Homepage trust-badge strip (below the hero). */
+export const TRUST_BADGE_ICONS: LucideIcon[] = [Truck, Package, Banknote, Award];
