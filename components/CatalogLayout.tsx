@@ -132,9 +132,9 @@ export function CatalogLayout({
       </div>
 
       {/* Header */}
-      <div className="flex items-end justify-between flex-wrap gap-[14px] mb-[26px]">
+      <div className="flex items-end justify-between flex-wrap gap-[14px] mb-[32px]">
         <div>
-          <h1 data-reveal className="font-archivo-narrow font-bold text-[32px] sm:text-[42px] tracking-[.01em]">{title}</h1>
+          <h1 data-reveal className="font-playfair font-semibold text-[34px] sm:text-[44px] tracking-[.01em]">{title}</h1>
           {subtitle && <p className="text-[14px] text-sub mt-2 max-w-[620px]">{subtitle}</p>}
         </div>
         <div className="flex items-center gap-[14px] flex-wrap">
@@ -143,7 +143,7 @@ export function CatalogLayout({
             <div className="flex gap-[6px]">
               {SORT_OPTIONS.map(s => (
                 <button key={s.k} onClick={() => setSort(s.k)}
-                  className={`border font-semibold text-[11.5px] uppercase tracking-[.03em] px-[14px] py-[7px] rounded-full cursor-pointer transition-all ${sort === s.k ? 'bg-rose-500 border-rose-500 text-[#200612]' : 'bg-transparent border-[rgba(0,0,0,.12)] text-sub hover:border-[rgba(219,87,149,.4)]'}`}>
+                  className={`border font-semibold text-[11.5px] uppercase tracking-[.03em] px-[14px] py-[7px] rounded-full cursor-pointer transition-all ${sort === s.k ? 'bg-rose-500 border-rose-500 text-onPrimary' : 'bg-transparent border-[rgba(43,28,18,.12)] text-sub hover:border-[rgba(163,113,62,.4)]'}`}>
                   {s.label}
                 </button>
               ))}
@@ -171,11 +171,11 @@ export function CatalogLayout({
                   const on = cats.includes(cat);
                   const count = products.filter(p => p.category === cat).length;
                   return (
-                    <label key={cat} onClick={() => toggle(cat, cats, setCats)} className="flex items-center gap-[10px] cursor-pointer text-[13px]" style={{ color: on ? '#150d11' : '#705260' }}>
-                      <span className="w-[17px] h-[17px] rounded-[5px] flex-none flex items-center justify-center"
-                        style={{ border: on ? 'none' : '2px solid rgba(0,0,0,.18)', background: on ? '#db5795' : 'transparent', color: '#200612' }}>{on && <Check size={11} strokeWidth={3} />}</span>
+                    <label key={cat} onClick={() => toggle(cat, cats, setCats)} className="flex items-center gap-[10px] cursor-pointer text-[13px]" style={{ color: on ? '#241a10' : '#5c4c3c' }}>
+                      <span className="w-[17px] h-[17px] rounded-[4px] flex-none flex items-center justify-center"
+                        style={{ border: on ? 'none' : '2px solid rgba(43,28,18,.18)', background: on ? '#a3713e' : 'transparent', color: '#241608' }}>{on && <Check size={11} strokeWidth={3} />}</span>
                       <span className="flex-1">{cat}</span>
-                      <span className="text-[11px] text-[#b29fa8] tabular">{count}</span>
+                      <span className="text-[11px] text-muted tabular">{count}</span>
                     </label>
                   );
                 })}
@@ -185,7 +185,7 @@ export function CatalogLayout({
 
           {showColour && (
             <>
-              <div className="h-px bg-[rgba(0,0,0,.07)] my-[20px]" />
+              <div className="h-px bg-[rgba(43,28,18,.07)] my-[20px]" />
               <div>
                 <div className="text-[11px] font-bold tracking-[.14em] uppercase text-muted mb-[11px]">Colour</div>
                 <div className="flex flex-wrap gap-[9px]">
@@ -194,7 +194,7 @@ export function CatalogLayout({
                     return (
                       <span key={c} onClick={() => toggle(c, colors, setColors)} title={c}
                         className="w-7 h-7 rounded-full cursor-pointer transition-all"
-                        style={{ background: colorHex(c), boxShadow: on ? '0 0 0 2px #fdfbf7,0 0 0 4px #db5795' : '0 0 0 1px rgba(0,0,0,.14)' }} />
+                        style={{ background: colorHex(c), boxShadow: on ? '0 0 0 2px #fdfbf6,0 0 0 4px #a3713e' : '0 0 0 1px rgba(43,28,18,.16)' }} />
                     );
                   })}
                 </div>
@@ -204,7 +204,7 @@ export function CatalogLayout({
 
           {showSize && (
             <>
-              <div className="h-px bg-[rgba(0,0,0,.07)] my-[20px]" />
+              <div className="h-px bg-[rgba(43,28,18,.07)] my-[20px]" />
               <div>
                 <div className="flex items-center justify-between mb-[11px]">
                   <div className="text-[11px] font-bold tracking-[.14em] uppercase text-muted">Size</div>
@@ -216,7 +216,7 @@ export function CatalogLayout({
                     return (
                       <button key={s} onClick={() => toggle(s, sizes, setSizes)}
                         className="font-bold text-[12px] min-w-[38px] px-[8px] h-[34px] rounded-full cursor-pointer transition-all"
-                        style={{ border: on ? 'none' : '1px solid rgba(0,0,0,.14)', background: on ? '#db5795' : 'transparent', color: on ? '#200612' : '#705260' }}>{s}</button>
+                        style={{ border: on ? 'none' : '1px solid rgba(43,28,18,.14)', background: on ? '#a3713e' : 'transparent', color: on ? '#241608' : '#5c4c3c' }}>{s}</button>
                     );
                   })}
                 </div>
@@ -226,7 +226,7 @@ export function CatalogLayout({
 
           {showPrice && (
             <>
-              <div className="h-px bg-[rgba(0,0,0,.07)] my-[20px]" />
+              <div className="h-px bg-[rgba(43,28,18,.07)] my-[20px]" />
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-[11px] font-bold tracking-[.14em] uppercase text-muted">Max price</span>
@@ -235,7 +235,7 @@ export function CatalogLayout({
                 <input type="range" min={facets.priceMin} max={facets.priceCeil} step={10} value={effMax}
                   onChange={e => { setPriceMax(+e.target.value); setLimit(pageSize); }}
                   className="w-full cursor-pointer accent-rose-500" />
-                <div className="flex justify-between text-[10.5px] text-[#b29fa8] mt-1.5"><span>{facets.priceMin}</span><span>{facets.priceCeil}</span></div>
+                <div className="flex justify-between text-[10.5px] text-muted mt-1.5"><span>{facets.priceMin}</span><span>{facets.priceCeil}</span></div>
               </div>
             </>
           )}
@@ -248,7 +248,7 @@ export function CatalogLayout({
             <ProductGridSkeleton count={9} cols={3} />
           ) : filtered.length > 0 ? (
             <>
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-[18px] gap-y-[34px]">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-[22px] gap-y-[40px]">
                 {(() => {
                   let newIndex = 0;
                   return visible.map(p => {
@@ -277,10 +277,10 @@ export function CatalogLayout({
               )}
             </>
           ) : (
-            <div className="border border-dashed border-[rgba(0,0,0,.14)] rounded-2xl p-16 text-center">
-              <div className="w-14 h-14 rounded-[14px] bg-[rgba(0,0,0,.07)] inline-flex items-center justify-center text-muted text-[26px]">⌀</div>
+            <div className="border border-dashed border-[rgba(43,28,18,.16)] rounded-[8px] p-16 text-center">
+              <div className="w-14 h-14 rounded-[8px] bg-[rgba(43,28,18,.06)] inline-flex items-center justify-center text-muted text-[26px]">⌀</div>
               <div className="font-bold text-[17px] mt-4">{copy.noItemsTitle.replace('items', noun)}</div>
-              <div className="text-[13px] text-[#705260] mt-[6px]">{copy.noItemsBody}</div>
+              <div className="text-[13px] text-sub mt-[6px]">{copy.noItemsBody}</div>
               {anyFilter && <Button size="xs" onClick={clear} className="mt-[18px]">{copy.clearFiltersLabel}</Button>}
             </div>
           )}

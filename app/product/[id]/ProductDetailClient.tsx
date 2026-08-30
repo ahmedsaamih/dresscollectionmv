@@ -32,10 +32,10 @@ const collectionHref = (key: string) => COLLECTION_PATHS[key] ?? `/${key}`;
 
 function StockBar({ stock }: { stock: number }) {
   const pct = Math.min(100, (stock / STOCK_BAR_MAX) * 100);
-  const color = stock === 0 ? '#b80f1d' : stock <= LOW_STOCK_THRESHOLD ? '#e81a2b' : '#db5795';
+  const color = stock === 0 ? '#b80f1d' : stock <= LOW_STOCK_THRESHOLD ? '#e81a2b' : '#a3713e';
   return (
     <div className="w-full">
-      <div className="h-[5px] rounded-full bg-[rgba(0,0,0,.08)] overflow-hidden">
+      <div className="h-[5px] rounded-full bg-[rgba(43,28,18,.08)] overflow-hidden">
         <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
       </div>
       {stock <= LOW_STOCK_THRESHOLD && (
@@ -96,9 +96,9 @@ export function ProductDetailClient({ settings, collections, product, chart, rel
         <Header tagline={settings.tagline} collections={collections} navCopy={navCopy} />
         <div className="max-w-[1180px] mx-auto px-5 sm:px-8 py-[26px] pb-20">
           <div className="text-center py-20">
-            <div className="font-archivo-narrow font-bold text-[26px]">Product not found</div>
+            <div className="font-playfair font-semibold text-[28px]">Product not found</div>
             <div className="text-[13.5px] text-sub mt-2">It may have been removed or the link is out of date.</div>
-            <Link href="/ready-made" className="inline-block mt-6 no-underline bg-rose-500 text-onPrimary font-extrabold text-[13.5px] px-[22px] py-3 rounded-xl">Browse Ready-Made</Link>
+            <Button href="/ready-made" variant="primary" size="md" className="mt-6">Browse Ready-Made</Button>
           </div>
         </div>
         <Footer tagline={settings.tagline} collections={collections} navCopy={navCopy} paymentCopy={depositCopy} />
@@ -205,22 +205,22 @@ export function ProductDetailClient({ settings, collections, product, chart, rel
             <ProductImage
               img={activeImg}
               alt={product.name}
-              className="aspect-[4/5] rounded-[20px] relative overflow-hidden"
+              className="aspect-[4/5] rounded-[8px] relative overflow-hidden"
               sizes="(max-width: 1024px) 100vw, 560px"
             >
               {product.badge && (
-                <span className={`absolute top-4 left-4 text-[10px] font-extrabold tracking-[.07em] uppercase px-[11px] py-[5px] rounded-[7px] ${product.badge === 'Sale' ? 'bg-[#ff3d4d] text-white' : product.badge === 'Pre-order' ? 'bg-[#c9a227] text-[#200612]' : 'bg-rose-500 text-[#200612]'}`}>
+                <span className={`absolute top-4 left-4 text-[10px] font-extrabold tracking-[.07em] uppercase px-[11px] py-[5px] rounded-[6px] ${product.badge === 'Sale' ? 'bg-[#ff3d4d] text-white' : product.badge === 'Pre-order' ? 'bg-[#c9a227] text-[#241608]' : 'bg-rose-500 text-onPrimary'}`}>
                   {product.badge}
                 </span>
               )}
               <div className="absolute top-4 right-4 flex flex-col gap-[6px] items-end">
                 {product.preOrder && product.badge !== 'Pre-order' && (
-                  <span className="text-[10px] font-extrabold tracking-[.07em] uppercase px-[11px] py-[5px] rounded-[7px] bg-[rgba(219,87,149,.92)] text-white">
+                  <span className="text-[10px] font-extrabold tracking-[.07em] uppercase px-[11px] py-[5px] rounded-[6px] bg-[rgba(163,113,62,.92)] text-white">
                     Pre-order
                   </span>
                 )}
                 {product.discountType && (
-                  <span className="text-[10px] font-extrabold tracking-[.07em] uppercase px-[11px] py-[5px] rounded-[7px] bg-[#e81a2b] text-white">
+                  <span className="text-[10px] font-extrabold tracking-[.07em] uppercase px-[11px] py-[5px] rounded-[6px] bg-[#e81a2b] text-white">
                     {product.discountType === 'percent' ? `-${product.discountValue}%` : `-MVR ${product.discountValue}`}
                   </span>
                 )}
@@ -233,7 +233,7 @@ export function ProductDetailClient({ settings, collections, product, chart, rel
             <div className="text-[12px] tracking-[.16em] uppercase text-rose-600 font-bold">
               {product.category} · {colLabel}
             </div>
-            <h1 className="font-archivo-narrow font-bold text-[30px] sm:text-[42px] tracking-[.01em] mt-[10px] leading-[1.02]">
+            <h1 className="font-playfair font-semibold text-[32px] sm:text-[44px] tracking-[.01em] mt-[10px] leading-[1.05]">
               {product.name}
             </h1>
 
@@ -249,7 +249,7 @@ export function ProductDetailClient({ settings, collections, product, chart, rel
               <span className="text-[13px] text-muted">{product.preOrder ? depositCopy.depositDueNowLabel : copy.productStockLine}</span>
             </div>
             {product.preOrder && (
-              <div className="text-[12.5px] text-rose-700 bg-[rgba(219,87,149,.06)] border border-[rgba(219,87,149,.2)] rounded-[10px] px-[14px] py-[10px] mt-3 leading-[1.5] max-w-[440px]">
+              <div className="text-[12.5px] text-rose-700 bg-[rgba(163,113,62,.06)] border border-[rgba(163,113,62,.2)] rounded-[8px] px-[14px] py-[10px] mt-3 leading-[1.5] max-w-[440px]">
                 {depositCopy.depositExplainerBody}
               </div>
             )}
@@ -257,7 +257,7 @@ export function ProductDetailClient({ settings, collections, product, chart, rel
             {/* Colour */}
             <div className="mt-[28px]">
               <div className="flex items-center justify-between mb-[12px]">
-                <span className="text-[11px] font-bold uppercase tracking-[.08em] text-[#705260]">Colour</span>
+                <span className="text-[11px] font-bold uppercase tracking-[.08em] text-sub">Colour</span>
                 <span className="text-[12.5px] text-sub">{color}</span>
               </div>
               <div className="flex gap-[12px]">
@@ -268,8 +268,8 @@ export function ProductDetailClient({ settings, collections, product, chart, rel
                     style={{
                       background: colorHex(c),
                       boxShadow: color === c
-                        ? '0 0 0 2px #fdfbf7,0 0 0 4px #db5795'
-                        : '0 0 0 1px rgba(0,0,0,.14)',
+                        ? '0 0 0 2px #fdfbf6,0 0 0 4px #a3713e'
+                        : '0 0 0 1px rgba(43,28,18,.16)',
                     }}
                   />
                 ))}
@@ -279,12 +279,12 @@ export function ProductDetailClient({ settings, collections, product, chart, rel
             {/* Size */}
             <div className="mt-7">
               <div className="flex items-center justify-between mb-[12px]">
-                <span className="text-[11px] font-bold uppercase tracking-[.08em] text-[#705260]">Size</span>
+                <span className="text-[11px] font-bold uppercase tracking-[.08em] text-sub">Size</span>
                 <SizeChartTrigger chart={chart} />
               </div>
               <div className="flex flex-col gap-[9px]">
                 {noStockForColor && (
-                  <div className="text-[13px] text-muted px-[14px] py-[9px] rounded-xl" style={{ border: '1px solid rgba(0,0,0,.12)', background: 'rgba(0,0,0,.03)' }}>
+                  <div className="text-[13px] text-muted px-[14px] py-[9px] rounded-[8px]" style={{ border: '1px solid rgba(43,28,18,.12)', background: 'rgba(43,28,18,.03)' }}>
                     Out of stock in this colour.
                   </div>
                 )}
@@ -294,24 +294,24 @@ export function ProductDetailClient({ settings, collections, product, chart, rel
                   return (
                     <div
                       key={s}
-                      className="relative flex items-center justify-between gap-[14px] px-[14px] py-[9px] rounded-xl transition-all"
+                      className="relative flex items-center justify-between gap-[14px] px-[14px] py-[9px] rounded-[8px] transition-all"
                       style={{
-                        border: '1px solid rgba(0,0,0,.16)',
-                        background: q > 0 ? 'rgba(219,87,149,.06)' : 'transparent',
+                        border: '1px solid rgba(43,28,18,.16)',
+                        background: q > 0 ? 'rgba(163,113,62,.06)' : 'transparent',
                       }}
                     >
                       <div className="flex-1 min-w-0">
-                        <span className="font-bold text-[13.5px]" style={{ color: '#705260' }}>
+                        <span className="font-bold text-[13.5px] text-sub">
                           {s}
                         </span>
                         <div className="mt-[6px] max-w-[120px]">
                           <StockBar stock={stock} />
                         </div>
                       </div>
-                      <div className="inline-flex items-center border border-[rgba(0,0,0,.14)] rounded-xl overflow-hidden">
+                      <div className="inline-flex items-center border border-[rgba(43,28,18,.14)] rounded-[8px] overflow-hidden">
                         <button
                           onClick={() => { setSizes(sv => ({ ...sv, [s]: Math.max(0, (sv[s] ?? 0) - 1) })); setSizeError(false); }}
-                          className="border-none bg-[rgba(0,0,0,.06)] text-rose-700 w-[46px] h-[52px] text-[20px] cursor-pointer font-archivo disabled:cursor-not-allowed disabled:opacity-50"
+                          className="border-none bg-[rgba(43,28,18,.06)] text-rose-700 w-[46px] h-[52px] text-[20px] cursor-pointer font-archivo disabled:cursor-not-allowed disabled:opacity-50"
                         >−</button>
                         <span key={q} className="w-[52px] text-center font-bold text-[16px] tabular animate-tick-pop">{q}</span>
                         <button
@@ -324,7 +324,7 @@ export function ProductDetailClient({ settings, collections, product, chart, rel
                             });
                             setSizeError(false);
                           }}
-                          className="border-none bg-[rgba(0,0,0,.06)] text-rose-700 w-[46px] h-[52px] text-[20px] cursor-pointer font-archivo disabled:cursor-not-allowed disabled:opacity-50"
+                          className="border-none bg-[rgba(43,28,18,.06)] text-rose-700 w-[46px] h-[52px] text-[20px] cursor-pointer font-archivo disabled:cursor-not-allowed disabled:opacity-50"
                         >+</button>
                       </div>
                     </div>
@@ -341,13 +341,13 @@ export function ProductDetailClient({ settings, collections, product, chart, rel
                 const atCap = qty >= stock0;
                 return (
                   <div className="flex flex-col gap-[6px]">
-                    <div className="inline-flex items-center border border-[rgba(0,0,0,.14)] rounded-xl overflow-hidden">
-                      <button onClick={() => setQty(q => Math.max(1, q - 1))} className="border-none bg-[rgba(0,0,0,.06)] text-rose-700 w-[46px] h-[52px] text-[20px] cursor-pointer font-archivo">−</button>
+                    <div className="inline-flex items-center border border-[rgba(43,28,18,.14)] rounded-[8px] overflow-hidden">
+                      <button onClick={() => setQty(q => Math.max(1, q - 1))} className="border-none bg-[rgba(43,28,18,.06)] text-rose-700 w-[46px] h-[52px] text-[20px] cursor-pointer font-archivo">−</button>
                       <span key={qty} className="w-[52px] text-center font-bold text-[16px] tabular animate-tick-pop">{qty}</span>
                       <button
                         disabled={atCap}
                         onClick={() => setQty(q => atCap ? q : q + 1)}
-                        className="border-none bg-[rgba(0,0,0,.06)] text-rose-700 w-[46px] h-[52px] text-[20px] cursor-pointer font-archivo disabled:cursor-not-allowed disabled:opacity-50"
+                        className="border-none bg-[rgba(43,28,18,.06)] text-rose-700 w-[46px] h-[52px] text-[20px] cursor-pointer font-archivo disabled:cursor-not-allowed disabled:opacity-50"
                       >+</button>
                     </div>
                     <div className="w-[144px]">
@@ -362,11 +362,11 @@ export function ProductDetailClient({ settings, collections, product, chart, rel
             </div>
 
             {addedGroups.length > 0 && (
-              <div className="mt-5 flex flex-col gap-[8px] bg-[#f9f6f7] border border-[rgba(193,57,120,.18)] rounded-[12px] p-[14px]">
+              <div className="mt-5 flex flex-col gap-[8px] bg-surface border border-[rgba(163,113,62,.18)] rounded-[8px] p-[14px]">
                 <div className="text-[11px] tracking-[.14em] uppercase text-rose-600 font-bold">Added so far</div>
                 {addedGroups.map(g => (
                   <div key={g.key} className="flex items-center justify-between gap-[10px] text-[12.5px]">
-                    <span className="font-semibold text-[#705260]">
+                    <span className="font-semibold text-sub">
                       {g.color}
                     </span>
                     <span className="text-muted font-semibold tabular whitespace-nowrap">
@@ -378,7 +378,7 @@ export function ProductDetailClient({ settings, collections, product, chart, rel
             )}
 
             {/* Trust strip */}
-            <div className="grid grid-cols-3 gap-[14px] mt-[26px] pt-[22px] border-t border-[rgba(0,0,0,.08)]">
+            <div className="grid grid-cols-3 gap-[14px] mt-[26px] pt-[22px] border-t border-[rgba(43,28,18,.08)]">
               {[
                 { icon: Store, label: copy.trustOneLabel },
                 { icon: Home, label: copy.trustTwoLabel },
@@ -392,9 +392,9 @@ export function ProductDetailClient({ settings, collections, product, chart, rel
             </div>
 
             {/* Accordion */}
-            <div className="mt-[26px] border-t border-[rgba(0,0,0,.08)]">
+            <div className="mt-[26px] border-t border-[rgba(43,28,18,.08)]">
               {accordions.map((a, i) => (
-                <div key={i} className="border-b border-[rgba(0,0,0,.08)]">
+                <div key={i} className="border-b border-[rgba(43,28,18,.08)]">
                   <button
                     onClick={() => setOpenAcc(openAcc === i ? -1 : i)}
                     className="w-full flex items-center justify-between bg-transparent border-none text-body font-bold text-[14px] py-[17px] cursor-pointer text-left gap-4"
@@ -413,8 +413,8 @@ export function ProductDetailClient({ settings, collections, product, chart, rel
 
         {/* Related */}
         <div data-reveal className="mt-[80px]">
-          <h2 className="font-archivo-narrow font-bold text-[26px] sm:text-[30px] mb-[26px]">{copy.relatedTitle}</h2>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-[18px] gap-y-[30px]">
+          <h2 className="font-playfair font-semibold text-[28px] sm:text-[32px] mb-[28px]">{copy.relatedTitle}</h2>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-[22px] gap-y-[40px]">
             {related.map(p => (
               <ProductCard key={p.id} product={p} viewOptionsLabel={copy.viewOptionsLabel} />
             ))}
@@ -425,7 +425,7 @@ export function ProductDetailClient({ settings, collections, product, chart, rel
       <Footer tagline={settings.tagline} collections={collections} navCopy={navCopy} paymentCopy={depositCopy} />
 
       {/* Sticky mobile bar */}
-      <div className="product-sticky-cta lg:hidden fixed bottom-0 inset-x-0 z-40 flex items-center gap-2 px-3 py-3 border-t border-[rgba(0,0,0,.1)] max-w-full flex-wrap" style={{ background: 'rgba(253,251,247,.95)', backdropFilter: 'blur(12px)' }}>
+      <div className="product-sticky-cta lg:hidden fixed bottom-0 inset-x-0 z-40 flex items-center gap-2 px-3 py-3 border-t border-[rgba(43,28,18,.1)] max-w-full flex-wrap" style={{ background: 'rgba(253,251,246,.95)', backdropFilter: 'blur(12px)' }}>
         <div className="flex-1 min-w-0">
           <div className="text-[10px] uppercase tracking-[.1em] text-muted truncate">{product.name}</div>
           <div className="font-extrabold text-[18px] text-rose-700 tabular leading-tight">
