@@ -26,20 +26,13 @@ export function HomeClient({ settings, collections, featured, accessories, testi
   const trust = settings.storefrontCopy.trustBadges;
   useReveal();
 
-  const stats = [
-    { value: copy.heroStatOneValue, label: copy.heroStatOneLabel },
-    { value: copy.heroStatTwoValue, label: copy.heroStatTwoLabel },
-    { value: copy.heroStatThreeValue, label: copy.heroStatThreeLabel },
-  ];
-
   return (
     <div className="min-h-screen overflow-x-hidden bg-page text-body font-archivo">
       <Header active="home" tagline={settings.tagline} collections={collections} navCopy={copy} />
 
       {/* ── HERO ── */}
       <section className="relative overflow-hidden border-b border-[rgba(43,28,18,.07)]">
-        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(900px 460px at 78% 8%,rgba(163,113,62,.14),rgba(163,113,62,0) 60%)' }} />
-        <div className="max-w-[1180px] mx-auto px-5 sm:px-8 py-8 sm:py-12 lg:py-[84px] grid grid-cols-1 lg:grid-cols-[1.05fr_.95fr] gap-10 items-center relative min-h-[600px] sm:min-h-[680px] lg:min-h-0">
+        <div className="max-w-[1180px] mx-auto px-5 sm:px-8 py-8 sm:py-12 lg:py-[96px] grid grid-cols-1 lg:grid-cols-[1.05fr_.95fr] gap-10 items-center relative min-h-[600px] sm:min-h-[680px] lg:min-h-0">
           {/* Carousel: fills the whole hero as an absolutely-positioned backdrop at
               every breakpoint. On mobile the copy overlays the bottom of the image on
               a white scrim; on desktop (lg:) it's a right-aligned strip at 70% of the
@@ -51,24 +44,24 @@ export function HomeClient({ settings, collections, featured, accessories, testi
             {/* Mobile: gradual cream fade rising from the bottom of the photo, so the
                 overlaid copy below sits on a legible backdrop — no black scrim, same
                 smooth-blend language as the desktop fade, just rotated for portrait. */}
-            <div className="lg:hidden absolute inset-0 pointer-events-none rounded-[18px]" style={{ background: 'linear-gradient(180deg,rgba(253,251,246,0) 0%,rgba(253,251,246,0) 20%,rgba(253,251,246,.65) 38%,rgba(253,251,246,.94) 52%,#fdfbf6 100%)' }} />
+            <div className="lg:hidden absolute inset-0 pointer-events-none rounded-[10px]" style={{ background: 'linear-gradient(180deg,rgba(253,251,246,0) 0%,rgba(253,251,246,0) 20%,rgba(253,251,246,.65) 38%,rgba(253,251,246,.94) 52%,#fdfbf6 100%)' }} />
             {/* Desktop: long, gradual cream fade from the left edge into the photo —
                 no black scrim, just a smooth blend so the copy sits on a clean backdrop. */}
-            <div className="hidden lg:block absolute inset-0 pointer-events-none rounded-[18px]" style={{ background: 'linear-gradient(90deg,#fdfbf6 0%,rgba(253,251,246,.92) 18%,rgba(253,251,246,.55) 38%,rgba(253,251,246,0) 62%)' }} />
+            <div className="hidden lg:block absolute inset-0 pointer-events-none rounded-[10px]" style={{ background: 'linear-gradient(90deg,#fdfbf6 0%,rgba(253,251,246,.92) 18%,rgba(253,251,246,.55) 38%,rgba(253,251,246,0) 62%)' }} />
           </div>
 
           <div className="relative z-10 flex flex-col justify-end h-full lg:h-auto lg:block lg:justify-normal">
-            <div data-hero-reveal className="opacity-0 inline-flex items-center gap-[10px] text-[12px] font-bold tracking-[.18em] uppercase text-rose-600 mb-6">
-              <span className="w-[26px] h-[2px] bg-rose-500 skew-accent" />
+            <div data-hero-reveal className="opacity-0 inline-flex items-center gap-[10px] text-[12px] font-bold tracking-[.18em] uppercase text-rose-600 mb-7">
+              <span className="w-[26px] h-px bg-rose-500" />
               {copy.heroEyebrow}
             </div>
-            <h1 data-hero-reveal className="opacity-0 font-playfair font-semibold text-[44px] sm:text-[56px] lg:text-[68px] leading-[1.02] tracking-[.005em] text-balance">
+            <h1 data-hero-reveal className="opacity-0 font-playfair font-semibold text-[46px] sm:text-[60px] lg:text-[74px] leading-[1.02] tracking-[.005em] text-balance">
               {copy.heroTitle}
             </h1>
-            <p data-hero-reveal className="opacity-0 mt-6 text-[15px] sm:text-[17px] leading-[1.6] text-sub max-w-[480px]">
+            <p data-hero-reveal className="opacity-0 mt-7 text-[15px] sm:text-[17px] leading-[1.6] text-sub max-w-[480px]">
               {settings.heroSub}
             </p>
-            <div data-hero-reveal className="opacity-0 flex gap-[14px] mt-8 flex-wrap">
+            <div data-hero-reveal className="opacity-0 flex gap-[14px] mt-10 flex-wrap">
               <Button href="/ready-made" variant="primary" size="md" className="gap-[9px]">
                 {copy.heroPrimaryCta} <span>→</span>
               </Button>
@@ -76,21 +69,13 @@ export function HomeClient({ settings, collections, featured, accessories, testi
                 {copy.heroSecondaryCta}
               </Button>
             </div>
-            <div data-hero-reveal className="opacity-0 flex gap-7 mt-10">
-              {stats.map((s) => (
-                <div key={s.label}>
-                  <div className="font-archivo-narrow font-bold text-[30px] text-body tracking-[.01em]">{s.value}</div>
-                  <div className="text-[11.5px] text-muted tracking-[.05em] mt-1">{s.label}</div>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       </section>
 
       {/* ── TRUST BADGES ── */}
-      <section data-reveal className="max-w-[1180px] mx-auto px-5 sm:px-8 py-[38px] border-b border-[rgba(43,28,18,.07)]">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-8 gap-x-4 text-center">
+      <section data-reveal className="max-w-[1180px] mx-auto px-5 sm:px-8 py-[48px] border-b border-[rgba(43,28,18,.07)]">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-9 gap-x-4 text-center">
           {[
             { label: trust.badgeOneLabel, sub: trust.badgeOneSub },
             { label: trust.badgeTwoLabel, sub: trust.badgeTwoSub },
@@ -114,29 +99,28 @@ export function HomeClient({ settings, collections, featured, accessories, testi
       </section>
 
       {/* ── SHOP BY CATEGORY ── */}
-      <section className="max-w-[1180px] mx-auto px-5 sm:px-8 pt-[52px] pb-[10px]">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-9">
+      <section className="max-w-[1180px] mx-auto px-5 sm:px-8 pt-[72px] pb-[24px]">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-12">
           {[
-            { title: 'New Arrivals', desc: copy.categoryReadyDesc, href: '/ready-made', icon: CATEGORY_ICONS.ready, img: settings.categoryReadyImage },
-            { title: 'Party & Occasion', desc: copy.categoryOccasionDesc, href: '/occasion', icon: CATEGORY_ICONS.occasion, img: settings.categoryCustomImage },
-            { title: 'Casual Dresses', desc: copy.categoryCasualDesc, href: '/casual-wear', icon: CATEGORY_ICONS.casual, img: settings.categoryCasualImage },
-            { title: 'Accessories', desc: copy.categoryAccessoriesDesc, href: '/accessories', icon: CATEGORY_ICONS.accessories, img: settings.categoryAccessoriesImage },
+            { title: 'New Arrivals', href: '/ready-made', icon: CATEGORY_ICONS.ready, img: settings.categoryReadyImage },
+            { title: 'Party & Occasion', href: '/occasion', icon: CATEGORY_ICONS.occasion, img: settings.categoryCustomImage },
+            { title: 'Casual Dresses', href: '/casual-wear', icon: CATEGORY_ICONS.casual, img: settings.categoryCasualImage },
+            { title: 'Accessories', href: '/accessories', icon: CATEGORY_ICONS.accessories, img: settings.categoryAccessoriesImage },
           ].map((c) => {
             const hasImg = !!c.img;
             return (
               <Link key={c.href} href={c.href} data-reveal
-                className="opacity-0 no-underline flex flex-col items-center text-center gap-3 group">
-                <div className={`relative w-[104px] h-[104px] sm:w-[136px] sm:h-[136px] rounded-full overflow-hidden transition-transform group-hover:-translate-y-1 ${hasImg ? '' : 'bg-[rgba(163,113,62,.1)] flex items-center justify-center'}`}>
+                className="opacity-0 no-underline flex flex-col items-center text-center gap-4 group">
+                <div className={`relative w-[128px] h-[128px] sm:w-[168px] sm:h-[168px] rounded-full overflow-hidden transition-transform group-hover:-translate-y-1 ${hasImg ? '' : 'bg-[rgba(163,113,62,.1)] flex items-center justify-center'}`}>
                   {hasImg ? (
-                    <Image src={c.img!} alt="" fill sizes="(max-width: 640px) 40vw, 140px" style={{ objectFit: 'cover' }} />
+                    <Image src={c.img!} alt="" fill sizes="(max-width: 640px) 40vw, 168px" style={{ objectFit: 'cover' }} />
                   ) : (
-                    <c.icon size={30} className="text-rose-700" />
+                    <c.icon size={32} className="text-rose-700" />
                   )}
                 </div>
                 <div>
-                  <div className="font-playfair font-semibold text-[15px] sm:text-[17px] tracking-[.03em] uppercase text-body group-hover:text-rose-700 transition-colors">{c.title}</div>
-                  <div className="hidden sm:block text-[11.5px] mt-[4px] leading-[1.45] text-muted max-w-[160px] mx-auto">{c.desc}</div>
-                  <span className="inline-flex items-center gap-[5px] mt-2 text-[10.5px] font-bold uppercase tracking-[.08em] text-rose-700 transition-all group-hover:translate-x-1">{copy.categoryExploreLabel} →</span>
+                  <div className="font-playfair font-semibold text-[15px] sm:text-[18px] tracking-[.03em] uppercase text-body group-hover:text-rose-700 transition-colors">{c.title}</div>
+                  <span className="inline-flex items-center gap-[5px] mt-[6px] text-[10.5px] font-bold uppercase tracking-[.08em] text-rose-700 transition-all group-hover:translate-x-1">{copy.categoryExploreLabel} →</span>
                 </div>
               </Link>
             );
@@ -145,32 +129,34 @@ export function HomeClient({ settings, collections, featured, accessories, testi
       </section>
 
       {/* ── FEATURED DRESSES ── */}
-      <section className="max-w-[1180px] mx-auto px-5 sm:px-8 py-[44px]">
-        <div data-reveal className="flex items-end justify-between mb-7">
-          <div>
-            <div className="inline-flex items-center gap-[9px] text-[12px] font-bold tracking-[.18em] uppercase text-rose-600 mb-2.5">
-              <span className="w-[22px] h-[2px] bg-rose-500 skew-accent" />{copy.featuredEyebrow}
-            </div>
-            <h2 className="font-playfair font-semibold text-[30px] sm:text-[36px] tracking-[.01em]">{copy.featuredTitle}</h2>
+      <section className="max-w-[1180px] mx-auto px-5 sm:px-8 py-[64px]">
+        <div data-reveal className="text-center mb-12">
+          <div className="inline-flex items-center gap-[9px] text-[12px] font-bold tracking-[.18em] uppercase text-rose-600 mb-3">
+            <span className="w-[22px] h-px bg-rose-500" />{copy.featuredEyebrow}<span className="w-[22px] h-px bg-rose-500" />
           </div>
-          <Link href="/ready-made" className="no-underline text-[12px] font-bold uppercase tracking-[.06em] text-rose-700">{copy.featuredViewAll} →</Link>
+          <h2 className="font-playfair font-semibold text-[32px] sm:text-[40px] tracking-[.01em]">{copy.featuredTitle}</h2>
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-[18px] gap-y-[30px]">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-[24px] gap-y-[44px]">
           {featured.map((p) => (
             <div key={p.id} data-motion-card>
               <ProductCard product={p} viewOptionsLabel={viewOptionsLabel} />
             </div>
           ))}
         </div>
+        <div className="text-center mt-14">
+          <Button href="/ready-made" variant="tertiary" size="md">
+            {copy.featuredViewAll} →
+          </Button>
+        </div>
       </section>
 
       {/* ── ACCESSORIES ── */}
-      <section className="max-w-[1180px] mx-auto px-5 sm:px-8 py-[32px]">
-        <div className="flex items-center justify-between mb-6">
+      <section className="max-w-[1180px] mx-auto px-5 sm:px-8 py-[48px] border-t border-[rgba(43,28,18,.07)]">
+        <div className="flex items-center justify-between mb-8">
           <h2 className="font-playfair font-semibold text-[24px] tracking-[.01em]">{copy.accessoriesTitle}</h2>
           <Link href="/accessories" className="no-underline text-[12px] font-bold uppercase tracking-[.06em] text-rose-700">{copy.accessoriesCta} →</Link>
         </div>
-        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-x-[14px] gap-y-[24px]">
+        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-x-[18px] gap-y-[30px]">
           {accessories.map((a) => (
             <div key={a.id} data-motion-card>
               <ProductCard product={a} variant="compact" viewOptionsLabel={viewOptionsLabel} />
@@ -180,8 +166,8 @@ export function HomeClient({ settings, collections, featured, accessories, testi
       </section>
 
       {testimonials.length > 0 && (
-        <section className="max-w-[1180px] mx-auto px-5 sm:px-8 py-[48px]">
-          <div className="text-center mb-[38px]">
+        <section className="max-w-[1180px] mx-auto px-5 sm:px-8 py-[64px] border-t border-[rgba(43,28,18,.07)]">
+          <div className="text-center mb-[44px]">
             <div className="text-[12px] font-bold tracking-[.18em] uppercase text-rose-600">{copy.testimonialsEyebrow}</div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-x-[28px] gap-y-[30px]">
@@ -207,10 +193,10 @@ export function HomeClient({ settings, collections, featured, accessories, testi
       )}
 
       {/* ── BRAND STORY ── */}
-      <section className="max-w-[1180px] mx-auto px-5 sm:px-8 pb-[56px]">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.1fr] gap-9 sm:gap-12 items-center">
+      <section className="max-w-[1180px] mx-auto px-5 sm:px-8 py-[64px] border-t border-[rgba(43,28,18,.07)]">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.1fr] gap-10 sm:gap-16 items-center">
           <div
-            className="h-[240px] sm:h-[400px] relative rounded-[20px] overflow-hidden"
+            className="h-[280px] sm:h-[440px] relative rounded-[10px] overflow-hidden"
             style={!settings.workshopImage ? { background: 'linear-gradient(150deg,#7c5730,#3c2a18)' } : undefined}
           >
             {settings.workshopImage ? (
@@ -220,14 +206,14 @@ export function HomeClient({ settings, collections, featured, accessories, testi
             )}
           </div>
           <div>
-            <div className="inline-flex items-center gap-[9px] text-[12px] font-bold tracking-[.18em] uppercase text-rose-600 mb-[14px]">
-              <span className="w-[22px] h-[2px] bg-rose-500 skew-accent" />{copy.storyEyebrow}
+            <div className="inline-flex items-center gap-[9px] text-[12px] font-bold tracking-[.18em] uppercase text-rose-600 mb-[16px]">
+              <span className="w-[22px] h-px bg-rose-500" />{copy.storyEyebrow}
             </div>
-            <h2 className="font-playfair font-semibold text-[30px] sm:text-[38px] leading-[1.1]">{copy.storyTitle}</h2>
-            <p className="text-[14.5px] leading-[1.7] text-sub mt-5 max-w-[440px]">
+            <h2 className="font-playfair font-semibold text-[32px] sm:text-[42px] leading-[1.1]">{copy.storyTitle}</h2>
+            <p className="text-[14.5px] leading-[1.7] text-sub mt-6 max-w-[440px]">
               {copy.storyBody}
             </p>
-            <Button href="/about" variant="tertiary" size="sm" className="mt-[26px]">
+            <Button href="/about" variant="tertiary" size="sm" className="mt-8">
               {copy.storyCta}
             </Button>
           </div>
