@@ -26,7 +26,7 @@
   textarea:focus-visible,
   select:focus-visible,
   [tabindex]:focus-visible {
-    outline: 2px solid #db5795;
+    outline: 2px solid #a3713e;
     outline-offset: 2px;
     border-radius: 4px;
   }
@@ -52,8 +52,8 @@
   }
 
   body {
-    background-color: #ffffff;
-    color: #150d11;
+    background-color: #fdfbf6;
+    color: #241a10;
     font-family: var(--font-archivo);
   }
 
@@ -75,8 +75,8 @@
   }
 
   ::selection {
-    background: #db5795;
-    color: #200612;
+    background: #a3713e;
+    color: #fdfbf6;
   }
 
   ::-webkit-scrollbar {
@@ -84,10 +84,10 @@
     height: 10px;
   }
   ::-webkit-scrollbar-track {
-    background: #f2f0f1;
+    background: #f2ede1;
   }
   ::-webkit-scrollbar-thumb {
-    background: #d6c7ce;
+    background: #d9c7ac;
     border-radius: 6px;
   }
 }
@@ -98,7 +98,7 @@
 
   /* Rose glow ring for primary CTAs */
   .glow-rose {
-    box-shadow: 0 0 0 1px rgba(219,87,149,.4), 0 8px 28px rgba(219,87,149,.18);
+    box-shadow: 0 0 0 1px rgba(163,113,62,.4), 0 8px 28px rgba(163,113,62,.18);
   }
   /* Tabular numerics for prices */
   .tabular { font-variant-numeric: tabular-nums; }

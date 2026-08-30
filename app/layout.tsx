@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Archivo, Archivo_Narrow, Fraunces } from 'next/font/google';
+import { Archivo, Archivo_Narrow, Fraunces, Playfair_Display } from 'next/font/google';
 import './globals.css';
 import { CartProvider } from '@/contexts/CartContext';
 import { SITE_URL } from '@/lib/site';
@@ -29,6 +29,15 @@ const fraunces = Fraunces({
   weight: ['500', '600'],
   style: ['italic'],
   variable: '--font-fraunces',
+  display: 'swap',
+});
+// Headline/logo serif — tall, thin, high-contrast, letter-spaced. Used for
+// the logo wordmark and editorial headlines (hero, section titles). Never
+// used for body copy or buttons.
+const playfair = Playfair_Display({
+  subsets: ['latin'],
+  weight: ['500', '600', '700'],
+  variable: '--font-playfair',
   display: 'swap',
 });
 
@@ -82,7 +91,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${archivo.variable} ${archivoNarrow.variable} ${fraunces.variable}`}>
+    <html lang="en" className={`${archivo.variable} ${archivoNarrow.variable} ${fraunces.variable} ${playfair.variable}`}>
       <body className="min-h-screen bg-page text-body font-archivo antialiased">
         <script
           type="application/ld+json"

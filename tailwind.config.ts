@@ -15,34 +15,38 @@ const config: Config = {
         'archivo-narrow': ['var(--font-archivo-narrow)', 'system-ui', 'sans-serif'],
         // Editorial-serif garnish — italic accent moments only (see app/layout.tsx).
         fraunces: ['var(--font-fraunces)', 'Georgia', 'serif'],
+        // Headline/logo serif — tall, thin, high-contrast (see app/layout.tsx).
+        playfair: ['var(--font-playfair)', 'Georgia', 'serif'],
       },
       colors: {
-        // Dress Collection palette — blush rose
+        // Dress Collection palette — warm neutral / muted tan (Saraia-aligned).
+        // Key stays "rose" so every existing rose-50..950 utility class keeps
+        // working — only the hex values changed, not the token names.
         rose: {
-          50:  '#ffe9f3',
-          100: '#ffc5e0',
-          200: '#fc8ec1',
-          300: '#f04f9a',
-          400: '#e63387',
-          500: '#db5795', // PRIMARY
-          600: '#8a1d50',
-          700: '#600a32',
-          800: '#36021a',
-          900: '#200c15',
-          950: '#14070d',
+          50:  '#faf4ec',
+          100: '#f2e2cd',
+          200: '#e3c39a',
+          300: '#cfa06c',
+          400: '#b8874f',
+          500: '#a3713e', // PRIMARY — muted terracotta/tan
+          600: '#7c5730',
+          700: '#5c4025',
+          800: '#3c2a18',
+          900: '#24180e',
+          950: '#160e08',
         },
         charcoal: {
-          50:  '#f9f6f7',
-          100: '#f1e9ec',
-          200: '#dfc9d1',
-          300: '#c2a1ae',
-          400: '#a17787',
-          500: '#83596a',
-          600: '#5c3c48',
-          700: '#402a33',
-          800: '#291a20',
-          900: '#180f13',
-          950: '#0e0a0b',
+          50:  '#f8f6f3',
+          100: '#eee8e0',
+          200: '#dbcfc0',
+          300: '#c0af99',
+          400: '#a08d76',
+          500: '#7f6c57',
+          600: '#5f5041',
+          700: '#443a2f',
+          800: '#2c251d',
+          900: '#19140f',
+          950: '#0f0c09',
         },
         coral: {
           400: '#ff6370',
@@ -50,30 +54,30 @@ const config: Config = {
           600: '#e81a2b',
         },
         // Semantic shorthands
-        page:    '#fdfbf7', // warm ivory, not stark white — boutique warmth
-        surface: '#f9f6f7',
-        card:    '#f5f1f3',
-        well:    '#f9e8f0',
-        border:  'rgba(0,0,0,0.10)',
-        body:    '#150d11',
-        sub:     '#705260',
-        muted:   '#907481',
-        primary: '#db5795',
-        onPrimary: '#200612', // dark text on solid rose-500 CTAs — do not reuse rose.950 (#14070d), a different, already-used dark
+        page:    '#fdfbf6', // warm cream, not stark white — boutique warmth
+        surface: '#f8f3ea',
+        card:    '#f5efe1',
+        well:    '#f6f1e5',
+        border:  'rgba(43,28,18,0.10)',
+        body:    '#241a10',
+        sub:     '#5c4c3c',
+        muted:   '#8a7a65',
+        primary: '#a3713e',
+        onPrimary: '#241608', // dark text on solid rose-500 CTAs — do not reuse rose.950 (#160e08), a different, already-used dark
       },
       borderRadius: {
         '4xl': '2rem',
       },
       backgroundImage: {
-        'rose-gradient': 'linear-gradient(150deg,#8a1d50,#36021a)',
+        'rose-gradient': 'linear-gradient(150deg,#7c5730,#3c2a18)',
       },
       boxShadow: {
-        'rose-glow': '0 0 0 1px rgba(219,87,149,.5),0 10px 30px rgba(138,29,80,.28)',
-        'rose-sm': '0 4px 18px rgba(138,29,80,.30)',
-        'rose-lg': '0 6px 26px rgba(138,29,80,.32)',
+        'rose-glow': '0 0 0 1px rgba(163,113,62,.5),0 10px 30px rgba(124,87,48,.28)',
+        'rose-sm': '0 4px 18px rgba(124,87,48,.30)',
+        'rose-lg': '0 6px 26px rgba(124,87,48,.32)',
         // Borderless editorial card language — no resting shadow, a soft
         // ambient lift on hover instead of the old hard-border boxes.
-        'card-hover': '0 18px 40px rgba(32,6,18,.10)',
+        'card-hover': '0 18px 40px rgba(36,26,16,.10)',
       },
       animation: {
         'toast-in': 'toastIn .3s cubic-bezier(.16,1,.3,1)',
@@ -100,8 +104,8 @@ const config: Config = {
           '100%': { backgroundPosition: '400px 0' },
         },
         glow: {
-          '0%,100%': { boxShadow: '0 0 0 1px rgba(219,87,149,.35),0 0 22px rgba(219,87,149,.12)' },
-          '50%':     { boxShadow: '0 0 0 1px rgba(219,87,149,.6),0 0 34px rgba(219,87,149,.28)' },
+          '0%,100%': { boxShadow: '0 0 0 1px rgba(163,113,62,.35),0 0 22px rgba(163,113,62,.12)' },
+          '50%':     { boxShadow: '0 0 0 1px rgba(163,113,62,.6),0 0 34px rgba(163,113,62,.28)' },
         },
         pop: {
           '0%':   { transform: 'scale(.8)', opacity: '0' },
