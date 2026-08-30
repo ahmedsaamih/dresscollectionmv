@@ -38,11 +38,18 @@ export function useReveal() {
         gsap.registerPlugin(ScrollTrigger);
 
         ctx = gsap.context(() => {
+          // fromTo (not from): the elements' Tailwind `opacity-0` class already
+          // renders opacity:0 before this runs, so a plain `.from()` would read
+          // that as the implicit end-state and tween 0→0 — visually nothing
+          // happens and the class is left in place, hiding the content forever.
+          // Explicit fromTo end-states avoid that trap.
           if (heroes.length) {
-            gsap.from(heroes, {
-              y: 56, opacity: 0, clipPath: 'inset(0 0 100% 0)', duration: 0.9, stagger: 0.11, ease: 'power4.out',
-              onComplete: () => heroes.forEach((el) => { el.style.opacity = '1'; el.style.transform = 'none'; }),
-            });
+            gsap.fromTo(heroes,
+              { y: 56, opacity: 0, clipPath: 'inset(0 0 100% 0)' },
+              {
+                y: 0, opacity: 1, clipPath: 'inset(0 0 0% 0)', duration: 0.9, stagger: 0.11, ease: 'power4.out',
+                onComplete: () => heroes.forEach((el) => { el.style.opacity = '1'; el.style.transform = 'none'; }),
+              });
           }
 
           const vh = window.innerHeight;
@@ -50,10 +57,10 @@ export function useReveal() {
             const inView = el.getBoundingClientRect().top < vh * 0.92;
             if (inView) {
               // Visible on load → animate straight away; never left hidden.
-              gsap.from(el, { y: 34, opacity: 0, duration: 0.68, ease: 'power3.out' });
+              gsap.fromTo(el, { y: 34, opacity: 0 }, { y: 0, opacity: 1, duration: 0.68, ease: 'power3.out' });
             } else {
-              gsap.from(el, {
-                y: 42, opacity: 0, duration: 0.72, ease: 'power3.out',
+              gsap.fromTo(el, { y: 42, opacity: 0 }, {
+                y: 0, opacity: 1, duration: 0.72, ease: 'power3.out',
                 scrollTrigger: { trigger: el, start: 'top 90%', once: true },
               });
             }
@@ -61,9 +68,10 @@ export function useReveal() {
 
           cards.forEach((el, index) => {
             const inView = el.getBoundingClientRect().top < vh * 0.92;
-            const vars = { y: 44, opacity: 0, duration: 0.68, delay: inView ? Math.min(index * 0.06, 0.36) : 0, ease: 'power4.out' };
-            if (inView) gsap.from(el, vars);
-            else gsap.from(el, { ...vars, scrollTrigger: { trigger: el, start: 'top 91%', once: true } });
+            const fromVars = { y: 44, opacity: 0 };
+            const toVars = { y: 0, opacity: 1, duration: 0.68, delay: inView ? Math.min(index * 0.06, 0.36) : 0, ease: 'power4.out' };
+            if (inView) gsap.fromTo(el, fromVars, toVars);
+            else gsap.fromTo(el, fromVars, { ...toVars, scrollTrigger: { trigger: el, start: 'top 91%', once: true } });
           });
 
           const desktopMedia = gsap.matchMedia();
