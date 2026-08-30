@@ -27,7 +27,7 @@ type ButtonAsLink = CommonProps &
 type ButtonProps = ButtonAsButton | ButtonAsLink;
 
 const BASE =
-  'inline-flex items-center justify-center gap-1.5 rounded-xl transition-all cursor-pointer select-none no-underline ' +
+  'inline-flex items-center justify-center gap-1.5 rounded-full transition-all cursor-pointer select-none no-underline ' +
   'uppercase tracking-[.06em] ' +
   'active:scale-[0.97] disabled:active:scale-100 ' +
   'disabled:cursor-not-allowed disabled:opacity-50 ' +
@@ -43,13 +43,13 @@ const VARIANTS: Record<ButtonVariant, string> = {
     'hover:bg-rose-500/[.08] ' +
     'disabled:border-border disabled:text-muted disabled:hover:bg-transparent',
   tertiary:
-    'border border-border bg-transparent text-[#705260] font-bold ' +
+    'border border-border bg-transparent text-sub font-bold ' +
     'hover:border-rose-500/35 hover:text-rose-700 ' +
     'disabled:hover:border-border disabled:hover:text-muted',
 };
 
 const SIZES: Record<ButtonSize, string> = {
-  xs: 'text-[11px] px-[14px] py-2 rounded-[9px]',
+  xs: 'text-[11px] px-[14px] py-2',
   sm: 'text-[12.5px] px-4 py-[13px]',
   md: 'text-[13.5px] px-6 py-[14px]',
 };

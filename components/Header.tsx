@@ -114,8 +114,8 @@ export function Header({ active = '', tagline = '', collections = DEFAULT_COLLEC
     <header className="sticky top-0 z-50 font-archivo" aria-busy={navigating}>
       {/* Announcement strip */}
       {tagline && (
-        <div className="bg-[#200612] text-center py-[7px] px-3">
-          <span className="text-[10.5px] font-bold tracking-[.16em] uppercase text-[#ffe9f3]">
+        <div className="bg-rose-800 text-center py-[7px] px-3">
+          <span className="text-[10.5px] font-bold tracking-[.16em] uppercase text-rose-50">
             {tagline}
           </span>
         </div>
@@ -123,17 +123,17 @@ export function Header({ active = '', tagline = '', collections = DEFAULT_COLLEC
       <div
         className="flex items-center justify-between gap-2 sm:gap-5 px-3 sm:px-7 py-[13px] sm:py-[16px] transition-all max-w-full"
         style={{
-          background: scrolled ? 'rgba(253,251,247,.92)' : 'rgba(253,251,247,.84)',
+          background: scrolled ? 'rgba(253,251,246,.96)' : 'rgba(253,251,246,.9)',
           backdropFilter: 'blur(16px)',
-          borderBottom: '1px solid rgba(0,0,0,.08)',
+          borderBottom: '1px solid rgba(43,28,18,.08)',
         }}
       >
         {/* Logo */}
         <Link href="/" onClick={beginNavigation} className="flex items-center gap-[9px] sm:gap-[11px] no-underline flex-none min-w-0">
-          <div className="w-[34px] h-[34px] rounded-full overflow-hidden border border-[rgba(219,87,149,.22)] relative flex-none">
+          <div className="w-[34px] h-[34px] rounded-full overflow-hidden border border-[rgba(163,113,62,.25)] relative flex-none">
             <Image src="/logo-icon.png" alt="Dress Collection" fill sizes="34px" className="object-cover" />
           </div>
-          <span className="hidden min-[360px]:inline font-archivo-narrow font-semibold text-[15px] sm:text-[18px] tracking-[.22em] sm:tracking-[.28em] uppercase text-body whitespace-nowrap">
+          <span className="hidden min-[360px]:inline font-playfair font-semibold text-[17px] sm:text-[20px] tracking-[.16em] sm:tracking-[.2em] uppercase text-body whitespace-nowrap">
             Dress Collection
           </span>
         </Link>
@@ -156,16 +156,16 @@ export function Header({ active = '', tagline = '', collections = DEFAULT_COLLEC
         <div className="flex items-center gap-2 sm:gap-[10px] ml-auto flex-none">
           <button
             onClick={() => setSearchOpen(!searchOpen)}
-            className="w-10 h-10 rounded-full border border-[rgba(0,0,0,.1)] bg-transparent text-sub hover:text-rose-700 hover:border-[rgba(219,87,149,.4)] cursor-pointer flex items-center justify-center transition-all"
+            className="w-10 h-10 rounded-full border border-[rgba(43,28,18,.12)] bg-transparent text-sub hover:text-rose-700 hover:border-[rgba(163,113,62,.4)] cursor-pointer flex items-center justify-center transition-all"
             aria-label="Search"
           ><Search size={16} /></button>
-          <Link href="/status" onClick={beginNavigation} className="hidden md:inline-flex no-underline text-[11px] font-semibold uppercase tracking-[.06em] text-sub border border-[rgba(0,0,0,.1)] px-[15px] py-[10px] rounded-full hover:text-rose-700 hover:border-[rgba(219,87,149,.4)] transition-all whitespace-nowrap">
+          <Link href="/status" onClick={beginNavigation} className="hidden md:inline-flex no-underline text-[11px] font-semibold uppercase tracking-[.06em] text-sub border border-[rgba(43,28,18,.12)] px-[15px] py-[10px] rounded-full hover:text-rose-700 hover:border-[rgba(163,113,62,.4)] transition-all whitespace-nowrap">
             {copy.statusLabel}
           </Link>
-          <Link href="/cart" onClick={beginNavigation} aria-label="Cart" className="relative no-underline w-10 h-10 rounded-full border border-[rgba(219,87,149,.3)] bg-[rgba(219,87,149,.08)] text-rose-700 flex items-center justify-center">
+          <Link href="/cart" onClick={beginNavigation} aria-label="Cart" className="relative no-underline w-10 h-10 rounded-full border border-[rgba(163,113,62,.3)] bg-[rgba(163,113,62,.08)] text-rose-700 flex items-center justify-center">
             <ShoppingCart size={18} />
             {mounted && counts.total > 0 && (
-              <span key={counts.total} className="absolute -top-[7px] -right-[7px] min-w-[19px] h-[19px] px-[5px] rounded-full bg-rose-500 text-[#200612] text-[11px] font-black flex items-center justify-center tabular shadow-[0_0_0_2px_#fdfbf7] animate-pop">
+              <span key={counts.total} className="absolute -top-[7px] -right-[7px] min-w-[19px] h-[19px] px-[5px] rounded-full bg-rose-500 text-onPrimary text-[11px] font-black flex items-center justify-center tabular shadow-[0_0_0_2px_#fdfbf6] animate-pop">
                 {counts.total}
               </span>
             )}
@@ -174,7 +174,7 @@ export function Header({ active = '', tagline = '', collections = DEFAULT_COLLEC
           <button
             ref={menuButtonRef}
             onClick={() => { setMenuOpen((o) => !o); setSearchOpen(false); }}
-            className="lg:hidden w-10 h-10 rounded-full border border-[rgba(0,0,0,.1)] bg-transparent text-sub hover:text-rose-700 cursor-pointer flex items-center justify-center transition-all"
+            className="lg:hidden w-10 h-10 rounded-full border border-[rgba(43,28,18,.12)] bg-transparent text-sub hover:text-rose-700 cursor-pointer flex items-center justify-center transition-all"
             aria-label="Menu" aria-expanded={menuOpen}
           >{menuOpen ? <X size={18} /> : <Menu size={18} />}</button>
         </div>
@@ -189,17 +189,17 @@ export function Header({ active = '', tagline = '', collections = DEFAULT_COLLEC
           aria-label="Mobile navigation"
           aria-hidden={!menuOpen}
           className={`lg:hidden absolute inset-x-0 top-full z-40 flex flex-col px-4 gap-1 overflow-hidden shadow-[0_16px_36px_rgba(0,0,0,.14)] transition-[max-height,opacity] duration-300 [transition-timing-function:cubic-bezier(.16,1,.3,1)] ${menuOpen ? 'max-h-[70vh] opacity-100 py-3' : 'max-h-0 opacity-0 py-0 pointer-events-none'}`}
-          style={{ background: 'rgba(253,251,247,.98)', borderBottom: menuOpen ? '1px solid rgba(0,0,0,.08)' : 'none' }}
+          style={{ background: 'rgba(253,251,246,.98)', borderBottom: menuOpen ? '1px solid rgba(43,28,18,.08)' : 'none' }}
         >
           {navLinks.map((l) => {
             const on = active === l.key;
             return (
-              <Link key={l.key} href={l.href} onClick={beginNavigation} tabIndex={menuOpen ? undefined : -1} className={`no-underline text-[13px] uppercase tracking-[.06em] px-3 py-[12px] rounded-lg transition-colors ${on ? 'text-rose-700 bg-[rgba(219,87,149,.1)] font-bold' : 'text-sub hover:text-rose-700 font-semibold'}`}>
+              <Link key={l.key} href={l.href} onClick={beginNavigation} tabIndex={menuOpen ? undefined : -1} className={`no-underline text-[13px] uppercase tracking-[.06em] px-3 py-[12px] rounded-lg transition-colors ${on ? 'text-rose-700 bg-[rgba(163,113,62,.1)] font-bold' : 'text-sub hover:text-rose-700 font-semibold'}`}>
                 {l.label}
               </Link>
             );
           })}
-          <Link href="/status" onClick={beginNavigation} tabIndex={menuOpen ? undefined : -1} className="no-underline text-[13px] uppercase tracking-[.06em] px-3 py-[12px] rounded-lg text-sub font-semibold hover:text-rose-700 transition-colors border-t border-[rgba(0,0,0,.07)] mt-1 pt-3">
+          <Link href="/status" onClick={beginNavigation} tabIndex={menuOpen ? undefined : -1} className="no-underline text-[13px] uppercase tracking-[.06em] px-3 py-[12px] rounded-lg text-sub font-semibold hover:text-rose-700 transition-colors border-t border-[rgba(43,28,18,.08)] mt-1 pt-3">
             {copy.statusLabel}
           </Link>
         </nav>
@@ -211,7 +211,7 @@ export function Header({ active = '', tagline = '', collections = DEFAULT_COLLEC
           onSubmit={submitSearch} role="search"
           aria-hidden={!searchOpen}
           className={`absolute inset-x-0 top-full z-40 flex items-center gap-2 sm:gap-3 px-3 sm:px-7 max-w-full overflow-hidden shadow-[0_16px_36px_rgba(0,0,0,.14)] transition-[max-height,opacity] duration-300 [transition-timing-function:cubic-bezier(.16,1,.3,1)] ${searchOpen ? 'max-h-[70px] opacity-100 py-3' : 'max-h-0 opacity-0 py-0 pointer-events-none'}`}
-          style={{ background: 'rgba(253,251,247,.97)', borderBottom: searchOpen ? '1px solid rgba(0,0,0,.08)' : 'none' }}
+          style={{ background: 'rgba(253,251,246,.97)', borderBottom: searchOpen ? '1px solid rgba(43,28,18,.08)' : 'none' }}
         >
           <span className="text-muted" aria-hidden="true"><Search size={16} /></span>
           <input
@@ -223,7 +223,7 @@ export function Header({ active = '', tagline = '', collections = DEFAULT_COLLEC
             tabIndex={searchOpen ? undefined : -1}
             className="flex-1 min-w-0 bg-transparent border-none outline-none text-body font-archivo text-[15px] placeholder:text-muted"
           />
-          <button type="submit" tabIndex={searchOpen ? undefined : -1} className="border border-[rgba(219,87,149,.35)] bg-[rgba(219,87,149,.08)] text-rose-700 font-bold uppercase tracking-[.06em] text-[11px] px-[16px] py-[8px] rounded-full cursor-pointer whitespace-nowrap">Search</button>
+          <button type="submit" tabIndex={searchOpen ? undefined : -1} className="border border-[rgba(163,113,62,.35)] bg-[rgba(163,113,62,.08)] text-rose-700 font-bold uppercase tracking-[.06em] text-[11px] px-[16px] py-[8px] rounded-full cursor-pointer whitespace-nowrap">Search</button>
           <button type="button" onClick={() => setSearchOpen(false)} tabIndex={searchOpen ? undefined : -1} aria-label="Close search" className="border-none bg-transparent text-muted cursor-pointer"><X size={18} /></button>
         </form>
       )}
