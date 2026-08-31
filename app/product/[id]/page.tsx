@@ -4,6 +4,7 @@ import { getCatalog } from '@/lib/catalog';
 import { resolveSizeChart } from '@/lib/sizeChart';
 import { parseImageValue } from '@/lib/image-value';
 import { SITE_URL } from '@/lib/site';
+import { baseProductName } from '@/lib/utils';
 import { ProductDetailClient } from './ProductDetailClient';
 
 export const dynamic = 'force-dynamic';
@@ -39,9 +40,18 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   const product = products.find(p => p.id === id) ?? null;
   const colMeta = product ? collections.find(c => c.key === product.collection) : undefined;
   const chart = resolveSizeChart(sizeCharts, colMeta?.sizeChartId);
-  const related = product
-    ? products.filter(p => p.collection === product.collection && p.id !== product.id).slice(0, 4)
+  const base = product ? baseProductName(product.name) : '';
+  const colorSiblings = product
+    ? products.filter(p => p.id !== product.id && baseProductName(p.name) === base)
     : [];
+  const collectionRelated = product
+    ? products.filter(p =>
+        p.collection === product.collection &&
+        p.id !== product.id &&
+        !colorSiblings.some(s => s.id === p.id)
+      )
+    : [];
+  const related = [...colorSiblings, ...collectionRelated].slice(0, 4);
 
   const productJsonLd = product ? (() => {
     const imageValue = parseImageValue(product.img);

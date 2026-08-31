@@ -51,7 +51,7 @@ type SeedProduct = {
   img: string;
 };
 
-const products: SeedProduct[] = [
+const rawProducts: SeedProduct[] = [
   { id: 'rd-amara', name: 'Amara Wrap Midi', collection: 'ready', category: 'Midi Dresses', sub: 'Wrap · true to size', price: 620, was: null, stock: 24, status: ProductStatus.active, badge: 'New', colors: ['Blush', 'Terracotta'], sizes: ['XS', 'S', 'M', 'L', 'XL'], colorSizeStock: { Blush: { XS: 2, S: 3, M: 4, L: 3, XL: 1 }, Terracotta: { XS: 1, S: 3, M: 3, L: 2, XL: 2 } }, img: 'linear-gradient(150deg,#e63387,#600a32)' },
   { id: 'rd-coral', name: 'Coral Bay Midi', collection: 'ready', category: 'Midi Dresses', sub: 'A-line · lined', price: 590, was: 690, stock: 15, status: ProductStatus.active, badge: 'Sale', colors: ['Terracotta', 'Ivory'], sizes: ['XS', 'S', 'M', 'L'], img: 'linear-gradient(150deg,#c9704f,#402a33)' },
   { id: 'rd-horizon', name: 'Horizon Maxi Dress', collection: 'ready', category: 'Maxi Dresses', sub: 'Flowy · adjustable tie', price: 780, was: null, stock: 18, status: ProductStatus.active, badge: 'New', colors: ['Navy', 'Gold'], sizes: ['S', 'M', 'L', 'XL'], img: 'linear-gradient(150deg,#232a3d,#0e0a0b)' },
@@ -77,6 +77,42 @@ const products: SeedProduct[] = [
   { id: 'ac-scarf', name: 'Silk Scarf', collection: 'accessories', category: 'Belts & Scarves', sub: '90cm square', price: 140, was: null, stock: 0, status: ProductStatus.soldout, badge: null, colors: ['Blush'], sizes: ['One'], img: 'linear-gradient(135deg,#fc8ec1,#600a32)' },
   { id: 'ac-belt', name: 'Woven Waist Belt', collection: 'accessories', category: 'Belts & Scarves', sub: 'Adjustable · buckle', price: 160, was: null, stock: 27, status: ProductStatus.active, badge: null, colors: ['Black', 'Terracotta'], sizes: ['One'], img: 'linear-gradient(135deg,#180f13,#c9704f)' },
 ];
+
+// The seed used to ship one Product row per dress with multiple colors packed
+// into `colors: string[]`. Each color is now its own standalone product: the
+// first-listed color keeps the original id/name (nothing else references it
+// by id besides free-text order snapshots), every additional color becomes a
+// new product `${id}-${colorSlug}` named `${name} — ${Color}`. Stock is split
+// evenly across colors unless a real per-color breakdown already exists.
+function colorSlug(color: string): string {
+  return color.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
+
+function splitStockEvenly(total: number, n: number): number[] {
+  const base = Math.floor(total / n);
+  const rem = total % n;
+  return Array.from({ length: n }, (_, i) => base + (i < rem ? 1 : 0));
+}
+
+function splitByColor(p: SeedProduct): SeedProduct[] {
+  if (p.colors.length <= 1) return [p];
+  const stockPerColor = splitStockEvenly(p.stock, p.colors.length);
+  return p.colors.map((color, i) => {
+    const bySize = p.colorSizeStock?.[color];
+    const stock = bySize ? Object.values(bySize).reduce((a, b) => a + b, 0) : stockPerColor[i];
+    const { colorSizeStock: _drop, ...rest } = p;
+    return {
+      ...rest,
+      id: i === 0 ? p.id : `${p.id}-${colorSlug(color)}`,
+      name: i === 0 ? p.name : `${p.name} — ${color}`,
+      colors: [color],
+      stock,
+      ...(bySize ? { colorSizeStock: { [color]: bySize } } : {}),
+    };
+  });
+}
+
+const products: SeedProduct[] = rawProducts.flatMap(splitByColor);
 
 const orders = [
   { id: 'K7B4X', customer: 'Amina Shareef', email: 'amina@email.mv', items: 'Amara Wrap Midi ×1, Silk Scarf ×1', total: 835, method: OrderMethod.Delivery, stage: 3, date: '12 Jun 2026', paid: true },
