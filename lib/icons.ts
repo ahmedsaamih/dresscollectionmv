@@ -19,12 +19,13 @@ export const ADMIN_NAV_ICONS: Record<string, LucideIcon> = {
   customers: Users,
 };
 
-/** Homepage category cards. */
+/** Homepage category cards, keyed by Collection.key; `default` covers any collection not listed here. */
 export const CATEGORY_ICONS: Record<string, LucideIcon> = {
   ready: Package,
   occasion: Sparkles,
   casual: Shirt,
   accessories: Boxes,
+  default: Layers,
 };
 
 /** POS order fulfillment method. */

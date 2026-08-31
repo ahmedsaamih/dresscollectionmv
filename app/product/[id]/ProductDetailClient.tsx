@@ -11,6 +11,7 @@ import { MMCart, groupFixedLines } from '@/lib/cart';
 import { useCart } from '@/contexts/CartContext';
 import { useReveal } from '@/lib/useReveal';
 import { formatMVR, productColorHex, LOW_STOCK_THRESHOLD, STOCK_BAR_MAX } from '@/lib/utils';
+import { collectionHref } from '@/lib/collection-paths';
 import { Store, Home, Undo2, Check } from 'lucide-react';
 import { StarRating } from '@/components/StarRating';
 import { ProductCard } from '@/components/ProductCard';
@@ -21,14 +22,6 @@ const ACCORDIONS = [
   { title: 'Fabric & care', body: 'Machine wash cold, inside out, with similar colours. Do not tumble dry. Hang to dry and iron on a low heat if needed.' },
   { title: 'Shipping & delivery', body: 'Ships across the Maldives in 1–3 days. Delivery only — no pickup or showroom. Bank transfer, no card needed.' },
 ];
-
-const COLLECTION_PATHS: Record<string, string> = {
-  ready: '/ready-made',
-  casual: '/casual-wear',
-  accessories: '/accessories',
-};
-
-const collectionHref = (key: string) => COLLECTION_PATHS[key] ?? `/${key}`;
 
 function StockBar({ stock }: { stock: number }) {
   const pct = Math.min(100, (stock / STOCK_BAR_MAX) * 100);

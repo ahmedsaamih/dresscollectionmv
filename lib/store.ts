@@ -46,10 +46,10 @@ const SEED: StoreData = {
     smsLastTestAt: null,
   },
   collections: [
-    { id: 'cl-ready',       key: 'ready',       label: 'New Arrivals',     sizeChartId: null },
-    { id: 'cl-casual',      key: 'casual',      label: 'Casual Dresses',   sizeChartId: null },
-    { id: 'cl-occasion',    key: 'occasion',    label: 'Party & Occasion', sizeChartId: null },
-    { id: 'cl-accessories', key: 'accessories', label: 'Accessories',      sizeChartId: null },
+    { id: 'cl-ready',       key: 'ready',       label: 'New Arrivals',     sortOrder: 0, sizeChartId: null },
+    { id: 'cl-occasion',    key: 'occasion',    label: 'Party & Occasion', sortOrder: 1, sizeChartId: null },
+    { id: 'cl-casual',      key: 'casual',      label: 'Casual Dresses',   sortOrder: 2, sizeChartId: null },
+    { id: 'cl-accessories', key: 'accessories', label: 'Accessories',      sortOrder: 3, sizeChartId: null },
   ],
   categories: [
     { id: 'c-midi',       name: 'Midi Dresses',     collection: 'ready',       count: 2 },

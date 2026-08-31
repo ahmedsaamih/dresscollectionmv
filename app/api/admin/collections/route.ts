@@ -22,11 +22,13 @@ export async function POST(request: Request) {
     const session = await requirePermission('categories', 'edit');
     const { label, sizeChartId } = collectionCreateSchema.parse(await request.json());
     const key = await uniqueKey(label);
+    const { _max } = await prisma.collection.aggregate({ _max: { sortOrder: true } });
+    const sortOrder = (_max.sortOrder ?? -1) + 1; // append after the current last tile
 
-    const created = await prisma.collection.create({ data: { id: genId('cl'), key, label, sizeChartId: sizeChartId ?? null } });
+    const created = await prisma.collection.create({ data: { id: genId('cl'), key, label, sortOrder, sizeChartId: sizeChartId ?? null } });
     await audit(session.email, 'collection.create', key, { label, sizeChartId });
     revalidateTag('catalog', { expire: 0 });
-    return ok({ collection: { id: created.id, key: created.key, label: created.label, sizeChartId: created.sizeChartId } }, 201);
+    return ok({ collection: { id: created.id, key: created.key, label: created.label, sortOrder: created.sortOrder, sizeChartId: created.sizeChartId } }, 201);
   } catch (err) {
     return handleError(err);
   }

@@ -138,6 +138,7 @@ export interface StoreCollection {
   id: string;
   key: string;      // slug, e.g. "ready"
   label: string;    // display, e.g. "Ready-Made"
+  sortOrder: number; // display order on the storefront (e.g. homepage "Shop by Category")
   sizeChartId: string | null; // → SizeChart.id; null = falls back to the default chart
 }
 

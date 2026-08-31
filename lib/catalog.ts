@@ -159,7 +159,7 @@ async function fetchCatalog(): Promise<CatalogData> {
     reviewRows,
   ] = await Promise.all([
     prisma.setting.findUnique({ where: { id: 'singleton' } }),
-    prisma.collection.findMany(),
+    prisma.collection.findMany({ orderBy: { sortOrder: 'asc' } }),
     prisma.category.findMany(),
     prisma.product.findMany({
       where: { status: 'active', showInWebStore: true },
@@ -233,7 +233,7 @@ async function fetchCatalog(): Promise<CatalogData> {
 
   return {
     settings,
-    collections: collections.map((c) => ({ id: c.id, key: c.key, label: c.label, sizeChartId: c.sizeChartId })),
+    collections: collections.map((c) => ({ id: c.id, key: c.key, label: c.label, sortOrder: c.sortOrder, sizeChartId: c.sizeChartId })),
     categories: categories.map((c) => ({
       id: c.id,
       name: c.name,

@@ -1,21 +1,13 @@
 import type { MetadataRoute } from 'next';
 import { getCatalog } from '@/lib/catalog';
 import { SITE_URL } from '@/lib/site';
+import { COLLECTION_PATHS } from '@/lib/collection-paths';
 
 // Server-rendered per request (backed by getCatalog()'s own cache) rather
 // than statically generated at build time — this sandbox/build has no
 // DATABASE_URL available during `next build`'s static-generation phase,
 // matching every other DB-backed route in this app.
 export const dynamic = 'force-dynamic';
-
-// Collection keys that already have a dedicated static page at a nicer URL
-// (see COLLECTION_PATHS in app/product/[id]/ProductDetailClient.tsx) — skip
-// these here to avoid emitting two URLs for the same content.
-const COLLECTION_PATHS: Record<string, string> = {
-  ready: '/ready-made',
-  casual: '/casual-wear',
-  accessories: '/accessories',
-};
 
 const STATIC_ROUTES: Array<{
   path: string;

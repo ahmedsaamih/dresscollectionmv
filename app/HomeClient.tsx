@@ -10,7 +10,22 @@ import { ProductCard } from '@/components/ProductCard';
 import { useReveal } from '@/lib/useReveal';
 import { StarRating } from '@/components/StarRating';
 import { CATEGORY_ICONS } from '@/lib/icons';
+import { collectionHref } from '@/lib/collection-paths';
 import type { Product, StoreCollection, StoreSetting, Testimonial } from '@/lib/types';
+
+// Per-collection homepage tile image, keyed by Collection.key — these are the
+// only 4 image slots an admin can configure today (see app/admin/page.tsx's
+// CATEGORY_IMAGE_FIELDS); a collection outside this set renders its icon
+// instead of a photo.
+function categoryTileImage(settings: StoreSetting, key: string): string {
+  const byKey: Record<string, string> = {
+    ready: settings.categoryReadyImage,
+    occasion: settings.categoryCustomImage,
+    casual: settings.categoryCasualImage,
+    accessories: settings.categoryAccessoriesImage,
+  };
+  return byKey[key] ?? '';
+}
 
 interface HomeClientProps {
   settings: StoreSetting;
@@ -97,12 +112,13 @@ export function HomeClient({ settings, collections, featured, accessories, testi
       {/* ── SHOP BY CATEGORY ── */}
       <section className="max-w-[1180px] mx-auto px-5 sm:px-8 pt-[72px] pb-[24px] border-t border-[rgba(43,28,18,.07)]">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-12">
-          {[
-            { title: 'New Arrivals', href: '/ready-made', icon: CATEGORY_ICONS.ready, img: settings.categoryReadyImage },
-            { title: 'Party & Occasion', href: '/occasion', icon: CATEGORY_ICONS.occasion, img: settings.categoryCustomImage },
-            { title: 'Casual Dresses', href: '/casual-wear', icon: CATEGORY_ICONS.casual, img: settings.categoryCasualImage },
-            { title: 'Accessories', href: '/accessories', icon: CATEGORY_ICONS.accessories, img: settings.categoryAccessoriesImage },
-          ].map((c) => {
+          {collections.slice(0, 4).map((col) => ({
+            key: col.key,
+            title: col.label,
+            href: collectionHref(col.key),
+            icon: CATEGORY_ICONS[col.key] ?? CATEGORY_ICONS.default,
+            img: categoryTileImage(settings, col.key),
+          })).map((c) => {
             const hasImg = !!c.img;
             return (
               <Link key={c.href} href={c.href} data-reveal

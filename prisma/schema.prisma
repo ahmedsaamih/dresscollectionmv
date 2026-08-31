@@ -110,6 +110,7 @@ model Collection {
   id          String     @id
   key         String     @unique // slug, e.g. "ready"
   label       String
+  sortOrder   Int        @default(0) // display order on the storefront (e.g. homepage "Shop by Category")
   sizeChartId String? // → SizeChart.id; null = falls back to the default chart
   sizeChart   SizeChart? @relation(fields: [sizeChartId], references: [id], onDelete: SetNull)
   categories  Category[]

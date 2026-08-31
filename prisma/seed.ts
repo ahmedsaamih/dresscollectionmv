@@ -21,10 +21,10 @@ const settings = {
 };
 
 const collections = [
-  { id: 'cl-ready', key: 'ready', label: 'New Arrivals' },
-  { id: 'cl-casual', key: 'casual', label: 'Casual Dresses' },
-  { id: 'cl-occasion', key: 'occasion', label: 'Party & Occasion' },
-  { id: 'cl-accessories', key: 'accessories', label: 'Accessories' },
+  { id: 'cl-ready', key: 'ready', label: 'New Arrivals', sortOrder: 0 },
+  { id: 'cl-occasion', key: 'occasion', label: 'Party & Occasion', sortOrder: 1 },
+  { id: 'cl-casual', key: 'casual', label: 'Casual Dresses', sortOrder: 2 },
+  { id: 'cl-accessories', key: 'accessories', label: 'Accessories', sortOrder: 3 },
 ];
 
 const categories = [
@@ -79,11 +79,12 @@ const rawProducts: SeedProduct[] = [
 ];
 
 // The seed used to ship one Product row per dress with multiple colors packed
-// into `colors: string[]`. Each color is now its own standalone product: the
-// first-listed color keeps the original id/name (nothing else references it
-// by id besides free-text order snapshots), every additional color becomes a
-// new product `${id}-${colorSlug}` named `${name} — ${Color}`. Stock is split
-// evenly across colors unless a real per-color breakdown already exists.
+// into `colors: string[]`. Each color is now its own standalone product,
+// sharing the same display name (colour is conveyed by the swatch, not the
+// name): the first-listed color keeps the original id (nothing else
+// references it by id besides free-text order snapshots), every additional
+// color becomes a new product `${id}-${colorSlug}`. Stock is split evenly
+// across colors unless a real per-color breakdown already exists.
 function colorSlug(color: string): string {
   return color.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
@@ -104,7 +105,7 @@ function splitByColor(p: SeedProduct): SeedProduct[] {
     return {
       ...rest,
       id: i === 0 ? p.id : `${p.id}-${colorSlug(color)}`,
-      name: i === 0 ? p.name : `${p.name} — ${color}`,
+      name: p.name,
       colors: [color],
       stock,
       ...(bySize ? { colorSizeStock: { [color]: bySize } } : {}),

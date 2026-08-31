@@ -1,10 +1,12 @@
 // One-time data migration: split every multi-color Product into one Product
 // per color, same idea as the `splitByColor` step in prisma/seed.ts, but
-// against real data instead of rewriting seed fixtures. A color's own
-// Inventory rows (every location), StockTransfer/StockAdjustment history,
-// and InventoryPlacement all move to (or get copied onto) the new product;
-// Orders/OrderItems are untouched since they only snapshot color/sku as
-// plain strings, never an FK to Product.
+// against real data instead of rewriting seed fixtures. Every resulting
+// product shares the same display name (colour is conveyed by the swatch,
+// not the name). A color's own Inventory rows (every location),
+// StockTransfer/StockAdjustment history, and InventoryPlacement all move to
+// (or get copied onto) the new product; Orders/OrderItems are untouched
+// since they only snapshot color/sku as plain strings, never an FK to
+// Product.
 //
 // This is a plain script, NOT a prisma/migrations entry — it never runs via
 // `prisma migrate deploy`, so it only ever runs when someone invokes it by
@@ -74,14 +76,14 @@ async function main() {
       const { sizeStock, stock } = computeStock(colorRows);
       const newImg = colorImages[color] || p.img;
 
-      console.log(`  -> create ${newId} "${p.name} — ${color}" stock=${stock} (${colorRows.length} inventory rows moving)`);
+      console.log(`  -> create ${newId} "${p.name}" (${color}) stock=${stock} (${colorRows.length} inventory rows moving)`);
 
       if (!DRY_RUN) {
         await prisma.$transaction(async (tx) => {
           await tx.product.create({
             data: {
               id: newId,
-              name: `${p.name} — ${color}`,
+              name: p.name,
               collection: p.collection,
               category: p.category,
               sub: p.sub,

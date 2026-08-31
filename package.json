@@ -16,6 +16,8 @@
     "db:reset": "prisma migrate reset",
     "db:studio": "prisma studio",
     "migrate:split-colors": "tsx scripts/split-production-colors.ts",
+    "migrate:clean-test-orders": "tsx scripts/clean-test-orders.ts",
+    "migrate:strip-color-suffix-names": "tsx scripts/strip-color-suffix-names.ts",
     "postinstall": "prisma generate"
   },
   "prisma": {

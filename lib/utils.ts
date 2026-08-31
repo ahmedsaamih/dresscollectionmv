@@ -26,11 +26,6 @@ export function computeEffectivePrice(price: number, discountType: string | null
 }
 
 
-/** Strips the " — Colour" suffix used to disambiguate a colour split off a base product. */
-export function baseProductName(name: string): string {
-  return name.split(' — ')[0].trim();
-}
-
 export const LOW_STOCK_THRESHOLD = 5; // customer-facing "running low" cutoff
 export const STOCK_BAR_MAX = 20; // visual reference: bar reads "full" at this many units — not a business rule
 

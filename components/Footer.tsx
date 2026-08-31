@@ -14,10 +14,10 @@ const SOCIAL_LINKS = [
 // Matches Header.tsx's fallback — used by the handful of static pages not yet
 // converted to server-fetched props.
 const DEFAULT_COLLECTIONS: StoreCollection[] = [
-  { id: 'cl-ready', key: 'ready', label: 'New Arrivals', sizeChartId: null },
-  { id: 'cl-casual', key: 'casual', label: 'Casual Dresses', sizeChartId: null },
-  { id: 'cl-occasion', key: 'occasion', label: 'Party & Occasion', sizeChartId: null },
-  { id: 'cl-accessories', key: 'accessories', label: 'Accessories', sizeChartId: null },
+  { id: 'cl-ready', key: 'ready', label: 'New Arrivals', sortOrder: 0, sizeChartId: null },
+  { id: 'cl-occasion', key: 'occasion', label: 'Party & Occasion', sortOrder: 1, sizeChartId: null },
+  { id: 'cl-casual', key: 'casual', label: 'Casual Dresses', sortOrder: 2, sizeChartId: null },
+  { id: 'cl-accessories', key: 'accessories', label: 'Accessories', sortOrder: 3, sizeChartId: null },
 ];
 
 interface FooterProps {

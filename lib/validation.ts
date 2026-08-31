@@ -169,6 +169,7 @@ export const collectionCreateSchema = z.object({
 export const collectionUpdateSchema = z.object({
   label: z.string().trim().min(1),
   sizeChartId: z.string().trim().nullish(),
+  sortOrder: z.number().int().optional(),
 });
 
 export const categoryCreateSchema = z.object({
