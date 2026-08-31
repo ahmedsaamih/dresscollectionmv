@@ -9,7 +9,7 @@ import { HeroCarousel } from '@/components/HeroCarousel';
 import { ProductCard } from '@/components/ProductCard';
 import { useReveal } from '@/lib/useReveal';
 import { StarRating } from '@/components/StarRating';
-import { CATEGORY_ICONS, TRUST_BADGE_ICONS } from '@/lib/icons';
+import { CATEGORY_ICONS } from '@/lib/icons';
 import type { Product, StoreCollection, StoreSetting, Testimonial } from '@/lib/types';
 
 interface HomeClientProps {
@@ -23,7 +23,6 @@ interface HomeClientProps {
 export function HomeClient({ settings, collections, featured, accessories, testimonials }: HomeClientProps) {
   const copy = settings.storefrontCopy.homepageNavigation;
   const viewOptionsLabel = settings.storefrontCopy.productCatalog.viewOptionsLabel;
-  const trust = settings.storefrontCopy.trustBadges;
   useReveal();
 
   return (
@@ -73,33 +72,30 @@ export function HomeClient({ settings, collections, featured, accessories, testi
         </div>
       </section>
 
-      {/* ── TRUST BADGES ── */}
-      <section data-reveal className="max-w-[1180px] mx-auto px-5 sm:px-8 py-[48px] border-b border-[rgba(43,28,18,.07)]">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-9 gap-x-4 text-center">
-          {[
-            { label: trust.badgeOneLabel, sub: trust.badgeOneSub },
-            { label: trust.badgeTwoLabel, sub: trust.badgeTwoSub },
-            { label: trust.badgeThreeLabel, sub: trust.badgeThreeSub },
-            { label: trust.badgeFourLabel, sub: trust.badgeFourSub },
-          ].map((b, i) => {
-            const Icon = TRUST_BADGE_ICONS[i];
-            return (
-              <div key={i} className="flex flex-col items-center gap-3">
-                <div className="w-[54px] h-[54px] rounded-full flex items-center justify-center bg-[rgba(163,113,62,.1)] text-rose-700">
-                  <Icon size={22} strokeWidth={1.5} />
-                </div>
-                <div>
-                  <div className="text-[12.5px] font-bold uppercase tracking-[.05em] text-body">{b.label}</div>
-                  <div className="text-[11.5px] text-muted mt-[3px]">{b.sub}</div>
-                </div>
-              </div>
-            );
-          })}
+      {/* ── FEATURED DRESSES ── */}
+      <section className="max-w-[1180px] mx-auto px-5 sm:px-8 py-[64px]">
+        <div data-reveal className="text-center mb-12">
+          <div className="inline-flex items-center gap-[9px] text-[12px] font-bold tracking-[.18em] uppercase text-rose-600 mb-3">
+            <span className="w-[22px] h-px bg-rose-500" />{copy.featuredEyebrow}<span className="w-[22px] h-px bg-rose-500" />
+          </div>
+          <h2 className="font-playfair font-semibold text-[32px] sm:text-[40px] tracking-[.01em]">{copy.featuredTitle}</h2>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-[24px] gap-y-[44px]">
+          {featured.map((p) => (
+            <div key={p.id} data-motion-card>
+              <ProductCard product={p} viewOptionsLabel={viewOptionsLabel} />
+            </div>
+          ))}
+        </div>
+        <div className="text-center mt-14">
+          <Button href="/ready-made" variant="tertiary" size="md">
+            {copy.featuredViewAll} →
+          </Button>
         </div>
       </section>
 
       {/* ── SHOP BY CATEGORY ── */}
-      <section className="max-w-[1180px] mx-auto px-5 sm:px-8 pt-[72px] pb-[24px]">
+      <section className="max-w-[1180px] mx-auto px-5 sm:px-8 pt-[72px] pb-[24px] border-t border-[rgba(43,28,18,.07)]">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-12">
           {[
             { title: 'New Arrivals', href: '/ready-made', icon: CATEGORY_ICONS.ready, img: settings.categoryReadyImage },
@@ -125,28 +121,6 @@ export function HomeClient({ settings, collections, featured, accessories, testi
               </Link>
             );
           })}
-        </div>
-      </section>
-
-      {/* ── FEATURED DRESSES ── */}
-      <section className="max-w-[1180px] mx-auto px-5 sm:px-8 py-[64px]">
-        <div data-reveal className="text-center mb-12">
-          <div className="inline-flex items-center gap-[9px] text-[12px] font-bold tracking-[.18em] uppercase text-rose-600 mb-3">
-            <span className="w-[22px] h-px bg-rose-500" />{copy.featuredEyebrow}<span className="w-[22px] h-px bg-rose-500" />
-          </div>
-          <h2 className="font-playfair font-semibold text-[32px] sm:text-[40px] tracking-[.01em]">{copy.featuredTitle}</h2>
-        </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-[24px] gap-y-[44px]">
-          {featured.map((p) => (
-            <div key={p.id} data-motion-card>
-              <ProductCard product={p} viewOptionsLabel={viewOptionsLabel} />
-            </div>
-          ))}
-        </div>
-        <div className="text-center mt-14">
-          <Button href="/ready-made" variant="tertiary" size="md">
-            {copy.featuredViewAll} →
-          </Button>
         </div>
       </section>
 

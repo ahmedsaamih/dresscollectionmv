@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'New Arrivals',
-  description: 'Fresh styles, ready to ship. Shop new arrival dresses, delivered across the Maldives.',
+  description: 'Fresh styles, ready to ship. Shop new arrival tops, delivered across the Maldives.',
   alternates: { canonical: '/ready-made' },
   openGraph: { url: '/ready-made' },
 };
@@ -32,7 +32,7 @@ export default async function ReadyMadePage() {
       subtitle="Fresh styles, ready to ship."
       categoryLabel="Style"
       products={filtered}
-      noun="dresses"
+      noun="tops"
       sizeChart={chart}
     />
   );
